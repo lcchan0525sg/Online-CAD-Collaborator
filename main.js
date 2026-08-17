@@ -212,8 +212,9 @@ function buildPartsTree(root) {
     r.hasKids = allPartRows.some((o) => o.key.startsWith(r.key + '.'));
     if (r.hasKids) r.toggle.style.visibility = 'visible';
   }
-  // Default: everything collapsed -> only the first level is visible.
-  collapsedPaths = new Set(allPartRows.filter((r) => r.hasKids).map((r) => r.key));
+  // Default: collapse parents at depth >= 1, so the tree initially shows two
+  // levels (top assembly + its direct children); deeper levels start collapsed.
+  collapsedPaths = new Set(allPartRows.filter((r) => r.hasKids && r.depth >= 1).map((r) => r.key));
   renderCollapseState();
   if (!count) partsEl.innerHTML = '<span class="hint">—</span>';
 }
