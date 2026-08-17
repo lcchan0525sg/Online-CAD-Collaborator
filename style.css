@@ -206,6 +206,8 @@ body {
 .partrow input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; flex: 0 0 auto; }
 .partname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .partrow.off .partname { color: var(--muted); text-decoration: line-through; }
+.partrow.sel { background: rgba(47, 125, 255, 0.14); box-shadow: inset 2px 0 0 var(--accent); }
+.partrow.sel .partname { color: var(--accent); font-weight: 600; }
 .parttoggle {
   flex: 0 0 16px;
   width: 16px;

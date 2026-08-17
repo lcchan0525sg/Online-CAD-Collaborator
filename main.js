@@ -93,6 +93,7 @@ function clearModel() {
   });
   model = null;
   clearPartsTree();
+  clearPartSelection();
 }
 
 /* ---- Assembly tree: list parts (from GLB node hierarchy) with visibility
@@ -184,6 +185,13 @@ function buildPartsTree(root) {
         span.className = 'partname';
         span.textContent = child.name || `Part ${count}`;
         span.title = child.name || `Part ${count}`;
+        // Clicking the part name SELECTS it and highlights it in the viewport.
+        // preventDefault stops the <label> from toggling the visibility checkbox.
+        span.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          selectPart(key);
+        });
         row.append(toggle, cb, span);
         row.addEventListener('contextmenu', (e) => {
           e.preventDefault();
@@ -227,7 +235,6 @@ const partMenuEl = document.getElementById('part-menu');
 const partMenuOnlyEl = document.getElementById('part-menu-only');
 let partMenuKey = null;
 let partMenuHideTimer = null;
-
 function showPartMenu(x, y, key) {
   if (!partMenuEl) return;
   partMenuKey = key;
@@ -272,6 +279,52 @@ partMenuOnlyEl?.addEventListener('click', () => {
   hidePartMenu();
   if (key) showOnlyPart(key);
 });
+
+/* ---- Part selection highlight ---- */
+// Clicking a part name highlights that part (and its children) in the viewport
+// via emissive on per-mesh material CLONES — GLB parts often share materials,
+// so mutating the shared material would tint every part that uses it.
+let selectedPartKey = null;
+let selectedMaterialCopies = [];   // [{ mesh, original }]
+
+function clearPartSelection() {
+  for (const { mesh, original } of selectedMaterialCopies) {
+    mesh.material = original;
+  }
+  selectedMaterialCopies = [];
+  if (selectedPartKey) {
+    const prev = partRows.get(selectedPartKey);
+    if (prev) prev.row.classList.remove('sel');
+    selectedPartKey = null;
+  }
+}
+
+function selectPart(key) {
+  if (!model || !key) return;
+  if (key === selectedPartKey) {   // click again -> toggle off
+    clearPartSelection();
+    return;
+  }
+  clearPartSelection();
+  const node = nodeAtPath(model.children[0], key.split('.').map(Number));
+  if (!node) return;
+  selectedPartKey = key;
+  const row = partRows.get(key);
+  if (row) row.row.classList.add('sel');
+  // Highlight every mesh in this part's subtree.
+  node.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    const clones = mats.map((m) => {
+      const c = m.clone();
+      c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
+      c.emissiveIntensity = 0.55;
+      return c;
+    });
+    selectedMaterialCopies.push({ mesh: o, original: o.material });
+    o.material = Array.isArray(o.material) ? clones : clones[0];
+  });
+}
 // Clicking elsewhere / scrolling dismisses the menu.
 document.addEventListener('click', () => { partMenuHideTimer = setTimeout(hidePartMenu, 0); });
 document.addEventListener('contextmenu', () => { partMenuHideTimer = setTimeout(hidePartMenu, 0); });
