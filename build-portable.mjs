@@ -31,6 +31,12 @@ const installBat = join(ROOT, 'install-docker-opencascade.bat');
 if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
 const dockerFile = join(ROOT, 'Dockerfile');
 if (existsSync(dockerFile)) copyFileSync(dockerFile, join(APP, 'Dockerfile'));
+// User manual (PDF + MD + screenshots referenced by the MD)
+if (existsSync(join(ROOT, 'USER-MANUAL.pdf'))) copyFileSync(join(ROOT, 'USER-MANUAL.pdf'), join(APP, 'USER-MANUAL.pdf'));
+if (existsSync(join(ROOT, 'USER-MANUAL.md'))) copyFileSync(join(ROOT, 'USER-MANUAL.md'), join(APP, 'USER-MANUAL.md'));
+if (existsSync(join(ROOT, 'manual-shots'))) {
+  cpSync(join(ROOT, 'manual-shots'), join(APP, 'manual-shots'), { recursive: true });
+}
 
 // ---- slim three (only what main.js imports) ----
 const T = join(ROOT, 'node_modules', 'three');
@@ -90,6 +96,10 @@ writeFileSync(join(APP, 'README.txt'), [
   'Then open http://localhost:4322/  (the launcher opens it for you).',
   '',
   'The zip bundles node.exe, so NO installs are needed on Windows.',
+  '',
+  'User manual:',
+  '  Open USER-MANUAL.pdf (or USER-MANUAL.md) for full instructions with',
+  '  screenshots — starting the app, opening models, sessions, part visibility.',
   '',
   'Sharing:',
   '  Host clicks "Create session", then shares a model. Other users on the same',
