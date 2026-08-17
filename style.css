@@ -224,6 +224,31 @@ body {
 }
 .parttoggle:hover { border-color: var(--accent); color: var(--accent); }
 
+/* right-click context menu for parts */
+.part-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 130px;
+  background: var(--panel2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+.part-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 5px;
+  color: var(--text);
+  font-size: 12.5px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+.part-menu button:hover { background: var(--accent); color: #fff; }
+
 /* ---------- Viewport ---------- */
 #viewport {
   flex: 1;

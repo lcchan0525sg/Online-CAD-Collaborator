@@ -169,6 +169,11 @@ function buildPartsTree(root) {
         span.textContent = child.name || `Part ${count}`;
         span.title = child.name || `Part ${count}`;
         row.append(toggle, cb, span);
+        row.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showPartMenu(e.clientX, e.clientY, key);
+        });
         partsEl.appendChild(row);
         partRows.set(key, { cb, row });
         allPartRows.push({ key, row, toggle, depth });
@@ -200,6 +205,56 @@ function renderCollapseState() {
     if (r.hasKids) r.toggle.textContent = collapsedPaths.has(r.key) ? '+' : '–';
   }
 }
+
+/* ---- Right-click context menu: "Show me only" ---- */
+const partMenuEl = document.getElementById('part-menu');
+const partMenuOnlyEl = document.getElementById('part-menu-only');
+let partMenuKey = null;
+let partMenuHideTimer = null;
+
+function showPartMenu(x, y, key) {
+  if (!partMenuEl) return;
+  partMenuKey = key;
+  partMenuEl.style.left = `${x}px`;
+  partMenuEl.style.top = `${y}px`;
+  partMenuEl.hidden = false;
+  if (partMenuHideTimer) { clearTimeout(partMenuHideTimer); partMenuHideTimer = null; }
+}
+function hidePartMenu() {
+  if (partMenuEl) partMenuEl.hidden = true;
+  partMenuKey = null;
+}
+
+// Hide every part that is NOT the selected part (or one of its children).
+// The selected part + its whole subtree stay visible; everything else turns off.
+function showOnlyPart(key) {
+  if (!model || !key) return;
+  const ops = [];
+  const root = model.children[0];
+  for (const r of allPartRows) {
+    const keep = r.key === key || r.key.startsWith(key + '.');
+    const node = nodeAtPath(root, r.key.split('.').map(Number));
+    if (!node) continue;
+    node.visible = keep;
+    const entry = partRows.get(r.key);
+    if (entry) {
+      entry.cb.checked = keep;
+      entry.row.classList.toggle('off', !keep);
+    }
+    ops.push({ path: r.key.split('.').map(Number), visible: keep });
+  }
+  broadcastParts(ops);
+}
+
+partMenuOnlyEl?.addEventListener('click', () => {
+  const key = partMenuKey;   // capture BEFORE hidePartMenu() nulls it
+  hidePartMenu();
+  if (key) showOnlyPart(key);
+});
+// Clicking elsewhere / scrolling dismisses the menu.
+document.addEventListener('click', () => { partMenuHideTimer = setTimeout(hidePartMenu, 0); });
+document.addEventListener('contextmenu', () => { partMenuHideTimer = setTimeout(hidePartMenu, 0); });
+document.addEventListener('scroll', hidePartMenu, true);
 
 function setAllParts(visible) {
   if (!model) return;
