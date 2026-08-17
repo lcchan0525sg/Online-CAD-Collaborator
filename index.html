@@ -17,18 +17,41 @@
       <section class="section">
         <h2>Model</h2>
         <div class="actions">
-          <button class="btn primary" id="btn-load-chair">Load chair.glb</button>
-          <label class="btn filebtn">
-            Open &hellip;
+          <label class="btn primary filebtn">
+            Open model &hellip;
             <input type="file" id="file" accept=".glb,.gltf,.step,.stp" hidden>
           </label>
         </div>
-        <div class="actions" style="margin-top:8px">
-          <button class="btn" data-sample="/samples/DamagedHelmet.glb">Helmet (Khronos)</button>
-          <button class="btn" data-sample="/samples/Avocado.glb">Avocado (Khronos)</button>
-          <button class="btn" id="btn-sample-step">Chair (STEP &rarr; GLB)</button>
+        <p class="hint">Load any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip; STEP files are converted to GLB by the OpenCascade kernel (Docker) on the server &mdash; allow a few seconds. In a session, whatever you open is shared with the other viewers.</p>
+      </section>
+
+      <section class="section">
+        <h2>Share session</h2>
+        <div id="session-status" class="session-status">not in a session</div>
+
+        <div id="session-controls">
+          <div class="row toggle">
+            <button class="btn primary" id="btn-create-session">Create session</button>
+          </div>
+          <p class="hint" style="margin-top:2px">Share the code below with others so they can view the same model. You can then upload/share any model here and everyone sees it. Camera is synced &mdash; rotate or zoom and the others follow (and vice&nbsp;versa).</p>
+          <div class="actions" style="margin-top:10px">
+            <input type="text" id="join-code" placeholder="session code" maxlength="12" autocomplete="off" spellcheck="false">
+            <button class="btn" id="btn-join-session">Join</button>
+          </div>
         </div>
-        <p class="hint">Loads any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip; STEP files are converted to GLB by the OpenCascade kernel (Docker) on the server &mdash; allow a few seconds.</p>
+
+        <div id="session-active" hidden>
+          <div class="session-code-row">
+            <span class="hint" style="margin:0">code</span>
+            <span id="session-code" class="session-code"></span>
+          </div>
+          <div class="session-link-row">
+            <span class="hint" style="margin:0">join</span>
+            <a id="session-link" class="session-link" href="#" target="_blank" rel="noopener"></a>
+          </div>
+          <div id="roster" class="mats" style="margin-top:8px"></div>
+          <button class="btn" id="btn-leave-session" style="margin-top:10px">Leave session</button>
+        </div>
       </section>
 
       <section class="section">
@@ -51,6 +74,15 @@
       </section>
 
       <section class="section">
+        <h2>Assembly</h2>
+        <div class="row toggle" style="margin-bottom:6px">
+          <button class="btn" id="btn-parts-all" style="flex:1">Show all</button>
+          <button class="btn" id="btn-parts-none" style="flex:1">Hide all</button>
+        </div>
+        <div id="parts" class="parts"><span class="hint">—</span></div>
+      </section>
+
+      <section class="section">
         <h2>Materials</h2>
         <div id="mats" class="mats"><span class="hint">—</span></div>
       </section>
@@ -62,6 +94,17 @@
         <h1>CAD Viewer</h1>
         <p>drag&nbsp;to orbit &middot; scroll&nbsp;to zoom &middot; right-drag&nbsp;to pan</p>
       </div>
+
+      <!-- Model-transfer overlay: blocks interaction until the shared model is fully received -->
+      <div id="xfer-overlay" hidden>
+        <div class="xfer-card">
+          <div class="xfer-spinner"></div>
+          <div class="xfer-title" id="xfer-title">Transferring model&hellip;</div>
+          <div class="xfer-sub" id="xfer-sub">connecting</div>
+          <div class="xfer-bar"><div class="xfer-fill" id="xfer-fill"></div></div>
+        </div>
+      </div>
+      <div id="xfer-toast" hidden></div>
     </main>
   </div>
 
