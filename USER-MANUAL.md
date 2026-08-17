@@ -62,13 +62,45 @@ The sidebar shows you:
 
 ## 3. The Assembly panel — parts and visibility
 
-Every part of the model appears in the **Assembly** tree. Use the checkboxes
-to show or hide individual parts, or **Show all / Hide all** for the whole model.
+Every part of the model appears in the **Assembly** tree. The tree opens
+expanded to **level 2** (the top assembly plus its direct children); deeper
+levels are collapsed until you expand them.
 
 ![Assembly tree with the part list](manual-shots/03-assembly-panel.png)
 
-**Tip:** toggling a part hides it in the viewport only for you — unless you're
-in a session (see §5), where show/hide syncs to everyone.
+### Expand / collapse
+
+- Rows that contain sub-parts show a **+/− toggle** on the left.
+- Click **+** to expand (show children), **–** to collapse (hide them).
+- Expanding/collapsing is purely visual — it never changes part visibility.
+
+### Show / hide parts
+
+- **Checkbox** per part: uncheck to hide it in the viewport, check to show.
+- Toggling a parent cascades to its whole subtree — turning a sub-assembly on
+  brings all its children back with it (three.js needs the whole chain visible
+  to render anything).
+- **Show all / Hide all** buttons apply to the whole model at once.
+
+### Highlight a part (click the name)
+
+Click a part's **name** to highlight it in blue in the viewport. Click another
+part to move the highlight; click the same part again to clear it. The highlight
+uses per-mesh material copies, so other parts sharing the same source material
+are unaffected.
+
+![A part selected in the tree, highlighted blue in the viewport](manual-shots/12-part-selected.png)
+
+### "Show me only" (right-click)
+
+Right-click a part and choose **Show me only** to hide everything except that
+part and its children. Ancestors stay visible so the isolated part still renders.
+
+![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
+
+**In a session (see §5), all of this syncs to every member** — show/hide,
+expand/collapse, and the selection highlight are mirrored live in both
+directions.
 
 ---
 
