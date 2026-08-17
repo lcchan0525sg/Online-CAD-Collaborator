@@ -227,12 +227,17 @@ function hidePartMenu() {
 
 // Hide every part that is NOT the selected part (or one of its children).
 // The selected part + its whole subtree stay visible; everything else turns off.
+// Ancestors of the selected part must ALSO stay visible: in three.js a parent
+// with visible=false hides its whole subtree, so an off parent would blank the
+// part you asked to isolate.
 function showOnlyPart(key) {
   if (!model || !key) return;
   const ops = [];
   const root = model.children[0];
   for (const r of allPartRows) {
-    const keep = r.key === key || r.key.startsWith(key + '.');
+    const keep = r.key === key
+      || r.key.startsWith(key + '.')     // the part itself + its children
+      || key.startsWith(r.key + '.');    // ancestors (must stay on to render)
     const node = nodeAtPath(root, r.key.split('.').map(Number));
     if (!node) continue;
     node.visible = keep;
