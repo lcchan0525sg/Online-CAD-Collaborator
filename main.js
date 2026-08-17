@@ -105,11 +105,13 @@ function clearModel() {
  * that loads the same GLB, so show/hide state syncs reliably. ---- */
 const partsEl = document.getElementById('parts');
 const partRows = new Map();   // pathKey -> { cb, row }
+const allPartRows = [];       // every built row: { key, row, toggle, hasKids }
 
 function clearPartsTree() {
   if (!partsEl) return;
   partsEl.innerHTML = '<span class="hint">—</span>';
   partRows.clear();
+  allPartRows.length = 0;
 }
 
 function nodeAtPath(root, path) {
@@ -121,10 +123,15 @@ function nodeAtPath(root, path) {
   return o;
 }
 
+// Collapsed parents: keys whose descendant rows are hidden. Default is all
+// collapsed so only the first level shows; expanding a row reveals its children.
+let collapsedPaths = new Set();
+
 function buildPartsTree(root) {
   if (!partsEl || !root) return;
   partsEl.innerHTML = '';
   partRows.clear();
+  allPartRows.length = 0;
   let count = 0;
   const hasMesh = (o) => { let h = false; o.traverse((x) => { if (x.isMesh) h = true; }); return h; };
   const walk = (obj, depth, path) => {
@@ -137,6 +144,18 @@ function buildPartsTree(root) {
         const row = document.createElement('label');
         row.className = 'partrow' + (child.visible ? '' : ' off');
         row.style.paddingLeft = `${8 + depth * 14}px`;
+        const toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'parttoggle';
+        toggle.textContent = '–';
+        toggle.style.visibility = 'hidden';   // hidden until we know it has kids
+        toggle.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (collapsedPaths.has(key)) collapsedPaths.delete(key);
+          else collapsedPaths.add(key);
+          renderCollapseState();
+        });
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = child.visible;
@@ -149,15 +168,37 @@ function buildPartsTree(root) {
         span.className = 'partname';
         span.textContent = child.name || `Part ${count}`;
         span.title = child.name || `Part ${count}`;
-        row.append(cb, span);
+        row.append(toggle, cb, span);
         partsEl.appendChild(row);
         partRows.set(key, { cb, row });
+        allPartRows.push({ key, row, toggle, depth });
       }
       if (child.children?.length) walk(child, depth + (isPart ? 1 : 0), p);
     });
   };
   walk(root, 0, []);
+  // A row "has kids" if any other row's path starts with its path + a separator.
+  for (const r of allPartRows) {
+    r.hasKids = allPartRows.some((o) => o.key.startsWith(r.key + '.'));
+    if (r.hasKids) r.toggle.style.visibility = 'visible';
+  }
+  // Default: everything collapsed -> only the first level is visible.
+  collapsedPaths = new Set(allPartRows.filter((r) => r.hasKids).map((r) => r.key));
+  renderCollapseState();
   if (!count) partsEl.innerHTML = '<span class="hint">—</span>';
+}
+
+// Show a row only when none of its ancestor rows is collapsed.
+function renderCollapseState() {
+  for (const r of allPartRows) {
+    const segs = r.key.split('.');
+    let visible = true;
+    for (let i = 1; i < segs.length; i++) {
+      if (collapsedPaths.has(segs.slice(0, i).join('.'))) { visible = false; break; }
+    }
+    r.row.style.display = visible ? '' : 'none';
+    if (r.hasKids) r.toggle.textContent = collapsedPaths.has(r.key) ? '+' : '–';
+  }
 }
 
 function setAllParts(visible) {

@@ -206,6 +206,23 @@ body {
 .partrow input[type="checkbox"] { accent-color: var(--accent); cursor: pointer; flex: 0 0 auto; }
 .partname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .partrow.off .partname { color: var(--muted); text-decoration: line-through; }
+.parttoggle {
+  flex: 0 0 16px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--panel2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.parttoggle:hover { border-color: var(--accent); color: var(--accent); }
 
 /* ---------- Viewport ---------- */
 #viewport {
