@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CAD Viewer — GLB/GLTF in the browser</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="app">
+    <aside id="panel">
+      <div class="brand">
+        <h1>CAD Viewer</h1>
+        <p>Real kernel geometry · GLB/GLTF</p>
+      </div>
+
+      <section class="section">
+        <h2>Model</h2>
+        <div class="actions">
+          <button class="btn primary" id="btn-load-chair">Load chair.glb</button>
+          <label class="btn filebtn">
+            Open &hellip;
+            <input type="file" id="file" accept=".glb,.gltf" hidden>
+          </label>
+        </div>
+        <p class="hint">Loads any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip;</p>
+      </section>
+
+      <section class="section">
+        <h2>View</h2>
+        <div class="row toggle">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-wire" ><span>Wireframe overlay</span></label>
+        </div>
+        <div class="row toggle">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-grid" checked><span>Grid</span></label>
+        </div>
+        <div class="row toggle">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-rotate" checked><span>Auto-rotate</span></label>
+        </div>
+        <button class="btn" id="btn-frame">Frame model</button>
+      </section>
+
+      <section class="section">
+        <h2>Info</h2>
+        <pre id="info">no model loaded</pre>
+      </section>
+
+      <section class="section">
+        <h2>Materials</h2>
+        <div id="mats" class="mats"><span class="hint">—</span></div>
+      </section>
+    </aside>
+
+    <main id="viewport">
+      <div id="stage"></div>
+      <div id="hud">
+        <h1>CAD Viewer</h1>
+        <p>drag&nbsp;to orbit &middot; scroll&nbsp;to zoom &middot; right-drag&nbsp;to pan</p>
+      </div>
+    </main>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./node_modules/three/build/three.module.js",
+        "three/addons/": "./node_modules/three/examples/jsm/"
+      }
+    }
+  </script>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

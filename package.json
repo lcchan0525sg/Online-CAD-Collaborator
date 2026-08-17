@@ -1,0 +1,14 @@
+{
+  "name": "cad-viewer-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Web viewer that loads real CAD geometry (GLB/GLTF from OpenCascade) with per-part materials",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "three": "^0.185.1"
+  }
+}
