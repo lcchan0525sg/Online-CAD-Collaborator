@@ -49,13 +49,21 @@ function makeGrid(size) {
 let model = null;      // the loaded (scaled) group
 let modelScale = 1;
 
-// GLTF is Y-up; OpenCascade writes Z-up. Detect and correct.
+// GLTF is Y-up; OpenCascade writes Z-up. Bounding-box sizes are ambiguous
+// (same numbers, different axis labels), but the BASE PLANE is not: CAD models
+// sit on a plane at 0 extending in +up (chair: z from 0 to 0.979, y centered).
+// Find the axis where min ≈ 0 and max ≈ size — that is the model's "up".
+// If it's Z, rotate -90° about X to bring it Y-up.
 function orientModel(root) {
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
-  // OCP glTF: model's tallest axis is Z. If Z is clearly the largest and the
-  // model sits at z≈0 with y spread, rotate -90° about X to bring it Y-up.
-  if (size.z >= size.x && size.z >= size.y) {
+  // base-ness score per axis: min near 0 AND max near +size
+  const score = (mn, sz, mx) => (sz < 1e-6 ? 0 : (Math.abs(mn) / sz < 0.05 && Math.abs(mx - sz) / sz < 0.05 ? 1 : 0));
+  const sz = [size.x, size.y, size.z];
+  const mn = [box.min.x, box.min.y, box.min.z];
+  const mx = [box.max.x, box.max.y, box.max.z];
+  const s = sz.map((d, i) => score(mn[i], d, mx[i]));
+  if (s[2] === 1 && s[2] > s[1]) {
     root.rotation.x = -Math.PI / 2;
     root.updateMatrixWorld(true);
   }
@@ -102,7 +110,7 @@ function frameModel() {
   key.shadow.camera.updateProjectionMatrix();
 }
 
-function showInfo(gltf, root) {
+function showInfo(gltf, root, fileMaxDim) {
   const infoEl = document.getElementById('info');
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
@@ -116,7 +124,9 @@ function showInfo(gltf, root) {
       verts += g.attributes.position.count;
     }
   });
-  const units = modelScale !== 1 ? ` (file units → m ×${modelScale})` : '';
+  const units = modelScale !== 1
+    ? (fileMaxDim > 10 ? ` (file units mm → m ×${modelScale})` : ` (normalized ×${modelScale.toFixed(3)})`)
+    : '';
   infoEl.textContent = [
     `generator: ${gltf.parser.json.asset?.generator ?? '?'}`,
     `glTF version: ${gltf.parser.json.asset?.version ?? '?'}`,
@@ -154,11 +164,13 @@ function loadFromGltf(gltf) {
   const root = gltf.scene ?? gltf.scenes[0];
 
   // Auto-scale: CAD files are usually in mm; if the model is > 10 units wide,
-  // treat units as millimetres and shrink to metres.
+  // treat units as millimetres and shrink to metres. Otherwise, normalize the
+  // max dimension to ~1 m so tiny sample models fill the viewport (the chair
+  // is already ~0.98 m and stays essentially 1:1).
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z);
-  modelScale = maxDim > 10 ? 1 / 1000 : 1;
+  const maxDim = Math.max(size.x, size.y, size.z) || 1;
+  modelScale = maxDim > 10 ? 1 / 1000 : 1.0 / maxDim;
 
   model = new THREE.Group();
   model.scale.setScalar(modelScale);
@@ -167,9 +179,12 @@ function loadFromGltf(gltf) {
     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
   });
   orientModel(model);
+  // rebase onto the ground plane (grid sits at y=0)
+  const box2 = new THREE.Box3().setFromObject(model);
+  model.position.y -= box2.min.y;
   scene.add(model);
   frameModel();
-  showInfo(gltf, model);
+  showInfo(gltf, model, maxDim);
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
 }
 
@@ -210,6 +225,8 @@ function loadFile(file) {
 
 /* ============================ UI ============================ */
 document.getElementById('btn-load-chair').addEventListener('click', () => loadUrl('/chair.glb'));
+document.querySelectorAll('[data-sample]').forEach((b) =>
+  b.addEventListener('click', () => loadUrl(b.dataset.sample)));
 document.getElementById('file').addEventListener('change', (e) => {
   const f = e.target.files?.[0];
   if (f) loadFile(f);
