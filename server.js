@@ -6,6 +6,36 @@ import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
+/**
+ * Count triangles in a GLB buffer by walking its JSON chunk. Returns 0 if the
+ * GLB has no indexed position primitives (i.e. it would render nothing).
+ */
+function countGlbTriangles(buf) {
+  try {
+    let off = 12;
+    let json = {};
+    while (off + 8 <= buf.length) {
+      const len = buf.readUInt32LE(off);
+      const type = buf.readUInt32LE(off + 4);
+      if (type === 0x4e4f534a /* 'JSON' */) {
+        json = JSON.parse(buf.subarray(off + 8, off + 8 + len));
+      }
+      off += 8 + len + (len % 4);
+    }
+    let tris = 0;
+    for (const m of json.meshes ?? []) {
+      for (const p of m.primitives ?? []) {
+        if (p.indices == null) continue;
+        const idx = json.accessors?.[p.indices];
+        if (idx) tris += Math.floor(idx.count / 3);
+      }
+    }
+    return tris;
+  } catch {
+    return 0;
+  }
+}
+
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 const PORT = process.env.PORT || 4322;
 
@@ -99,6 +129,21 @@ async function handleStepUpload(req, res) {
     }
     console.log(`[step] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     const glb = await readFile(outPath);
+    const tris = countGlbTriangles(glb);
+    if (!tris) {
+      const tail = stderr.slice(-600).trim();
+      console.log('[step] produced GLB has 0 triangles');
+      res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+      res.end(
+        'STEP conversion produced no visible geometry (0 triangles).\n' +
+        'This STEP file has no meshable B-rep solids the kernel could tessellate.\n' +
+        'It may be a surface/wire-only file, use an unsupported schema, or be a ' +
+        'reference-based assembly the reader couldn\'t fully transfer.\n' +
+        'Converter log tail:\n' + tail
+      );
+      return;
+    }
+    console.log(`[step] GLB has ${tris} triangles`);
     res.writeHead(200, {
       'content-type': 'model/gltf-binary',
       'content-length': glb.length,

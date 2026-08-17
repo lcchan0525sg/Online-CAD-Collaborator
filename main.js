@@ -163,6 +163,19 @@ function loadFromGltf(gltf) {
   clearModel();
   const root = gltf.scene ?? gltf.scenes[0];
 
+  // Guard: if the GLB carries no mesh, don't leave a silent blank viewport.
+  let meshCount = 0;
+  root?.traverse?.((o) => { if (o.isMesh) meshCount++; });
+  if (!meshCount) {
+    const infoEl = document.getElementById('info');
+    infoEl.textContent =
+      'Loaded GLB contains no renderable meshes.\n' +
+      'The source file may be surface/wire-only, an unsupported schema, or an ' +
+      'assembly the converter couldn\'t fully expand.\nTry a different file or ' +
+      'check the server console for the converter log.';
+    return;
+  }
+
   // Auto-scale: CAD files are usually in mm; if the model is > 10 units wide,
   // treat units as millimetres and shrink to metres. Otherwise, normalize the
   // max dimension to ~1 m so tiny sample models fill the viewport (the chair
