@@ -275,12 +275,11 @@ document.getElementById('btn-sample-step').addEventListener('click', async () =>
 });
 document.getElementById('file').addEventListener('change', (e) => {
   const f = e.target.files?.[0];
-  if (f) loadFile(f);
-  e.target.value = '';
-});
-document.getElementById('file-step').addEventListener('change', (e) => {
-  const f = e.target.files?.[0];
-  if (f) importStep(f);
+  if (f) {
+    const ext = f.name.toLowerCase();
+    if (ext.endsWith('.step') || ext.endsWith('.stp')) importStep(f);
+    else loadFile(f);
+  }
   e.target.value = '';
 });
 document.getElementById('btn-frame').addEventListener('click', frameModel);
