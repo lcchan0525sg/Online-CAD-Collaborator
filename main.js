@@ -259,6 +259,20 @@ async function importStep(file) {
 document.getElementById('btn-load-chair').addEventListener('click', () => loadUrl('/chair.glb'));
 document.querySelectorAll('[data-sample]').forEach((b) =>
   b.addEventListener('click', () => loadUrl(b.dataset.sample)));
+// Built-in STEP sample: fetch it and run through the same server-side conversion.
+document.getElementById('btn-sample-step').addEventListener('click', async () => {
+  const infoEl = document.getElementById('info');
+  infoEl.textContent = 'loading sample-chair.step…';
+  try {
+    const res = await fetch('/sample-chair.step');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const buf = await res.arrayBuffer();
+    const file = new File([buf], 'chair.step', { type: 'application/octet-stream' });
+    importStep(file);
+  } catch (e) {
+    infoEl.textContent = 'failed to load sample STEP: ' + e.message;
+  }
+});
 document.getElementById('file').addEventListener('change', (e) => {
   const f = e.target.files?.[0];
   if (f) loadFile(f);
