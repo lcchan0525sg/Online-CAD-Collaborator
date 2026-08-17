@@ -156,6 +156,8 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'cam', pos:[x,y,z], target:[x,y,z] }      (someone moved their camera)
  *     { t:'model-ack', note }                        (finished loading a shared model)
  *     { t:'parts', ops:[{path:[i,j,...], visible:bool}] }  (part show/hide changes)
+ *     { t:'tree', key:'i.j', collapsed:bool }        (assembly-tree expand/collapse)
+ *     { t:'sel',  key:'i.j'|null }                   (part selection highlight)
  *   server -> client
  *     { t:'joined', id, session, isHost, roster:[{id,name,isHost}], model|null }
  *     { t:'roster', roster }                          (membership changed)
@@ -164,6 +166,8 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'model',  filename, kind:'glb'|'step', note }   (host shared a model)
  *     { t:'model-ack', from, note }                   (a guest finished loading)
  *     { t:'parts', ops:[{path, visible}] }            (part visibility sync)
+ *     { t:'tree', key, collapsed }                    (assembly-tree sync)
+ *     { t:'sel', key|null }                           (part selection sync)
  *     { t:'cam',    from, pos:[x,y,z], target:[x,y,z] }    (someone moved camera)
  */
 const sessions = new Map();   // code -> { model: {buf, filename, kind, note, ts} | null, members: Map<id, {ws, name, isHost}> }
@@ -254,6 +258,12 @@ wss.on('connection', (ws, req, url) => {
         }
       }
       broadcast(session, { t: 'parts', ops: msg.ops }, id);
+    } else if (msg.t === 'tree' && typeof msg.key === 'string') {
+      // Assembly-tree expand/collapse: relay to the other members.
+      broadcast(session, { t: 'tree', key: msg.key, collapsed: !!msg.collapsed }, id);
+    } else if (msg.t === 'sel') {
+      // Part selection highlight: relay to the other members.
+      broadcast(session, { t: 'sel', key: msg.key || null }, id);
     }
   });
 

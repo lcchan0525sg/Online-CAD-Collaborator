@@ -156,6 +156,7 @@ function buildPartsTree(root) {
           if (collapsedPaths.has(key)) collapsedPaths.delete(key);
           else collapsedPaths.add(key);
           renderCollapseState();
+          if (!applyingRemoteTree) broadcastTree(key, collapsedPaths.has(key));
         });
         const cb = document.createElement('input');
         cb.type = 'checkbox';
@@ -287,7 +288,7 @@ partMenuOnlyEl?.addEventListener('click', () => {
 let selectedPartKey = null;
 let selectedMaterialCopies = [];   // [{ mesh, original }]
 
-function clearPartSelection() {
+function clearPartSelection(silent) {
   for (const { mesh, original } of selectedMaterialCopies) {
     mesh.material = original;
   }
@@ -296,16 +297,17 @@ function clearPartSelection() {
     const prev = partRows.get(selectedPartKey);
     if (prev) prev.row.classList.remove('sel');
     selectedPartKey = null;
+    if (!silent) broadcastSel(null);
   }
 }
 
-function selectPart(key) {
+function selectPart(key, force) {
   if (!model || !key) return;
   if (key === selectedPartKey) {   // click again -> toggle off
     clearPartSelection();
     return;
   }
-  clearPartSelection();
+  clearPartSelection(true);
   const node = nodeAtPath(model.children[0], key.split('.').map(Number));
   if (!node) return;
   selectedPartKey = key;
@@ -324,6 +326,7 @@ function selectPart(key) {
     selectedMaterialCopies.push({ mesh: o, original: o.material });
     o.material = Array.isArray(o.material) ? clones : clones[0];
   });
+  if (!force) broadcastSel(key);
 }
 // Clicking elsewhere / scrolling dismisses the menu.
 document.addEventListener('click', () => { partMenuHideTimer = setTimeout(hidePartMenu, 0); });
@@ -350,6 +353,36 @@ let pendingRemoteParts = [];   // ops that arrived before the model was loaded
 function broadcastParts(ops) {
   if (!session?.connected || !ops?.length) return;
   try { session.ws.send(JSON.stringify({ t: 'parts', ops })); } catch {}
+}
+
+/* ---- Tree expand/collapse sync over the session ---- */
+let applyingRemoteTree = false;
+function broadcastTree(pathKey, collapsed) {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'tree', key: pathKey, collapsed })); } catch {}
+}
+function applyRemoteTree(msg) {
+  if (!msg || !msg.key) return;
+  applyingRemoteTree = true;
+  try {
+    if (msg.collapsed) collapsedPaths.add(msg.key);
+    else collapsedPaths.delete(msg.key);
+    renderCollapseState();
+  } finally { applyingRemoteTree = false; }
+}
+
+/* ---- Part selection highlight sync ---- */
+let applyingRemoteSel = false;
+function broadcastSel(key) {   // key = pathKey or null (deselect)
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'sel', key })); } catch {}
+}
+function applyRemoteSel(msg) {
+  applyingRemoteSel = true;
+  try {
+    if (msg.key) selectPart(msg.key, true);
+    else clearPartSelection(true);
+  } finally { applyingRemoteSel = false; }
 }
 // Apply a remote parts message: set visibility + refresh the matching row.
 function applyRemoteParts(ops) {
@@ -791,6 +824,12 @@ function onSessionMsg(msg) {
       break;
     case 'parts':
       applyRemoteParts(msg.ops);
+      break;
+    case 'tree':
+      applyRemoteTree(msg);
+      break;
+    case 'sel':
+      applyRemoteSel(msg);
       break;
     case 'cam':
       applyRemoteCamera(msg.pos, msg.target);
