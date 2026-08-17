@@ -83,6 +83,26 @@ Summary for end users
   converter and its Dockerfile) is available for inspection, modification
   and relinking, as required by the LGPL.
 
+SOURCE AVAILABILITY (as required by the LGPL)
+---------------------------------------------------------------------------
+The LGPL components used by this product, and where their source can be
+obtained, are:
+
+  - OpenCascade Technology (OCCT) kernel:
+      https://github.com/Open-Cascade-SAS/OCCT
+  - pythonocc-core (OCP Python bindings):
+      https://github.com/tpaviot/pythonocc-core
+  - CadQuery (Apache-2.0):
+      https://github.com/CadQuery/cadquery
+  - step2glb.py converter + Dockerfile (shipped with this distribution,
+    in the same folder as this file)
+
+The object code you receive includes no modifications to these libraries;
+they run unmodified in a separate container. Any modifications you make to
+them, and any modified versions you redistribute, must comply with the
+terms of their respective licenses. Full license texts are in the LICENSES/
+folder alongside this file.
+
 Copyright and license texts of the individual components are preserved in
 their respective packages (see the Docker image's site-packages for OCCT/
 OCP/CadQuery notices; node_modules for three.js/ws; Node.js for its own).

@@ -41,6 +41,10 @@ if (existsSync(join(ROOT, 'manual-shots'))) {
 if (existsSync(join(ROOT, 'THIRD-PARTY-NOTICES.txt'))) {
   copyFileSync(join(ROOT, 'THIRD-PARTY-NOTICES.txt'), join(APP, 'THIRD-PARTY-NOTICES.txt'));
 }
+// Full license texts (LGPL-2.1/3.0, Apache-2.0) — required by the LGPL
+if (existsSync(join(ROOT, 'licenses'))) {
+  cpSync(join(ROOT, 'licenses'), join(APP, 'licenses'), { recursive: true });
+}
 
 // ---- slim three (only what main.js imports) ----
 const T = join(ROOT, 'node_modules', 'three');
