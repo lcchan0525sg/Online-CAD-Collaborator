@@ -160,9 +160,25 @@ function buildPartsTree(root) {
         cb.type = 'checkbox';
         cb.checked = child.visible;
         cb.addEventListener('change', () => {
-          child.visible = cb.checked;
-          row.classList.toggle('off', !cb.checked);
-          broadcastParts([{ path: p, visible: cb.checked }]);
+          // Cascading toggle: turning a (sub-)assembly on/off applies to its
+          // whole subtree. three.js only respects a node's OWN visible flag —
+          // a child that stayed off while the parent was off would stay blank
+          // after the parent comes back on.
+          const ops = [];
+          for (const r of allPartRows) {
+            if (r.key === key || r.key.startsWith(key + '.')) {
+              const node = nodeAtPath(root, r.key.split('.').map(Number));
+              if (!node) continue;
+              node.visible = cb.checked;
+              const entry = partRows.get(r.key);
+              if (entry) {
+                entry.cb.checked = cb.checked;
+                entry.row.classList.toggle('off', !cb.checked);
+              }
+              ops.push({ path: r.key.split('.').map(Number), visible: cb.checked });
+            }
+          }
+          broadcastParts(ops);
         });
         const span = document.createElement('span');
         span.className = 'partname';
