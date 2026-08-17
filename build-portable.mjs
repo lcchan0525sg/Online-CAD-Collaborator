@@ -37,6 +37,10 @@ if (existsSync(join(ROOT, 'USER-MANUAL.md'))) copyFileSync(join(ROOT, 'USER-MANU
 if (existsSync(join(ROOT, 'manual-shots'))) {
   cpSync(join(ROOT, 'manual-shots'), join(APP, 'manual-shots'), { recursive: true });
 }
+// Third-party license notices (OCCT/OCP/CadQuery/three.js/ws licensing)
+if (existsSync(join(ROOT, 'THIRD-PARTY-NOTICES.txt'))) {
+  copyFileSync(join(ROOT, 'THIRD-PARTY-NOTICES.txt'), join(APP, 'THIRD-PARTY-NOTICES.txt'));
+}
 
 // ---- slim three (only what main.js imports) ----
 const T = join(ROOT, 'node_modules', 'three');
@@ -114,6 +118,10 @@ writeFileSync(join(APP, 'README.txt'), [
   'User manual:',
   '  Open USER-MANUAL.pdf (or USER-MANUAL.md) for full instructions with',
   '  screenshots — starting the app, opening models, sessions, part visibility.',
+  '',
+  'Licensing:',
+  '  THIRD-PARTY-NOTICES.txt lists the components and their licences',
+  '  (OCCT/OCP/CadQuery are free for commercial use under the LGPL).',
   '',
   'Sharing:',
   '  Host clicks "Create session", then shares a model. Other users on the same',

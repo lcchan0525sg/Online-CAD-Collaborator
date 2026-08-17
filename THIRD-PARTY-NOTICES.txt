@@ -1,0 +1,88 @@
+THIRD-PARTY NOTICES
+===================
+CAD Viewer uses the following third-party components. All are free for
+commercial use; the notes below explain the terms that apply.
+
+---------------------------------------------------------------------------
+1. OpenCascade Technology (OCCT) — the CAD kernel used for STEP conversion
+---------------------------------------------------------------------------
+License : GNU LGPL v2.1 with the "OCCT exception"
+Website : https://www.opencascade.com / https://dev.opencascade.org
+
+OCCT is licensed under the GNU Lesser General Public License v2.1, with an
+additional exception that permits its use in commercial / proprietary
+applications WITHOUT requiring the application's source code to be
+disclosed, provided OCCT itself is used unmodified and its copyright
+notices are preserved.
+
+It is used here solely as an unmodified, separately-run component inside
+the "chair-cq:local" Docker image. The application does not link or embed
+OCCT, and does not modify or redistribute the OCCT kernel source.
+
+---------------------------------------------------------------------------
+2. pythonocc-core (the "OCP" Python bindings for OCCT)
+---------------------------------------------------------------------------
+License : GNU LGPL v3.0
+Website : https://github.com/tpaviot/pythonocc-core
+
+The OCP bindings wrap OCCT for use from Python. LGPL v3 permits commercial
+use; because the bindings run unmodified in a separate Docker process and
+their full source is publicly available, no source disclosure is required
+from this application. The bindings' copyright and license notices are
+preserved inside the image (site-packages dist-info).
+
+---------------------------------------------------------------------------
+3. CadQuery — parametric CAD library (includes OCP)
+---------------------------------------------------------------------------
+License : Apache License 2.0
+Website : https://github.com/CadQuery/cadquery
+
+Apache 2.0 is fully permissive: free for commercial use, modification and
+distribution, with attribution of the original copyright.
+
+---------------------------------------------------------------------------
+4. Three.js — 3D rendering library in the browser
+---------------------------------------------------------------------------
+License : MIT
+Website : https://threejs.org
+
+MIT is fully permissive: free for commercial use with attribution.
+
+---------------------------------------------------------------------------
+5. ws — WebSocket library for Node.js (server)
+---------------------------------------------------------------------------
+License : MIT
+Website : https://github.com/websockets/ws
+
+MIT is fully permissive: free for commercial use with attribution.
+
+---------------------------------------------------------------------------
+6. Node.js (bundled runtime in the portable zip)
+---------------------------------------------------------------------------
+License : MIT (with third-party components under their own permissive licenses)
+Website : https://nodejs.org
+
+---------------------------------------------------------------------------
+7. Docker / Docker Desktop (optional, required only for STEP files)
+---------------------------------------------------------------------------
+License : Docker Desktop's own proprietary EULA (free for small businesses
+and personal use; larger organisations may require a paid subscription).
+Docker Engine itself is Apache 2.0.
+
+NOTE: Docker is NOT bundled. The portable app runs GLB/GLTF files without
+it; STEP conversion additionally requires Docker + the "chair-cq:local"
+image, installed via install-docker-opencascade.bat.
+
+---------------------------------------------------------------------------
+Summary for end users
+---------------------------------------------------------------------------
+- The CAD Viewer application itself is provided as-is.
+- No component in this distribution imposes source-code disclosure or a
+  license fee on the user or on software built with it.
+- Full source of the LGPL components (OCCT, OCP bindings, the step2glb.py
+  converter and its Dockerfile) is available for inspection, modification
+  and relinking, as required by the LGPL.
+
+Copyright and license texts of the individual components are preserved in
+their respective packages (see the Docker image's site-packages for OCCT/
+OCP/CadQuery notices; node_modules for three.js/ws; Node.js for its own).
