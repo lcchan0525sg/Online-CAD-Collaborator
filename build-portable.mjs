@@ -66,11 +66,19 @@ for (const extra of ['bufferutil', 'utf-8-validate']) {
 copyFileSync(NODE_EXE, join(APP, 'node.exe'));
 
 // ---- launchers ----
+// Port precedence: command-line arg -> port.txt file -> default 4322.
 writeFileSync(join(APP, 'start.bat'), [
   '@echo off',
   'setlocal',
   'cd /d "%~dp0"',
-  'start "" http://localhost:4322/',
+  '',
+  'set "PORT=4322"',
+  'if not "%~1"=="" set "PORT=%~1"',
+  'if exist "port.txt" set /p PORT=<port.txt',
+  '',
+  'echo Starting CAD Viewer on port %PORT% ...',
+  'start "" http://localhost:%PORT%/',
+  'set PORT=%PORT%',
   'node.exe server.js',
   'pause',
   '',
@@ -79,10 +87,16 @@ writeFileSync(join(APP, 'start.bat'), [
 writeFileSync(join(APP, 'start.sh'), [
   '#!/bin/sh',
   'cd "$(dirname "$0")"',
-  '(xdg-open http://localhost:4322/ >/dev/null 2>&1 || open http://localhost:4322/ >/dev/null 2>&1) &',
-  'exec node server.js',
+  'PORT="${1:-4322}"',
+  '[ -f port.txt ] && PORT=$(head -1 port.txt)',
+  'echo "Starting CAD Viewer on port $PORT ..."',
+  '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',
+  'exec env PORT="$PORT" node server.js',
   '',
 ].join('\n'));
+
+// Also allow a port override for the source checkout: server.js already reads
+// process.env.PORT, and a local port.txt is honoured there too (see server.js).
 
 // ---- README ----
 writeFileSync(join(APP, 'README.txt'), [

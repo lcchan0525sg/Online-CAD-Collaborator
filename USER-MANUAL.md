@@ -20,6 +20,20 @@ local viewer.
 
 **From source:** `node server.js` in the project folder, then open the same URL.
 
+### Changing the port
+
+The default port is **4322**. Any of these overrides it:
+
+| Method | Example |
+|---|---|
+| Launcher argument (zip) | `start.bat 5555` |
+| `port.txt` file next to `server.js` | create `port.txt` containing `5555` |
+| Environment variable | `set PORT=5555` then `node server.js` (Windows) / `PORT=5555 node server.js` (macOS/Linux) |
+
+Precedence: command-line argument → `port.txt` → env `PORT` → default 4322.
+The join link and `/ip` address always reflect the actual port, so guests don't
+need to know it.
+
 > **STEP files** (.step/.stp) additionally need Docker + the `chair-cq:local`
 > OpenCascade image. Run **`install-docker-opencascade.bat`** once to set that
 > up. GLB/GLTF files work without any of it.
@@ -150,7 +164,7 @@ conversion error while GLB/GLTF continues to work normally.
 | Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 4322 isn't blocked by a firewall |
 | STEP shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
-| Port already in use | Set a different port: `set PORT=4323` then `node server.js` |
+| Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |
 
 ---
