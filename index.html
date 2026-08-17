@@ -22,12 +22,16 @@
             Open &hellip;
             <input type="file" id="file" accept=".glb,.gltf" hidden>
           </label>
+          <label class="btn filebtn">
+            Import STEP &hellip;
+            <input type="file" id="file-step" accept=".step,.stp" hidden>
+          </label>
         </div>
         <div class="actions" style="margin-top:8px">
           <button class="btn" data-sample="/samples/DamagedHelmet.glb">Helmet (Khronos)</button>
           <button class="btn" data-sample="/samples/Avocado.glb">Avocado (Khronos)</button>
         </div>
-        <p class="hint">Loads any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip;</p>
+        <p class="hint">Loads any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip; STEP files are converted to GLB by the OpenCascade kernel (Docker) on the server &mdash; allow a few seconds.</p>
       </section>
 
       <section class="section">

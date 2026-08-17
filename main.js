@@ -223,6 +223,38 @@ function loadFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
+// STEP / AP214 import: the browser can't parse STEP B-reps, so we POST the
+// file to the server, which converts it to GLB via the OpenCascade kernel in
+// Docker (see /convert/step), then load the returned GLB.
+async function importStep(file) {
+  const infoEl = document.getElementById('info');
+  const t0 = performance.now();
+  infoEl.textContent = `converting ${file.name} to GLB…\n(OpenCascade kernel · Docker — allow a few seconds)`;
+  try {
+    const res = await fetch('/convert/step', {
+      method: 'POST',
+      body: file,
+      headers: { 'content-type': file.type || 'application/octet-stream' },
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`HTTP ${res.status}\n${errText.slice(-400)}`);
+    }
+    const buf = await res.arrayBuffer();
+    const dt = ((performance.now() - t0) / 1000).toFixed(1);
+    loader.parse(buf, '', (gltf) => {
+      loadFromGltf(gltf);
+      // note the source + conversion time at the top of the info block
+      infoEl.textContent = `source: ${file.name} (STEP→GLB in ${dt}s)\n` + infoEl.textContent;
+    }, (e) => {
+      infoEl.textContent = 'STEP GLB parse failed: ' + e.message;
+    });
+  } catch (e) {
+    console.error(e);
+    infoEl.textContent = 'STEP conversion failed:\n' + (e.message ?? e);
+  }
+}
+
 /* ============================ UI ============================ */
 document.getElementById('btn-load-chair').addEventListener('click', () => loadUrl('/chair.glb'));
 document.querySelectorAll('[data-sample]').forEach((b) =>
@@ -230,6 +262,12 @@ document.querySelectorAll('[data-sample]').forEach((b) =>
 document.getElementById('file').addEventListener('change', (e) => {
   const f = e.target.files?.[0];
   if (f) loadFile(f);
+  e.target.value = '';
+});
+document.getElementById('file-step').addEventListener('change', (e) => {
+  const f = e.target.files?.[0];
+  if (f) importStep(f);
+  e.target.value = '';
 });
 document.getElementById('btn-frame').addEventListener('click', frameModel);
 
