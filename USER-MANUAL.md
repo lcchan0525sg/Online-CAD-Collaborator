@@ -160,6 +160,8 @@ appears — same view, same parts, same visibility as the host.
 - **Part visibility** — show/hide any part and it changes for all members
 - **The model itself** — late joiners automatically receive the current model
   and visibility state
+- **Expand/collapse & selection** — the assembly-tree view and part highlight
+  are mirrored live across members
 
 ![Part hidden on the host](manual-shots/08-part-toggle.png)
 ![The same part hidden on the guest — synced](manual-shots/09-guest-part-sync.png)
@@ -201,4 +203,4 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-*CAD Viewer v0.2 — collaborative CAD viewing for the LAN.*
+*CAD Viewer v0.22 — collaborative CAD viewing for the LAN.*
