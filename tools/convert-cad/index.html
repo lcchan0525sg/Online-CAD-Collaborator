@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>convert-cad · drag &amp; drop</title>
+<script type="importmap">
+{"imports":{
+  "three": "./three/three.module.js",
+  "three/addons/": "./three/"
+}}
+</script>
+<style>
+  :root { --accent:#2563eb; --border:#d8dbe0; --bg:#f6f7f9; --ok:#16a34a; --err:#dc2626; }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    background:var(--bg); color:#1f2430; min-height:100vh;
+    display:flex; flex-direction:column; align-items:center; padding:40px 16px;
+  }
+  h1 { font-size:20px; margin:0 0 4px; }
+  h1 .ver { font-size:12px; color:#99a; font-weight:600; margin-left:6px; vertical-align:middle; }
+  .sub { color:#667; margin-bottom:24px; font-size:14px; }
+  .card { background:#fff; border:1px solid var(--border); border-radius:14px;
+          box-shadow:0 2px 10px rgba(0,0,0,.05); width:100%; max-width:680px; padding:20px; }
+  .drop {
+    border:2px dashed var(--border); border-radius:12px; padding:36px 20px; text-align:center;
+    transition:.15s; cursor:pointer; background:#fbfcfe;
+  }
+  .drop.drag, .drop:hover { border-color:var(--accent); background:#eef4ff; }
+  .drop .big { font-size:40px; }
+  .drop p { margin:8px 0 0; color:#667; font-size:14px; }
+  .drop .fmt { color:#99a; font-size:12px; margin-top:10px; }
+  .file { display:none; }
+  .chips { margin-top:12px; display:flex; flex-wrap:wrap; gap:8px; }
+  .chip { background:#eef1f5; border:1px solid var(--border); border-radius:999px;
+          padding:6px 12px; font-size:13px; display:flex; align-items:center; gap:8px; }
+  .chip .x { cursor:pointer; color:#99a; font-weight:700; }
+  .chip .x:hover { color:var(--err); }
+  .row { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
+  .row label { display:flex; align-items:center; gap:8px; font-size:14px; }
+  select, button { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--border); }
+  select { background:#fff; }
+  button.run { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;
+               cursor:pointer; flex:1; min-width:180px; }
+  button.run:disabled { opacity:.5; cursor:not-allowed; }
+  button.dl { background:#fff; color:var(--accent); border-color:var(--accent); cursor:pointer; }
+  button.dl:disabled { opacity:.4; cursor:not-allowed; }
+  .status { margin-top:16px; font-size:14px; line-height:1.5; white-space:pre-wrap; }
+  .status .log { font-family:ui-monospace,Consolas,monospace; font-size:12px; color:#444; background:#f4f5f7;
+                 border:1px solid var(--border); border-radius:8px; padding:10px; max-height:180px; overflow:auto;
+                 margin-top:8px; }
+  .ok { color:var(--ok); font-weight:600; }
+  .err { color:var(--err); font-weight:600; }
+  .hint { font-size:12px; color:#99a; margin-top:6px; }
+  a.footer { margin-top:28px; color:var(--accent); font-size:13px; text-decoration:none; }
+
+  .preview { margin-top:16px; display:none; }
+  .preview.on { display:block; }
+  .preview h3 { margin:0 0 8px; font-size:15px; display:flex; align-items:center; justify-content:space-between; }
+  .preview .pbar { font-size:12px; color:#99a; font-weight:normal; }
+  #viewer { width:100%; height:420px; border:1px solid var(--border); border-radius:12px;
+            background:linear-gradient(#eef1f5,#dfe4ea); cursor:grab; display:block; }
+  #viewer:active { cursor:grabbing; }
+  .vhlp { font-size:12px; color:#667; margin-top:6px; text-align:center; }
+</style>
+</head>
+<body>
+  <h1>convert-cad — drag &amp; drop <span class="ver">v0.1</span></h1>
+  <div class="sub">STEP / IGES / OBJ → GLB / GLTF · Docker (OpenCascade)</div>
+
+  <div class="card">
+    <div class="drop" id="drop">
+      <div class="big">⬆️</div>
+      <p><strong>Drop a CAD file here</strong> or click to browse</p>
+      <div class="fmt">.step · .stp · .igs · .iges · .obj &nbsp; (add a companion .mtl for OBJ colours)</div>
+      <input class="file" id="file" type="file" multiple />
+    </div>
+
+    <div class="chips" id="chips"></div>
+
+    <div class="row">
+      <label>Format
+        <select id="fmt">
+          <option value="glb">.glb (binary)</option>
+          <option value="gltf">.gltf (+ .bin)</option>
+        </select>
+      </label>
+      <button class="run" id="run" disabled>Convert</button>
+      <button class="dl" id="dl" disabled>Download</button>
+    </div>
+    <div class="hint">Holding multiple files? Upload an OBJ together with its .mtl in one drag.</div>
+
+    <div class="status" id="status"></div>
+
+    <div class="preview" id="preview">
+      <h3>Preview <span class="pbar" id="pbar"></span></h3>
+      <canvas id="viewer"></canvas>
+      <div class="vhlp">drag = rotate &nbsp;·&nbsp; scroll = zoom &nbsp;·&nbsp; right-drag / two-finger = pan</div>
+    </div>
+  </div>
+
+  <a class="footer" href="convert-cad.mjs">Command-line launcher (README)</a>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+(() => {
+  const drop = document.getElementById('drop');
+  const file = document.getElementById('file');
+  const chips = document.getElementById('chips');
+  const fmtSel = document.getElementById('fmt');
+  const runBtn = document.getElementById('run');
+  const dlBtn = document.getElementById('dl');
+  const status = document.getElementById('status');
+  const preview = document.getElementById('preview');
+  const pbar = document.getElementById('pbar');
+  const canvas = document.getElementById('viewer');
+
+  const FMT = /\.(step|stp|igs|iges|obj|glb|gltf)$/i;
+  const MTL = /\.mtl$/i;
+  const files = [];        // {name, file, kind:'model'|'mtl'}
+  let latest = null;       // {name, blob} ready to download
+  let viewer = null;
+
+  function setStatus(lines, cls) {
+    if (cls) status.innerHTML = `<div class="${cls}">${lines.join('\n')}</div>`;
+    else status.innerHTML = lines.map(l => `<div>${l}</div>`).join('') +
+      (lines.length ? `<div class="log">${lines.map(l=>escapeHtml(l)).join('\n')}</div>` : '');
+  }
+  function escapeHtml(s){return s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+
+  function render() {
+    const models = files.filter(f=>f.kind==='model');
+    chips.innerHTML = files.map((f,i)=>`
+      <span class="chip">${escapeHtml(f.name)}
+        <span class="x" data-i="${i}" title="remove">✕</span>
+      </span>`).join('');
+    chips.querySelectorAll('.x').forEach(x=>x.onclick=()=>{ files.splice(+x.dataset.i,1); render(); });
+    runBtn.disabled = models.length !== 1;
+    dlBtn.disabled = !latest;
+  }
+  function addFiles(list) {
+    for (const f of list) {
+      const kind = MTL.test(f.name) ? 'mtl' : (FMT.test(f.name) ? 'model' : null);
+      if (!kind) { setStatus(['Ignored unsupported file: '+f.name]); continue; }
+      if (!files.some(x=>x.name===f.name)) files.push({name:f.name, file:f, kind});
+    }
+    render();
+  }
+  drop.onclick = () => file.click();
+  file.onchange = () => { addFiles(file.files); file.value=''; };
+  ['dragover','dragenter'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('drag');}));
+  ['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('drag');}));
+  drop.addEventListener('drop', ev => addFiles(ev.dataTransfer.files));
+
+  // ---- 3D viewer ----
+  function initViewer() {
+    if (viewer) return viewer;
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xdfe4ea);
+    // Fill lighting: hemisphere for soft ambient, key + rim for shape definition.
+    const hemi = new THREE.HemisphereLight(0xffffff, 0x6a7280, 0.85); scene.add(hemi);
+    const key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(2,3,1.5); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xffffff, 0.55); rim.position.set(-2,-1,-1.5); scene.add(rim);
+    const top = new THREE.DirectionalLight(0xffffff, 0.35); top.position.set(0,2,0); scene.add(top);
+    const grid = new THREE.GridHelper(10, 20, 0x9aa3ad, 0xb8bfc9); scene.add(grid);
+    const axes = new THREE.AxesHelper(1.5); scene.add(axes);
+    // These helpers/lights persist across model loads; only the model mesh is cleared.
+    const statics = new Set([hemi, key, rim, top, grid, axes]);
+
+    const camera = new THREE.PerspectiveCamera(45, canvas.clientWidth/canvas.clientHeight, 0.01, 1000);
+    camera.position.set(3,3,3); camera.lookAt(0,0,0);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.1;
+    // Size against the canvas's CURRENT laid-out size; if the panel isn't visible yet
+    // (clientWidth/Height == 0) this still works because animate() re-sizes below.
+    function sizeToCanvas() {
+      const w = Math.max(canvas.clientWidth, 1);
+      const h = Math.max(canvas.clientHeight, 1);
+      if (_appliedW !== w || _appliedH !== h) {
+        renderer.setSize(w, h, false);
+        camera.aspect = w/h; camera.updateProjectionMatrix();
+        _appliedW = w; _appliedH = h;
+      }
+    }
+    let _appliedW=0, _appliedH=0;
+    sizeToCanvas();
+    window.addEventListener('resize', sizeToCanvas);
+
+    const controls = new OrbitControls(camera, canvas);
+    controls.enableDamping = true; controls.dampingFactor = 0.08;
+
+    let mesh=null, frame=0;
+    function animate() {
+      requestAnimationFrame(animate);
+      sizeToCanvas();               // adopt the real size once the panel becomes visible
+      controls.update();
+      renderer.render(scene, camera);
+      frame++;
+    }
+    animate();
+
+    viewer = { scene, camera, renderer, controls, mesh, statics };
+    window.__ccviewer = viewer;   // dev/debug hook for inspection
+    return viewer;
+  }
+
+  function fitView(obj) {
+    const box = new THREE.Box3().setFromObject(obj);
+    if (box.isEmpty()) return;
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const max = Math.max(size.x, size.y, size.z) || 1;
+    viewer.camera.position.copy(center).add(new THREE.Vector3(1,1,1).normalize().multiplyScalar(max*2));
+    viewer.camera.near = max/100; viewer.camera.far = max*100; viewer.camera.updateProjectionMatrix();
+    viewer.controls.target.copy(center); viewer.controls.update();
+  }
+
+  function showPreview(blob, name, opts) {
+    opts = opts || {};
+    initViewer();
+    preview.classList.add('on');
+    pbar.textContent = name;
+    // clear previous model — keep lights + helpers, remove only loaded geometry
+    const statics = viewer.statics || new Set();
+    const toRemove = [];
+    viewer.scene.traverse(o => { if (o !== viewer.scene && !statics.has(o)) toRemove.push(o); });
+    toRemove.forEach(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) { (Array.isArray(o.material)?o.material:[o.material]).forEach(m=>m.dispose&&m.dispose()); }
+      viewer.scene.remove(o);
+    });
+    viewer.mesh = null;
+    pbar.textContent = name + ' — loading…';
+    const loader = new GLTFLoader();
+    blob.arrayBuffer().then(buf => new Promise((res,rej)=>{
+      loader.parse(buf, '', res, e=>rej(new Error(e.message||'parse failed')));
+    })).then(gltf => {
+      viewer.mesh = gltf.scene;
+      // glTF is Y-up but CAD source files are Z-up (STEP/IGES) or arbitrary (OBJ).
+      // Rotate the whole model -90deg about X so CAD "up" (Z) points up in the
+      // Y-up three.js scene — matching how the part sits in its native CAD program.
+      // (Only for converted CAD inputs; passthrough GLB/GLTF are already Y-up.)
+      if (opts.rotate !== false) gltf.scene.rotation.x = -Math.PI / 2;
+      viewer.scene.add(gltf.scene);
+      fitView(gltf.scene);
+      pbar.textContent = name + ' — loaded';
+    }).catch(err => {
+      pbar.textContent = name + ' — preview error';
+      setStatus(['Preview failed: '+err.message], 'err');
+    });
+  }
+
+  runBtn.onclick = async () => {
+    const model = files.find(f=>f.kind==='model');
+    const mtl = files.find(f=>f.kind==='mtl');
+    const isAlready = /\.(glb|gltf)$/i.test(model.name);
+    // For already-GLB/GLTF files the output format is fixed; ignore the selector.
+    const fmt = isAlready ? 'glb' : fmtSel.value;
+    runBtn.disabled = true; dlBtn.disabled = true; latest = null;
+    setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
+    const fd = new FormData();
+    fd.append('model', model.file, model.name);
+    if (mtl) fd.append('mtl', mtl.file, mtl.name);
+    fd.append('fmt', fmt);
+    try {
+      const res = await fetch('/convert', { method:'POST', body:fd });
+      const ct = res.headers.get('content-type')||'';
+      if (res.ok && ct.includes('model/gltf')) {
+        const blob = await res.blob();
+        const cd = res.headers.get('content-disposition')||'';
+        const m = /filename="?([^";]+)"?/.exec(cd);
+        latest = { name: m?m[1]:'out.'+fmt, blob };
+        dlBtn.disabled = false;
+        setStatus([`✓ Done — ${latest.name} (${(blob.size/1024).toFixed(1)} KB) — ${isAlready?'loaded for preview':'ready to download & preview.'}`], 'ok');
+        showPreview(blob, latest.name, { rotate: !isAlready });
+      } else {
+        const err = await res.text();
+        setStatus([`Conversion failed (HTTP ${res.status}):`, err], 'err');
+      }
+    } catch(e) {
+      setStatus(['Error: '+e.message], 'err');
+    }
+    runBtn.disabled = false;
+  };
+
+  dlBtn.onclick = () => {
+    if (!latest) return;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(latest.blob);
+    a.download = latest.name;
+    a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  };
+
+  render();
+})();
+</script>
+</body>
+</html>
