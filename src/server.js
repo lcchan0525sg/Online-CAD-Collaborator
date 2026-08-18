@@ -335,6 +335,7 @@ wss.on('connection', (ws, req, url) => {
       // Lighting sync: store (for late joiners) and relay to the others.
       session.light = {
         ambient: Number(msg.s.ambient), key: Number(msg.s.key), fill: Number(msg.s.fill),
+        front: Number(msg.s.front ?? 0),
       };
       broadcast(session, { t: 'light', s: session.light }, id);
     } else if (msg.t === 'anim' && msg.s && typeof msg.s === 'object') {
