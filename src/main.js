@@ -39,15 +39,19 @@ scene.add(key);
 const fill = new THREE.DirectionalLight(0x8fb2ff, 0.6);
 fill.position.set(-1.8, 1.2, -1.2);
 scene.add(fill);
+const front = new THREE.DirectionalLight(0xffffff, 0.0);
+front.position.set(0.0, 0.8, 2.2);   // straight in front of the model
+scene.add(front);
 
 // named refs for the lighting controls in the UI
 const LIGHTS = {
-  ambient: { label: 'Ambient', obj: hemi, def: 0.9 },
-  key:     { label: 'Key',     obj: key,  def: 2.4 },
-  fill:    { label: 'Fill',    obj: fill, def: 0.6 },
+  ambient: { label: 'Ambient', obj: hemi,  def: 0.9 },
+  key:     { label: 'Key',     obj: key,   def: 2.4 },
+  fill:    { label: 'Fill',    obj: fill,  def: 0.6 },
+  front:   { label: 'Front',   obj: front, def: 0.0 },
 };
 
-// Optional extra: a spotlight/presets later; for now three sliders + reset.
+// Optional extra: a spotlight/presets later; for now sliders + reset.
 
 /* ---- Grid (sized to fit the loaded model) ---- */
 let grid = null;
@@ -1257,6 +1261,7 @@ function bindLightSlider(id, key) {
 bindLightSlider('light-ambient', 'ambient');
 bindLightSlider('light-key', 'key');
 bindLightSlider('light-fill', 'fill');
+bindLightSlider('light-front', 'front');
 document.getElementById('light-reset')?.addEventListener('click', () => {
   Object.entries(LIGHTS).forEach(([k, cfg]) => {
     cfg.obj.intensity = cfg.def;
@@ -1330,7 +1335,7 @@ function applyRemoteAnim(s) {
   refreshAnimUI();
 }
 function currentLightState() {
-  return { ambient: hemi.intensity, key: key.intensity, fill: fill.intensity };
+  return { ambient: hemi.intensity, key: key.intensity, fill: fill.intensity, front: front.intensity };
 }
 function broadcastLight() {
   if (!session?.connected) return;
@@ -1341,7 +1346,8 @@ function applyRemoteLight(s) {
   if (typeof s.ambient === 'number') hemi.intensity = s.ambient;
   if (typeof s.key === 'number') key.intensity = s.key;
   if (typeof s.fill === 'number') fill.intensity = s.fill;
-  const ids = { ambient: 'light-ambient', key: 'light-key', fill: 'light-fill' };
+  if (typeof s.front === 'number') front.intensity = s.front;
+  const ids = { ambient: 'light-ambient', key: 'light-key', fill: 'light-fill', front: 'light-front' };
   Object.entries(ids).forEach(([k, id]) => {
     const el = document.getElementById(id);
     if (el) el.value = currentLightState()[k];
