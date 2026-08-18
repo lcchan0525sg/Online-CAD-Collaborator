@@ -49,8 +49,8 @@ body {
 }
 .section h2 button { all: unset; cursor: pointer; }
 
-/* info icon shown to the left of Open / Create session */
-.info-icon { color: var(--muted); cursor: help; font-size: 14px; width: 16px; flex: 0 0 auto; }
+/* Section headings that carry a mouse-over (title) tooltip */
+.section h2[title] { cursor: help; }
 
 /* View toggles laid out horizontally */
 .view-toggles { justify-content: flex-start; gap: 14px; }
