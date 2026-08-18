@@ -26,6 +26,11 @@ body {
 
 #app { display: flex; height: 100vh; }
 
+/* The hidden attribute must always win over any element's display rule
+   (e.g. .mats has display:flex, which otherwise overrides [hidden] and makes
+   a collapsible section unable to collapse). */
+[hidden] { display: none !important; }
+
 /* ---------- Panel ---------- */
 #panel {
   width: 344px;
