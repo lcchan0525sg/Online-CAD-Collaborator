@@ -1540,6 +1540,8 @@ let movePlane = new THREE.Plane();
 let moveRay = new THREE.Raycaster();
 const _mv = new THREE.Vector3(), _mv2 = new THREE.Vector3();
 let originalPositions = new Map();   // path -> THREE.Vector3 (node.position at load)
+let moveHistory = [];                 // recent movements [{ path, from, to }] (cap 200)
+const MOVE_HISTORY_MAX = 200;
 
 function movableNode() {
   if (!model || !selectedPartKey) return null;
@@ -1584,8 +1586,11 @@ function resetPartPositions() {
     visited.add(node.uuid);
     node.position.copy(orig);
     node.updateMatrixWorld(true);
-    broadcastMove(path, orig);
+    broadcastMove(path.split('.').map(Number), orig);
   }
+  // Reset also clears the undo history — the positions are back to the baseline.
+  moveHistory.length = 0;
+  updateUndoState();
   xferToast('Part positions reset');
 }
 function saveOriginalPositions() {
@@ -1648,6 +1653,33 @@ function endMoveDrag() {
   if (!moveDragging) return;
   moveDragging = false;
   controls.enabled = true;
+  // Record this drag gesture as one movement (from the drag-start position).
+  const node = movableNode();
+  if (node && moveHistory) {
+    const path = movePathFor(node);
+    const to = node.position.clone();
+    if (!to.equals(moveStartNodePos)) {
+      moveHistory.push({ path, from: moveStartNodePos.clone(), to });
+      if (moveHistory.length > MOVE_HISTORY_MAX) moveHistory.shift();
+      updateUndoState();
+    }
+  }
+}
+function updateUndoState() {
+  const btn = document.getElementById('btn-move-undo');
+  if (btn) btn.disabled = !(moveHistory && moveHistory.length);
+}
+function undoLastMove() {
+  if (!model || !moveHistory || !moveHistory.length) return;
+  const entry = moveHistory.pop();
+  const node = nodeAtPath(model.children[0], entry.path);
+  if (node) {
+    node.position.copy(entry.from);
+    node.updateMatrixWorld(true);
+    broadcastMove(entry.path, node.position);
+    xferToast('Undid part movement');
+  }
+  updateUndoState();
 }
 renderer.domElement.addEventListener('pointerup', endMoveDrag);
 renderer.domElement.addEventListener('pointercancel', endMoveDrag);
@@ -1660,6 +1692,8 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('keyup', (e) => { /* keep axis until re-pressed/off */ });
 moveOnChk.addEventListener('change', () => { if (!moveOnChk.checked) setMoveAxis(null); });
 document.getElementById('btn-reset-pos').addEventListener('click', resetPartPositions);
+document.getElementById('btn-move-undo').addEventListener('click', undoLastMove);
+updateUndoState();
 
 // ---- X/Y/Z axis gizmo: shows the move directions at the selected part, with
 // the armed axis highlighted. Follows the part and updates each frame.
@@ -1688,8 +1722,12 @@ function updateMoveGizmo() {
   moveGizmo.visible = on;
   if (!on) return;
   const p = node.getWorldPosition(new THREE.Vector3());
-  const gScale = modelScale < 1 ? modelScale * 30 : modelScale;   // sensible gizmo size in world units
-  const base = gScale * 0.5;
+  // Size the gizmo to ~1/8 of the viewport height at its depth, so it stays a
+  // constant screen fraction: the bigger the zoom (closer camera), the smaller
+  // the gizmo. World height visible at distance d = 2*d*tan(fov/2).
+  const d = camera.position.distanceTo(p);
+  const visH = 2 * d * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  const base = visH / 8;   // 1/8 of screen height
   ['x', 'y', 'z'].forEach((axis) => {
     const arrow = moveGizmoArrows[axis];
     arrow.position.copy(p);

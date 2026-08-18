@@ -154,6 +154,7 @@ body {
   cursor: pointer;
 }
 .kick-btn:hover { color: #e5484d; border-color: #e5484d; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
 
 /* ---------- Part move ---------- */
 .move-axis {

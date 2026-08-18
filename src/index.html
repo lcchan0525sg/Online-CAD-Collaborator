@@ -127,7 +127,8 @@
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move part</span></label>
           <span id="move-axis" class="move-axis" title="press X / Y / Z to choose an axis, then drag to move">off</span>
-          <button class="btn" id="btn-reset-pos" style="margin-left:auto">Reset</button>
+          <button class="btn" id="btn-move-undo" title="Undo last part movement" style="margin-left:auto">Undo</button>
+          <button class="btn" id="btn-reset-pos" title="Reset all moved parts">Reset</button>
         </div>
         <div id="parts" class="parts"><span class="hint">—</span></div>
         <div id="part-menu" class="part-menu" hidden>
@@ -143,7 +144,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.52 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.53 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p class="notice">This application uses the OpenCascade Technology kernel
