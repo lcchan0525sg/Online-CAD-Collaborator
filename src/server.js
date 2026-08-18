@@ -173,19 +173,28 @@ const httpServer = http
       if (req.method !== 'POST') { res.writeHead(405).end('method not allowed'); return; }
       return handleSessionModelUpload(req, res, session);
     }
-    // ---- Static files (served from src/) ----
+    // ---- Static files (served from src/ or the portable zip root) ----
     let urlPath = decodeURIComponent(url.pathname);
     if (urlPath === '/') urlPath = '/index.html';
-    // node_modules lives at the repo/zip root (ROOT), not inside src/ (WEB),
-    // so requests like ./node_modules/three/... must resolve from ROOT.
-    const base = urlPath.startsWith('/node_modules/') ? ROOT : WEB;
-    const filePath = normalize(join(base, urlPath));
-    if (!filePath.startsWith(normalize(base))) {
-      res.writeHead(403).end('forbidden');
-      return;
+    // node_modules is sometimes inside WEB (portable build: node_modules next
+    // to server.js) and sometimes one level up in ROOT (src/ dev layout: the
+    // repo root). Try WEB first, then ROOT, so the importmap resolves either way.
+    let filePath = null;
+    let data = null;
+    const candidates = urlPath.startsWith('/node_modules/')
+      ? [join(WEB, urlPath), join(ROOT, urlPath)]
+      : [join(WEB, urlPath)];
+    for (const c of candidates) {
+      const norm = normalize(c);
+      const baseOk = urlPath.startsWith('/node_modules/')
+        ? (norm.startsWith(normalize(WEB)) || norm.startsWith(normalize(ROOT)))
+        : norm.startsWith(normalize(WEB));
+      if (!baseOk) continue;
+      try { data = await readFile(norm); filePath = norm; break; }
+      catch { /* try next candidate */ }
     }
+    if (!filePath || !data) { res.writeHead(404).end('not found: ' + urlPath); return; }
     try {
-      const data = await readFile(filePath);
       // Never let the browser cache HTML/JS/CSS: the app is updated in place
       // between builds, and a stale cached main.js has caused repeated
       // 'nothing happens on open' bugs. Force revalidation every request.
