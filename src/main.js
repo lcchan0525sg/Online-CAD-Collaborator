@@ -558,6 +558,9 @@ function loadFromGltf(gltf) {
   model.position.y -= box2.min.y;
   scene.add(model);
   setupAnimation(gltf, root);
+  // In a session, push the current animation + lighting state so every viewer
+  // (including ones that joined mid-load) converges on the same settings.
+  if (session?.connected) { broadcastAnim(); broadcastLight(); }
   frameModel();
   showInfo(gltf, model, maxDim);
   buildPartsTree(root);
@@ -574,7 +577,12 @@ function setupAnimation(gltf, root) {
   const clips = (gltf && (gltf.animations || [])) || [];
   if (mixer) { mixer.stopAllAction(); mixer = null; }
   if (!clips.length) { animState.clip = -1; refreshAnimUI(); return; }
+  // Start PAUSED at frame 0. If we auto-played here, each viewer (host and
+  // every guest) would start from its own load instant and drift out of
+  // frame-sync; pausing lets everyone start at the same state and the host
+  // controls play via the synced Animation controls.
   animState.clip = 0;
+  animState.playing = false;
   mixer = new THREE.AnimationMixer(root);
   applyClip(0);
   refreshAnimUI();

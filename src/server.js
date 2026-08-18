@@ -164,6 +164,10 @@ const httpServer = http
         res.writeHead(200, {
           'content-type': 'model/gltf-binary',
           'content-length': session.model.buf.length,
+          // Same-URL GETs must never be served from the browser cache: when the
+          // host uploads a SECOND model, guests would otherwise get the stale
+          // first one back from cache and never see the new geometry.
+          'cache-control': 'no-cache, no-store, must-revalidate',
           'x-model-filename': latin1(session.model.filename),
           'x-model-note': latin1(session.model.note),
         });
