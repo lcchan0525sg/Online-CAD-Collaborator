@@ -1111,7 +1111,7 @@ async function loadSharedModel(m) {
   const label = m.note || m.filename || 'model';
   xferBegin('Receiving model…', label);
   try {
-    const res = await fetch(`/sessions/${session.code}/model`);
+    const res = await fetch(`/sessions/${session.code}/model?ts=${Date.now()}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const total = parseInt(res.headers.get('content-length') || '0', 10) || 0;
     xferProgress(0, total);
