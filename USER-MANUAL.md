@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.45 · **URL:** http://localhost:8088/
+**Version:** v0.46 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -171,9 +171,9 @@ every connected guest confirms receipt.
 ![The host's “Sending model to guest(s)” overlay](manual-shots/06-sending-overlay.png)
 
 The roster under the code shows who is connected. The **host** can remove a
-viewer by clicking **kick** next to their name; the removed viewer sees
-*"removed by host"*. A small status dot next to "Share session" shows whether
-the server is reachable (green = up, red = down).
+viewer by clicking **kick** next to their name; the removed viewer's screen is
+cleared and they see *"removed by host"*. A small status dot next to "Share
+session" shows whether the server is reachable (green = up, red = down).
 
 ![Host view: guest connected in the roster](manual-shots/05-host-roster.png)
 

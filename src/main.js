@@ -937,6 +937,12 @@ function connectTo(code, { create = false } = {}) {
       setSessionStatus('removed by host');
       showSessionUI(false);
       roster = []; renderRoster();
+      // The viewer was removed — clear the model from their screen.
+      clearModel();
+      clearPartsTree();
+      clearPartSelection();
+      const infoEl = document.getElementById('info');
+      if (infoEl) infoEl.textContent = 'You were removed from the session by the host.';
       xferToast('You were removed from the session by the host.');
     } else if (wasIn) {
       setSessionStatus('disconnected');
