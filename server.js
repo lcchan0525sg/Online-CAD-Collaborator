@@ -39,7 +39,7 @@ function countGlbTriangles(buf) {
 
 const ROOT = fileURLToPath(new URL('.', import.meta.url));
 // Port: env PORT wins; else a port.txt next to server.js (portable zip);
-// else the default 4322.
+// else the default 8088.
 let PORT = parseInt(process.env.PORT || '', 10) || 0;
 if (!PORT) {
   try {
@@ -47,7 +47,7 @@ if (!PORT) {
     PORT = parseInt(txt.trim(), 10) || 0;
   } catch {}
 }
-if (!PORT) PORT = 4322;
+if (!PORT) PORT = 8088;
 
 // STEP import runs the OpenCascade kernel (no Windows wheel) in Docker.
 // CQ_SCRIPT: env override -> step2glb.py next to server.js (portable zip) ->

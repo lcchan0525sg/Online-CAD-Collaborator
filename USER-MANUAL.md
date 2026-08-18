@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.2 · **URL:** http://localhost:4322/
+**Version:** v0.2 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP files
@@ -16,13 +16,13 @@ local viewer.
 
 1. Unzip `cad-viewer-portable.zip` anywhere.
 2. Double-click **`start.bat`**. It launches the server and opens the browser.
-3. The app is served at **http://localhost:4322/**
+3. The app is served at **http://localhost:8088/**
 
 **From source:** `node server.js` in the project folder, then open the same URL.
 
 ### Changing the port
 
-The default port is **4322**. Any of these overrides it:
+The default port is **8088**. Any of these overrides it:
 
 | Method | Example |
 |---|---|
@@ -30,7 +30,7 @@ The default port is **4322**. Any of these overrides it:
 | `port.txt` file next to `server.js` | create `port.txt` containing `5555` |
 | Environment variable | `set PORT=5555` then `node server.js` (Windows) / `PORT=5555 node server.js` (macOS/Linux) |
 
-Precedence: command-line argument → `port.txt` → env `PORT` → default 4322.
+Precedence: command-line argument → `port.txt` → env `PORT` → default 8088.
 The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
 
@@ -195,7 +195,7 @@ conversion error while GLB/GLTF continues to work normally.
 
 | Problem | Fix |
 |---|---|
-| Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 4322 isn't blocked by a firewall |
+| Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 8088 isn't blocked by a firewall |
 | STEP shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |

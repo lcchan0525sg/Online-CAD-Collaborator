@@ -103,13 +103,13 @@ function buildFrom(src, version, zipName) {
   else console.warn('WARNING: node.exe not found at', NODE_EXE, '- zip will not be self-contained');
 
   // ---- launchers ----
-  // Port precedence: command-line arg -> port.txt file -> default 4322.
+  // Port precedence: command-line arg -> port.txt file -> default 8088.
   writeFileSync(join(APP, 'start.bat'), [
     '@echo off',
     'setlocal',
     'cd /d "%~dp0"',
     '',
-    'set "PORT=4322"',
+    'set "PORT=8088"',
     'if not "%~1"=="" set "PORT=%~1"',
     'if exist "port.txt" set /p PORT=<port.txt',
     '',
@@ -124,7 +124,7 @@ function buildFrom(src, version, zipName) {
   writeFileSync(join(APP, 'start.sh'), [
     '#!/bin/sh',
     'cd "$(dirname "$0")"',
-    'PORT="${1:-4322}"',
+    'PORT="${1:-8088}"',
     '[ -f port.txt ] && PORT=$(head -1 port.txt)',
     'echo "Starting CAD Viewer on port $PORT ..."',
     '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',
@@ -142,7 +142,7 @@ function buildFrom(src, version, zipName) {
     '  Windows: double-click start.bat  (or: start.bat)',
     '  macOS/Linux with node: ./start.sh',
     '',
-    'Then open http://localhost:4322/  (the launcher opens it for you).',
+    'Then open http://localhost:8088/  (the launcher opens it for you).',
     '',
     'The zip bundles node.exe, so NO installs are needed on Windows.',
     '',
@@ -156,7 +156,7 @@ function buildFrom(src, version, zipName) {
     '',
     'Sharing:',
     '  Host clicks "Create session", then shares a model. Other users on the same',
-    '  LAN open the join link shown in the sidebar (http://<ip>:4322/?s=CODE) or',
+    '  LAN open the join link shown in the sidebar (http://<ip>:8088/?s=CODE) or',
     '  type the code into "Join". Camera + part show/hide stay in sync.',
     '',
     'STEP files:',
@@ -167,7 +167,7 @@ function buildFrom(src, version, zipName) {
     '  The server shell out to Docker and runs the converter inside it (step2glb.py).',
     '  Without Docker, GLB/GLTF files still work; STEP shows a conversion error.',
     '',
-    'Port: 4322. Override with env PORT.',
+    'Port: 8088. Override with env PORT.',
     '',
   ].join('\r\n'));
 

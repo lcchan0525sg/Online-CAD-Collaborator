@@ -2,7 +2,7 @@
 setlocal
 cd /d "%~dp0"
 
-set "PORT=4322"
+set "PORT=8088"
 if not "%~1"=="" set "PORT=%~1"
 if exist "port.txt" set /p PORT=<port.txt
 
