@@ -791,7 +791,13 @@ let lastLocalModel = null;   // { buf, filename, kind }
 
 // A guest finished loading the shared model (relayed from the server). Clear it
 // from the pending set; once none remain, drop the "Sending model" overlay.
+// ACKs are tracked in ackedSend even if they arrive BEFORE sendModelToPeers
+// populated pendingSend (a race: the server broadcasts to the guest during the
+// upload POST, so a fast guest can ACK before the host's POST returns). Without
+// this, an early ACK is dropped and the host waits the full sendGuard timeout.
+let ackedSend = new Set();   // guest ids that ACKed the current shared model
 function onModelAck(from) {
+  ackedSend.add(from);
   if (!pendingSend.has(from)) return;
   pendingSend.delete(from);
   if (!pendingSend.size) {
@@ -802,6 +808,7 @@ function onModelAck(from) {
 }
 function onPeerGone(id) {
   pendingSend.delete(id);
+  ackedSend.delete(id);
   if (!pendingSend.size) {
     if (sendGuard) clearTimeout(sendGuard);
     setSessionStatus('connected · host');
@@ -1169,14 +1176,16 @@ function sendModelToPeers(m, ids) {
   const guests = ids && ids.length
     ? ids.filter((id) => roster.some((r) => r.id === id))
     : roster.filter((r) => !r.isHost).map((r) => r.id);
-  if (!guests.length) {
-    // Nothing to send right now. A later join re-offers via peer-join, so
-    // hand control back rather than leaving the overlay up forever.
-    xferDone('Model ready to share', 'no guests yet');
+  // Only wait on guests that haven't already ACKed this model (a fast guest may
+  // have ACKed before this function ran — see onModelAck/ackedSend).
+  const waiting = guests.filter((id) => !ackedSend.has(id));
+  pendingSend = new Set(waiting);
+  if (!waiting.length) {
+    // Everyone already ACKed (or no guests) — nothing to wait for.
+    xferDone('Model ready to share', 'all viewers confirmed');
     return;
   }
-  for (const id of guests) pendingSend.add(id);
-  xferBegin('Sending model to guest(s)…', `${guests.length} waiting to load…`);
+  xferBegin('Sending model to guest(s)…', `${waiting.length} waiting to load…`);
   if (sendGuard) clearTimeout(sendGuard);
   sendGuard = setTimeout(() => {
     if (!pendingSend.size) return;
@@ -1190,6 +1199,11 @@ function sendModelToPeers(m, ids) {
 // already has it). Once the upload lands, block until the guests ACK.
 async function shareBuffer(buf, filename, kind) {
   if (!session || !session.connected) return;
+  // New model share: reset the ACK tracking. ACKs that arrive during the upload
+  // POST below (a fast guest can ACK before the host's POST returns) are
+  // captured in ackedSend and honored by sendModelToPeers.
+  ackedSend = new Set();
+  pendingSend = new Set();
   const infoEl = document.getElementById('info');
   const verb = kind === 'glb' ? 'sharing' : 'converting + sharing';
   infoEl.textContent = `${verb} ${filename} to the session…`;

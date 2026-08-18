@@ -323,11 +323,6 @@ wss.on('connection', (ws, req, url) => {
     if (msg.t === 'cam' && Array.isArray(msg.pos) && Array.isArray(msg.target)) {
       // Relay camera motion to every other member (not back to sender).
       broadcast(session, { t: 'cam', from: id, pos: msg.pos, target: msg.target }, id);
-    } else if (msg.t === 'model-ack') {
-      // A guest finished loading a shared model. Relay the confirmation to the
-      // host so it can drop its "Sending model to guest(s)…" overlay.
-      const host = [...session.members.values()].find((v) => v.isHost);
-      if (host) send(host.ws, { t: 'model-ack', from: id, note: msg.note });
     } else if (msg.t === 'parts' && Array.isArray(msg.ops)) {
       // Part visibility sync: merge into the session state (so late joiners
       // get it) and relay to every other member.
