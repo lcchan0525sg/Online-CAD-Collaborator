@@ -1,0 +1,20 @@
+# 
+# Wavefront material file
+# Created with Kaydara FBX
+# 
+
+newmtl Asm1Material0
+Ka 0.800000 0.760331 0.000000
+Kd 0.800000 0.760331 0.000000
+Ks 0.000000 0.000000 0.000000
+illum 2
+Ns 20.000000
+Tr 1.000000
+
+newmtl Asm1Material1
+Ka 0.689706 0.000000 0.700000
+Kd 0.689706 0.000000 0.700000
+Ks 0.000000 0.000000 0.000000
+illum 2
+Ns 20.000000
+Tr 1.000000
