@@ -1129,14 +1129,23 @@ async function loadSharedModel(m) {
 
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;   // superseded — the newer load owns the UI
-      loadFromGltf(gltf);
-      infoEl.textContent = `shared: ${label}\n` + infoEl.textContent;
-      xferDone('Model received', 'you can now rotate, zoom and pan');
-      sendModelAck(label);              // tell the host I got it
+      try {
+        loadFromGltf(gltf);
+        infoEl.textContent = `shared: ${label}\n` + infoEl.textContent;
+        xferDone('Model received', 'you can now rotate, zoom and pan');
+      } catch (err) {
+        if (!isCurrentGen(gen)) return;
+        infoEl.textContent = 'shared model load error: ' + (err?.message ?? err);
+        xferError('shared model load error: ' + (err?.message ?? err));
+      }
+      // Always ACK (success OR failure) so the host's "Sending model to
+      // guest(s)…" overlay clears. If we skip this on error, the host hangs.
+      sendModelAck(label);
     }, (e) => {
       if (!isCurrentGen(gen)) return;
       infoEl.textContent = 'shared model load failed: ' + e.message;
       xferError(e.message);
+      sendModelAck(label);              // still tell the host so it can move on
     });
   } catch (e) {
     if (!isCurrentGen(gen)) return;
