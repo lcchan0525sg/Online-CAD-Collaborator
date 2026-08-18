@@ -359,6 +359,10 @@ wss.on('connection', (ws, req, url) => {
         loop: !!msg.s.loop, speed: Number(msg.s.speed),
       };
       broadcast(session, { t: 'anim', s: session.anim }, id);
+    } else if (msg.t === 'move' && Array.isArray(msg.path) && Array.isArray(msg.pos)) {
+      // Part move: relay the new position to the other members so everyone sees
+      // the same part placement. No stored state needed (host Reset re-broadcasts).
+      broadcast(session, { t: 'move', path: msg.path, pos: msg.pos }, id);
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {
       // Host kicks a viewer out of the session. Only the host may kick, and the
       // host can't kick itself. Close the target's socket; onGone removes them

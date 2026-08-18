@@ -154,6 +154,20 @@ body {
   cursor: pointer;
 }
 .kick-btn:hover { color: #e5484d; border-color: #e5484d; }
+
+/* ---------- Part move ---------- */
+.move-axis {
+  font-size: 11px;
+  font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+  color: var(--muted);
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.move-axis.armed { color: #ffd166; border-color: #ffd166; }
+.move-axis.armed.x { color: #ff7b72; border-color: #ff7b72; }
+.move-axis.armed.y { color: #7ee2a8; border-color: #7ee2a8; }
+.move-axis.armed.z { color: #7cc4ff; border-color: #7cc4ff; }
 #session-controls .actions,
 #join-code { grid-column: span 1; }
 #join-code {

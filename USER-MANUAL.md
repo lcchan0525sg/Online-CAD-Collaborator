@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.49 · **URL:** http://localhost:8088/
+**Version:** v0.51 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -99,6 +99,14 @@ Right-click a part and choose **Show me only** to hide everything except that
 part and its children. Ancestors stay visible so the isolated part still renders.
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
+
+### Move a part (X / Y / Z + drag)
+
+With a part highlighted, tick **Move part**, press **X**, **Y** or **Z** to choose
+an axis (the indicator lights up), then **left-drag** in the viewport to slide
+that part along the axis. The whole top-level assembly/part unit moves together.
+Moves are shared with the other viewers in the session, and **Reset** returns all
+parts to their original positions.
 
 **In a session (see §5), all of this syncs to every member** — show/hide,
 expand/collapse, and the selection highlight are mirrored live in both

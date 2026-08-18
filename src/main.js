@@ -96,6 +96,8 @@ function orientModel(root) {
 
 function clearModel() {
   if (!model) return;
+  if (typeof setMoveAxis === 'function') setMoveAxis(null);
+  if (typeof originalPositions !== 'undefined') originalPositions.clear();
   scene.remove(model);
   model.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -564,6 +566,7 @@ function loadFromGltf(gltf) {
   frameModel();
   showInfo(gltf, model, maxDim);
   buildPartsTree(root);
+  if (typeof saveOriginalPositions === 'function') saveOriginalPositions();
   flushPendingParts();
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
 }
@@ -1029,6 +1032,9 @@ function onSessionMsg(msg) {
       break;
     case 'cam':
       applyRemoteCamera(msg.pos, msg.target);
+      break;
+    case 'move':
+      applyRemoteMove(msg);
       break;
     case 'anim':
       applyRemoteAnim(msg.s);
@@ -1518,6 +1524,137 @@ gridChk.addEventListener('change', () => {
 const rotateChk = document.getElementById('chk-rotate');
 rotateChk.addEventListener('change', () => { controls.autoRotate = rotateChk.checked; controls.autoRotateSpeed = 1.2; });
 controls.autoRotate = rotateChk.checked;
+
+/* ============================ Part move (X/Y/Z + drag) ============================ */
+// With Move part on and a part selected, press X/Y/Z to choose an axis, then
+// left-drag to translate that part (the whole top-level assembly/part unit)
+// along the axis. Moves are synced to the session and can be reset.
+const moveOnChk = document.getElementById('move-on');
+const moveAxisEl = document.getElementById('move-axis');
+let moveAxis = null;            // 'x' | 'y' | 'z' | null
+let moveDragging = false;
+let moveStartWorld = new THREE.Vector3();
+let moveStartNodePos = new THREE.Vector3();
+let movePlane = new THREE.Plane();
+let moveRay = new THREE.Raycaster();
+const _mv = new THREE.Vector3(), _mv2 = new THREE.Vector3();
+let originalPositions = new Map();   // path -> THREE.Vector3 (node.position at load)
+
+function movableNode() {
+  if (!model || !selectedPartKey) return null;
+  const root = model.children[0];
+  let node = nodeAtPath(root, selectedPartKey.split('.').map(Number));
+  if (!node) return null;
+  while (node.parent && node.parent !== root) node = node.parent;  // climb to top-level unit
+  return node;
+}
+function setMoveAxis(a) {
+  moveAxis = a;
+  if (!moveAxisEl) return;
+  moveAxisEl.textContent = a ? a.toUpperCase() : 'off';
+  moveAxisEl.classList.toggle('armed', !!a);
+  moveAxisEl.classList.toggle('x', a === 'x');
+  moveAxisEl.classList.toggle('y', a === 'y');
+  moveAxisEl.classList.toggle('z', a === 'z');
+}
+function movePathFor(node) {
+  const root = model.children[0];
+  const path = [];
+  let o = node;
+  while (o && o !== root) { const p = o.parent; if (!p) break; path.unshift(p.children.indexOf(o)); o = p; }
+  return path;
+}
+function broadcastMove(path, pos) {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'move', path, pos: [pos.x, pos.y, pos.z] })); } catch {}
+}
+function applyRemoteMove(msg) {
+  if (!model || !Array.isArray(msg.path) || !Array.isArray(msg.pos)) return;
+  const node = nodeAtPath(model.children[0], msg.path);
+  if (!node) return;
+  node.position.set(msg.pos[0], msg.pos[1], msg.pos[2]);
+  node.updateMatrixWorld(true);
+}
+function resetPartPositions() {
+  if (!model) return;
+  const root = model.children[0];
+  const visited = new Set();
+  for (const [path, orig] of originalPositions) {
+    const node = nodeAtPath(root, path);
+    if (!node || visited.has(node.uuid)) continue;
+    visited.add(node.uuid);
+    node.position.copy(orig);
+    node.updateMatrixWorld(true);
+    broadcastMove(path, orig);
+  }
+  xferToast('Part positions reset');
+}
+function saveOriginalPositions() {
+  originalPositions.clear();
+  if (!model) return;
+  const root = model.children[0];
+  // Save the position of every top-level assembly/part unit (direct child of root).
+  (root.children || []).forEach((c, i) => {
+    originalPositions.set(String(i), c.position.clone());
+  });
+}
+
+// pointer handlers on the canvas
+const _planePt = new THREE.Vector3();     // current ray/plane intersection
+let moveStartPlanePt = new THREE.Vector3(); // plane point captured at drag start
+function moveRayToPlane(e, out) {
+  const r = renderer.domElement.getBoundingClientRect();
+  _mv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1, 0.5);
+  moveRay.setFromCamera(_mv, camera);
+  return moveRay.ray.intersectPlane(movePlane, out || _planePt);
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !moveAxis || !moveOnChk.checked) return;
+  const node = movableNode();
+  if (!node) return;
+  moveDragging = true;
+  moveStartWorld.copy(node.getWorldPosition(_mv2));
+  moveStartNodePos.copy(node.position);
+  controls.enabled = false;   // move instead of orbit while dragging
+  // plane through the part, facing the camera, for stable axis-constrained drag
+  movePlane.setFromNormalAndCoplanarPoint(
+    camera.getWorldDirection(new THREE.Vector3()).clone().negate(), moveStartWorld);
+  moveRayToPlane(e, moveStartPlanePt);
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!moveDragging || !moveAxis) return;
+  const pt = moveRayToPlane(e);
+  if (!pt) return;
+  const node = movableNode();
+  if (!node) return;
+  const axis = moveAxis === 'x' ? new THREE.Vector3(1, 0, 0)
+    : moveAxis === 'y' ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(0, 0, 1);
+  const worldPos = moveStartWorld.clone();
+  const delta = pt.sub(moveStartPlanePt).dot(axis);
+  worldPos.addScaledVector(axis, delta);
+  // convert world → node-local (handles model scale)
+  node.parent.worldToLocal(worldPos);
+  node.position.copy(worldPos);
+  node.updateMatrixWorld(true);
+  broadcastMove(movePathFor(node), node.position);
+});
+function endMoveDrag() {
+  if (!moveDragging) return;
+  moveDragging = false;
+  controls.enabled = true;
+}
+renderer.domElement.addEventListener('pointerup', endMoveDrag);
+renderer.domElement.addEventListener('pointercancel', endMoveDrag);
+
+document.addEventListener('keydown', (e) => {
+  if (!moveOnChk?.checked) return;
+  const k = e.key.toLowerCase();
+  if (k === 'x' || k === 'y' || k === 'z') setMoveAxis(k);
+});
+document.addEventListener('keyup', (e) => { /* keep axis until re-pressed/off */ });
+moveOnChk.addEventListener('change', () => { if (!moveOnChk.checked) setMoveAxis(null); });
+document.getElementById('btn-reset-pos').addEventListener('click', resetPartPositions);
 
 /* ============================ Resize + loop ============================ */
 function resize() {
