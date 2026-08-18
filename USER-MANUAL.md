@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.46 · **URL:** http://localhost:8088/
+**Version:** v0.47 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -156,6 +156,10 @@ In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animati
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
+
+> On launch you're asked to **enter your name**; it is shown to the other
+> viewers in the roster (e.g. `Alice · host`, `Bob (you)`). Your name is
+> remembered for next time.
 
 1. Click **Create session** — a 5-character code appears.
 2. **Open a model** (or re-share one you've already loaded).

@@ -921,10 +921,10 @@ async function refreshJoinLink(code) {
 function connectTo(code, { create = false } = {}) {
   if (session) { try { session.ws.close(); } catch {} session = null; }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const q = new URLSearchParams({ session: code, name: 'viewer' });
+  const q = new URLSearchParams({ session: code, name: userName });
   if (create) q.set('create', '1');
   const ws = new WebSocket(`${proto}://${location.host}/ws?${q}`);
-  session = { code, ws, id: null, isHost: false, connected: false };
+  session = { code, ws, id: null, isHost: false, connected: false, name: userName };
   setSessionStatus('connecting…');
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m); };
   ws.onclose = (ev) => {
@@ -1531,6 +1531,23 @@ renderer.setAnimationLoop(() => {
   controls.update();
   renderer.render(scene, camera);
 });
+
+// ---- Viewer identity: ask for a name on launch and reuse it across sessions.
+// Persisted so it isn't re-asked every reload, but the user can change it.
+let userName = '';
+function askName() {
+  let name = '';
+  try { name = (localStorage.getItem('cadv_name') || '').trim(); } catch {}
+  const entered = (window.prompt('Enter your name (shown to other viewers):', name) || '').trim().slice(0, 24);
+  if (entered) {
+    userName = entered;
+    try { localStorage.setItem('cadv_name', entered); } catch {}
+  } else {
+    userName = name || 'viewer';
+  }
+  return userName;
+}
+askName();
 
 // Boot: if a ?s=CODE param is present, join that session (guest deep-link) and
 // load whatever model it has. Otherwise start empty — the user opens a model.
