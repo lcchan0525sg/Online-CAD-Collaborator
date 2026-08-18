@@ -268,7 +268,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map() };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -288,6 +288,9 @@ wss.on('connection', (ws, req, url) => {
         .map(([p, visible]) => ({ path: p.split('.').map(Number), visible })),
     });
   }
+  // Late joiner: replay lighting + animation state too.
+  if (session.light) send(ws, { t: 'light', s: session.light });
+  if (session.anim) send(ws, { t: 'anim', s: session.anim });
   // Let everyone else know a new member arrived (host uses this to offer its
   // current model to the newcomer — see the 'peer-join' handler client-side).
   broadcast(session, { t: 'peer-join', id, name, isHost }, id);
@@ -319,6 +322,19 @@ wss.on('connection', (ws, req, url) => {
     } else if (msg.t === 'sel') {
       // Part selection highlight: relay to the other members.
       broadcast(session, { t: 'sel', key: msg.key || null }, id);
+    } else if (msg.t === 'light' && msg.s && typeof msg.s === 'object') {
+      // Lighting sync: store (for late joiners) and relay to the others.
+      session.light = {
+        ambient: Number(msg.s.ambient), key: Number(msg.s.key), fill: Number(msg.s.fill),
+      };
+      broadcast(session, { t: 'light', s: session.light }, id);
+    } else if (msg.t === 'anim' && msg.s && typeof msg.s === 'object') {
+      // Animation sync: store (for late joiners) and relay to the others.
+      session.anim = {
+        clip: Number(msg.s.clip), playing: !!msg.s.playing,
+        loop: !!msg.s.loop, speed: Number(msg.s.speed),
+      };
+      broadcast(session, { t: 'anim', s: session.anim }, id);
     }
   });
 

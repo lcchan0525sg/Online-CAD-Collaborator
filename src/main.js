@@ -574,6 +574,8 @@ function setupAnimation(gltf, root) {
   mixer = new THREE.AnimationMixer(root);
   applyClip(0);
   refreshAnimUI();
+  // A remote anim state may have arrived before this model loaded — apply it now.
+  if (pendingRemoteAnim) { const s = pendingRemoteAnim; pendingRemoteAnim = null; applyRemoteAnim(s); }
 }
 
 function applyClip(i) {
@@ -938,6 +940,12 @@ function onSessionMsg(msg) {
     case 'cam':
       applyRemoteCamera(msg.pos, msg.target);
       break;
+    case 'anim':
+      applyRemoteAnim(msg.s);
+      break;
+    case 'light':
+      applyRemoteLight(msg.s);
+      break;
   }
 }
 
@@ -1243,6 +1251,7 @@ function bindLightSlider(id, key) {
     LIGHTS[key].obj.intensity = parseFloat(el.value);
     const v = document.getElementById(id + '-val');
     if (v) v.textContent = `${parseFloat(el.value).toFixed(1)}`;
+    broadcastLight();
   });
 }
 bindLightSlider('light-ambient', 'ambient');
@@ -1256,6 +1265,7 @@ document.getElementById('light-reset')?.addEventListener('click', () => {
     const v = document.getElementById('light-' + k + '-val');
     if (v) v.textContent = cfg.def.toFixed(1);
   });
+  broadcastLight();
 });
 
 /* ---- Animation controls ---- */
@@ -1275,21 +1285,70 @@ document.getElementById('anim-play')?.addEventListener('click', () => {
     if (mixer) mixer.stopAllAction();
     playBtn.textContent = '▶ Play';
   }
+  broadcastAnim();
 });
 document.getElementById('anim-loop')?.addEventListener('change', (e) => {
   animState.loop = e.target.checked;
   if (animState.clip >= 0) applyClip(animState.clip);
+  broadcastAnim();
 });
 document.getElementById('anim-clip')?.addEventListener('change', (e) => {
   animState.clip = parseInt(e.target.value, 10);
   applyClip(animState.clip);
+  broadcastAnim();
 });
 document.getElementById('anim-speed')?.addEventListener('input', (e) => {
   animState.speed = parseFloat(e.target.value);
   const v = document.getElementById('anim-speed-val');
   if (v) v.textContent = `${animState.speed.toFixed(1)}×`;
+  broadcastAnim();
 });
 refreshAnimUI();
+
+/* ---- Animation + lighting sync over the session ---- */
+function currentAnimState() {
+  return { clip: animState.clip, playing: animState.playing, loop: animState.loop, speed: animState.speed };
+}
+function broadcastAnim() {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'anim', s: currentAnimState() })); } catch {}
+}
+function applyRemoteAnim(s) {
+  if (!s) return;
+  const clips = (lastGltf && lastGltf.animations) || [];
+  // If no animated model is loaded yet, buffer the state and apply it once a
+  // model (with clips) arrives — mirrors how parts state is deferred.
+  if (!clips.length) { pendingRemoteAnim = s; animState.playing = !!s.playing; animState.loop = !!s.loop; if (typeof s.speed === 'number') animState.speed = s.speed; return; }
+  pendingRemoteAnim = null;
+  if (typeof s.clip === 'number' && s.clip >= 0 && s.clip < clips.length) {
+    animState.clip = s.clip;
+    if (mixer) { mixer.stopAllAction(); const a = mixer.clipAction(clips[s.clip]); a.setLoop(s.loop ? THREE.LoopRepeat : THREE.LoopOnce); a.clampWhenFinished = !s.loop; if (s.playing) a.play(); }
+  }
+  animState.playing = !!s.playing;
+  animState.loop = !!s.loop;
+  if (typeof s.speed === 'number') animState.speed = s.speed;
+  refreshAnimUI();
+}
+function currentLightState() {
+  return { ambient: hemi.intensity, key: key.intensity, fill: fill.intensity };
+}
+function broadcastLight() {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'light', s: currentLightState() })); } catch {}
+}
+function applyRemoteLight(s) {
+  if (!s) return;
+  if (typeof s.ambient === 'number') hemi.intensity = s.ambient;
+  if (typeof s.key === 'number') key.intensity = s.key;
+  if (typeof s.fill === 'number') fill.intensity = s.fill;
+  const ids = { ambient: 'light-ambient', key: 'light-key', fill: 'light-fill' };
+  Object.entries(ids).forEach(([k, id]) => {
+    const el = document.getElementById(id);
+    if (el) el.value = currentLightState()[k];
+    const v = document.getElementById(id + '-val');
+    if (v) v.textContent = currentLightState()[k].toFixed(1);
+  });
+}
 
 /* ---- Session controls ---- */
 function newSessionCode() {
@@ -1358,6 +1417,7 @@ resize();
 const animClock = new THREE.Clock();
 let mixer = null;          // AnimationMixer for the loaded GLB's clips
 let animState = { playing: true, loop: true, speed: 1, clip: -1 };
+let pendingRemoteAnim = null;   // anim state received before a model loaded
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(animClock.getDelta(), 0.1);
