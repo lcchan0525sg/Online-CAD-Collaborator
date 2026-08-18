@@ -176,8 +176,11 @@ const httpServer = http
     // ---- Static files (served from src/) ----
     let urlPath = decodeURIComponent(url.pathname);
     if (urlPath === '/') urlPath = '/index.html';
-    const filePath = normalize(join(WEB, urlPath));
-    if (!filePath.startsWith(WEB)) {
+    // node_modules lives at the repo/zip root (ROOT), not inside src/ (WEB),
+    // so requests like ./node_modules/three/... must resolve from ROOT.
+    const base = urlPath.startsWith('/node_modules/') ? ROOT : WEB;
+    const filePath = normalize(join(base, urlPath));
+    if (!filePath.startsWith(normalize(base))) {
       res.writeHead(403).end('forbidden');
       return;
     }
