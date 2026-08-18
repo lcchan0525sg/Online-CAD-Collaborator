@@ -852,6 +852,17 @@ async function pollHealth() {
 setHealth('unknown');
 pollHealth();
 setInterval(pollHealth, 4000);
+
+// ---- Collapsible sections (Info, Materials): default collapsed, toggle on heading click
+document.querySelectorAll('.collapse-toggle').forEach((btn) => {
+  const body = btn.closest('section')?.querySelector('.collapse-body');
+  if (!body) return;
+  btn.addEventListener('click', () => {
+    const open = body.hidden;
+    body.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+  });
+});
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderRoster() {

@@ -16,13 +16,13 @@
 
       <section class="section">
         <h2>Model</h2>
-        <div class="actions">
-          <label class="btn primary filebtn">
+        <div class="row toggle" style="align-items:center">
+          <span class="info-icon" title="Load any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip; STEP, IGES and OBJ files are converted to GLB by the OpenCascade kernel (Docker) on the server &mdash; allow a few seconds. In a session, whatever you open is shared with the other viewers.">&#9432;</span>
+          <label class="btn primary filebtn" style="flex:1; margin:0">
             Open model &hellip;
             <input type="file" id="file" accept=".glb,.gltf,.step,.stp,.igs,.iges,.obj,.mtl" multiple hidden>
           </label>
         </div>
-        <p class="hint">Load any binary GLB (or GLTF with embedded data) written by OpenCascade, SolidEdge, FreeCAD, Fusion &hellip; STEP, IGES and OBJ files are converted to GLB by the OpenCascade kernel (Docker) on the server &mdash; allow a few seconds. In a session, whatever you open is shared with the other viewers.</p>
       </section>
 
       <section class="section">
@@ -33,10 +33,10 @@
         </div>
 
         <div id="session-controls">
-          <div class="row toggle">
-            <button class="btn primary" id="btn-create-session">Create session</button>
+          <div class="row toggle" style="align-items:center">
+            <span class="info-icon" title="Share the code below with others so they can view the same model. You can then upload/share any model here and everyone sees it. Camera is synced &mdash; rotate or zoom and the others follow (and vice versa).">&nbsp;&#9432;</span>
+            <button class="btn primary" id="btn-create-session" style="flex:1; margin:0">Create session</button>
           </div>
-          <p class="hint" style="margin-top:2px">Share the code below with others so they can view the same model. You can then upload/share any model here and everyone sees it. Camera is synced &mdash; rotate or zoom and the others follow (and vice&nbsp;versa).</p>
           <div class="actions" style="margin-top:10px">
             <input type="text" id="join-code" placeholder="session code" maxlength="12" autocomplete="off" spellcheck="false">
             <button class="btn" id="btn-join-session">Join</button>
@@ -59,14 +59,10 @@
 
       <section class="section">
         <h2>View</h2>
-        <div class="row toggle">
-          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-wire" ><span>Wireframe overlay</span></label>
-        </div>
-        <div class="row toggle">
+        <div class="row toggle view-toggles">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-wire" ><span>Wireframe</span></label>
           <label class="tlabel"><input class="ctl" type="checkbox" id="chk-grid" checked><span>Grid</span></label>
-        </div>
-        <div class="row toggle">
-          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-rotate" checked><span>Auto-rotate</span></label>
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-rotate" checked><span>Rotate</span></label>
         </div>
         <button class="btn" id="btn-frame">Frame model</button>
       </section>
@@ -119,9 +115,9 @@
         <button class="btn" id="light-reset">Reset lighting</button>
       </section>
 
-      <section class="section">
-        <h2>Info</h2>
-        <pre id="info">no model loaded</pre>
+      <section class="section collapsible-sec">
+        <h2><button class="collapse-toggle" aria-expanded="false">Info <span class="chev">▸</span></button></h2>
+        <pre id="info" class="collapse-body" hidden>no model loaded</pre>
       </section>
 
       <section class="section">
@@ -136,15 +132,15 @@
         </div>
       </section>
 
-      <section class="section">
-        <h2>Materials</h2>
-        <div id="mats" class="mats"><span class="hint">—</span></div>
+      <section class="section collapsible-sec">
+        <h2><button class="collapse-toggle" aria-expanded="false">Materials <span class="chev">▸</span></button></h2>
+        <div id="mats" class="mats collapse-body" hidden><span class="hint">—</span></div>
       </section>
 
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.47 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.48 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p class="notice">This application uses the OpenCascade Technology kernel

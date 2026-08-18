@@ -47,6 +47,21 @@ body {
   color: var(--muted);
   margin: 0 0 12px;
 }
+.section h2 button { all: unset; cursor: pointer; }
+
+/* info icon shown to the left of Open / Create session */
+.info-icon { color: var(--muted); cursor: help; font-size: 14px; width: 16px; flex: 0 0 auto; }
+
+/* View toggles laid out horizontally */
+.view-toggles { justify-content: flex-start; gap: 14px; }
+.view-toggles .tlabel { white-space: nowrap; }
+
+/* Collapsible sections (Info, Materials) */
+.collapsible-sec h2 { margin: 0; }
+.collapse-toggle { display: flex; align-items: center; gap: 6px; }
+.collapse-toggle .chev { transition: transform 0.15s; font-size: 10px; }
+.collapse-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.collapse-body { margin-top: 12px; }
 
 .toggle .tlabel {
   display: flex;
