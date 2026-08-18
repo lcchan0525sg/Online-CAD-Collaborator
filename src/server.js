@@ -400,12 +400,11 @@ async function handleSessionModelUpload(req, res, session) {
     // STEP/IGES/OBJ to GLB locally and kept the original filename) — trust
     // x-kind over a filename-extension guess.
     const declared = (req.headers['x-kind'] || '').toString().toLowerCase();
-    let kind = declared === 'glb' ? 'glb'
-      : declared === 'step' || declared === 'iges' || declared === 'obj' ? declared
-      : 'glb';
-    // A filename with a convertible extension also implies its kind (tolerant
-    // fallback for clients that omit x-kind).
-    if (kind === 'glb') {
+    const declaredKnown = declared === 'glb' || declared === 'step' || declared === 'iges' || declared === 'obj';
+    // Trust an explicit x-kind. Only fall back to a filename-extension guess
+    // when the client did NOT declare a kind (older clients / direct uploads).
+    let kind = declaredKnown ? declared : 'glb';
+    if (!declaredKnown) {
       const ek = kindFromExt(filename);
       if (ek) kind = ek;
     }
