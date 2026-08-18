@@ -651,7 +651,15 @@ async function importStep(file, mtlFile) {
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;
       loadFromGltf(gltf);
-      infoEl.textContent = `source: ${file.name} (converted to GLB in ${dt}s)\n` + infoEl.textContent;
+      let srcLine = `source: ${file.name} (converted to GLB in ${dt}s)`;
+      // OBJ colours live in a sibling .mtl; if it wasn't selected, say so
+      // clearly so a grey result isn't mistaken for a converter bug.
+      if (file.name.toLowerCase().endsWith('.obj') && !mtlFile) {
+        srcLine += '  ⚠ NO .MTL SELECTED — parts are grey. Re-open and select the .obj together with its .mtl.';
+      } else if (file.name.toLowerCase().endsWith('.obj') && mtlFile && !mtlId) {
+        srcLine += '  ⚠ .MTL STAGING FAILED — parts may be grey.';
+      }
+      infoEl.textContent = srcLine + '\n' + infoEl.textContent;
       lastLocalModel = { buf, filename: file.name, kind: 'glb' };
       // In a session the model is also pushed to the guests once the local
       // parse has landed — share the converted GLB and hold the overlay until
