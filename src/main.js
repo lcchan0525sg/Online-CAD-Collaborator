@@ -955,7 +955,11 @@ function onSessionMsg(msg) {
       loadSharedModel(msg);
       break;
     case 'model-ack':
-      if (session?.isHost) onModelAck(msg.from);
+      // Any sharer — host OR guest — must process ACKs to drain its own
+      // pendingSend/ackedSend. The old `if (session?.isHost)` gate meant a
+      // guest that shared a model received the ACKs but ignored them, hanging
+      // its "Sending model to guest(s)…" overlay for the full 30s.
+      onModelAck(msg.from);
       break;
     case 'parts':
       applyRemoteParts(msg.ops);
