@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.49 · **URL:** http://localhost:8088/
+**Version:** v0.50 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -145,6 +145,18 @@ If the GLB you load contains **keyframe animation** (e.g. from Blender or a game
 | **Loop** | Repeat the clip (off = play once and stop) |
 | **Speed** | Playback speed 0.25×–4× |
 | **Clip** | Pick a clip when the model has several |
+
+### Measurement
+
+The **Measure** section lets you take measurements on the model by clicking it:
+
+| Mode | Points | Result |
+|---|---|---|
+| **Distance** | 2 | straight-line distance |
+| **Angle** | 3 | angle at the middle point |
+| **Hole (diameter)** | 3 around a hole rim | circle centre + ⌀ diameter (works on any face angle) |
+
+Toggle **Measure** on, pick the mode, then click the model to place points. Points snap to the mesh surface, and results are shown in the model's **true units** (mm for STEP/IGES and large OBJ; viewer units for small normalised files). Use **Undo** to remove the last point/measurement and **Clear** to start over. Measurements are local to your viewer.
 
 ### Session sync
 

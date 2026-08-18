@@ -96,6 +96,7 @@ function orientModel(root) {
 
 function clearModel() {
   if (!model) return;
+  if (typeof clearMeasurements === 'function') clearMeasurements();
   scene.remove(model);
   model.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -1519,6 +1520,196 @@ const rotateChk = document.getElementById('chk-rotate');
 rotateChk.addEventListener('change', () => { controls.autoRotate = rotateChk.checked; controls.autoRotateSpeed = 1.2; });
 controls.autoRotate = rotateChk.checked;
 
+/* ============================ Measure ============================ */
+// Interactive measurements: pick points on the model (raycast + vertex snap)
+// and show Distance / Angle / Hole-diameter with true-file-unit values.
+const measOverlay = document.getElementById('meas-overlay');
+const measStatus = document.getElementById('meas-status');
+const measOn = document.getElementById('meas-on');
+const measModeSel = document.getElementById('meas-mode');
+const raycaster = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+
+let measActive = false;
+let measMode = 'distance';       // distance | angle | circle
+let measPts = [];                // world-space Vector3 for the in-progress measurement
+let measurements = [];           // completed: { type, pts, label } (pts = world Vector3)
+let measGroup = null;            // THREE.Group of line/point markers in the scene
+let measLabelEls = [];           // [{ el, world }] HTML labels projected each frame
+let measDragDist = 0;            // pointer travel since pointerdown (to ignore drags)
+
+function measUnits() {
+  // modelScale === 1/1000 => the file was in mm (the app's mm→m rule). Anything
+  // else is a normalised 1:1-ish model whose real size is unknown.
+  return Math.abs(modelScale - 1 / 1000) < 1e-9 ? { mult: 1000, unit: 'mm' } : { mult: 1, unit: 'u' };
+}
+function fmtLen(v) {
+  const { mult, unit } = measUnits();
+  const real = v * mult;
+  return real >= 100 ? real.toFixed(1) : real.toFixed(3);
+}
+function fmtAngleDeg(rad) { return (rad * 180 / Math.PI).toFixed(1) + '°'; }
+
+function ensureMeasGroup() {
+  if (!measGroup) { measGroup = new THREE.Group(); scene.add(measGroup); }
+}
+function rebuildMeasVisuals() {
+  // Remove old 3D markers + labels.
+  if (measGroup) { scene.remove(measGroup); measGroup = null; }
+  measLabelEls.forEach((o) => o.el.remove());
+  measLabelEls = [];
+  if (!measurements.length) return;
+  ensureMeasGroup();
+  const mat = new THREE.LineBasicMaterial({ color: 0xffd166 });
+  const dotMat = new THREE.PointsMaterial({ color: 0xffd166, size: 6 });
+  const dotGeo = new THREE.BufferGeometry();
+  const allPts = [];
+  measurements.forEach((m) => {
+    // lines between consecutive points
+    if (m.pts.length >= 2) {
+      const g = new THREE.BufferGeometry().setFromPoints(m.pts);
+      measGroup.add(new THREE.Line(g, mat));
+    }
+    // circle overlay for hole diameter
+    if (m.type === 'circle' && m.circle) {
+      const cg = new THREE.BufferGeometry().setFromPoints(m.circle.ring);
+      measGroup.add(new THREE.Line(cg, new THREE.LineBasicMaterial({ color: 0x7ee2a8 })));
+      allPts.push(m.circle.center);
+    }
+    m.pts.forEach((p) => allPts.push(p));
+    // label anchored at the midpoint (distance) / middle point (angle) / center (circle)
+    const anchor = m.labelWorld || m.pts[m.pts.length - 1];
+    const el = document.createElement('div');
+    el.className = 'meas-label ' + (m.type === 'angle' ? 'angle' : m.type === 'circle' ? 'circle' : '');
+    el.textContent = m.label;
+    measOverlay.appendChild(el);
+    measLabelEls.push({ el, world: anchor });
+  });
+  dotGeo.setFromPoints(allPts);
+  if (allPts.length) measGroup.add(new THREE.Points(dotGeo, dotMat));
+}
+function updateMeasStatus() {
+  if (!measActive) { measStatus.textContent = 'off · click the model to measure'; measStatus.classList.remove('active'); return; }
+  measStatus.classList.add('active');
+  const need = measMode === 'distance' ? 2 : 3;
+  const n = measPts.length;
+  const names = { distance: 'Distance', angle: 'Angle', circle: 'Hole diameter' };
+  measStatus.textContent = `${names[measMode]} · ${n}/${need} points · click the model`;
+}
+function clearMeasurements() {
+  measPts = [];
+  measurements = [];
+  rebuildMeasVisuals();
+  updateMeasStatus();
+}
+function undoLastMeasurement() {
+  if (measPts.length) { measPts.pop(); updateMeasStatus(); return; }
+  if (measurements.length) { measurements.pop(); rebuildMeasVisuals(); updateMeasStatus(); }
+}
+function snapToVertex(hit) {
+  // Snap the raycast hit to the nearest mesh vertex within ~0.5% of the model
+  // so measurements land on real geometry (better for holes/edges).
+  const geo = hit.object.geometry;
+  if (!geo || !geo.attributes || !geo.attributes.position) return hit.point.clone();
+  const pos = geo.attributes.position;
+  const local = hit.object.worldToLocal(hit.point.clone());
+  const scale = (new THREE.Box3().setFromObject(model).getSize(new THREE.Vector3()).length()) || 1;
+  const tol = scale * 0.005;
+  let best = local.clone(), bestD = Infinity;
+  for (let i = 0; i < pos.count; i++) {
+    const v = new THREE.Vector3(pos.getX(i), pos.getY(i), pos.getZ(i));
+    const d = v.distanceTo(local);
+    if (d < bestD) { bestD = d; best = v; }
+  }
+  return bestD <= tol ? hit.object.localToWorld(best) : hit.point.clone();
+}
+function completeMeasurement() {
+  const mode = measMode;
+  let m = null;
+  if (mode === 'distance' && measPts.length === 2) {
+    const d = measPts[0].distanceTo(measPts[1]);
+    m = { type: 'distance', pts: measPts.slice(), label: fmtLen(d) + ' ' + measUnits().unit, labelWorld: measPts[0].clone().lerp(measPts[1], 0.5) };
+  } else if (mode === 'angle' && measPts.length === 3) {
+    const a = measPts[0], b = measPts[1], c = measPts[2];
+    const v1 = a.clone().sub(b), v2 = c.clone().sub(b);
+    const ang = Math.acos(Math.max(-1, Math.min(1, v1.dot(v2) / (v1.length() * v2.length() || 1))));
+    m = { type: 'angle', pts: measPts.slice(), label: fmtAngleDeg(ang), labelWorld: b };
+  } else if (mode === 'circle' && measPts.length === 3) {
+    const [pa, pb, pc] = measPts;
+    // Plane of the 3 points (hole rim) — measure the circumcircle in this plane
+    // so it works for holes on any face orientation, not just the XY plane.
+    const n = pc.clone().sub(pa).cross(pb.clone().sub(pa)).normalize();
+    // Local 2D basis in the plane
+    const u = pb.clone().sub(pa).normalize();
+    const v = new THREE.Vector3().crossVectors(n, u).normalize();
+    const to2 = (p) => new THREE.Vector2(p.clone().sub(pa).dot(u), p.clone().sub(pa).dot(v));
+    const a2 = to2(pa), b2 = to2(pb), c2 = to2(pc);
+    const ax = a2.x, ay = a2.y, bx = b2.x, by = b2.y, cx = c2.x, cy = c2.y;
+    const dd = 2 * (ax * (by - cy) + bx * (cy - ay) + cx * (ay - by));
+    if (Math.abs(dd) > 1e-9) {
+      const ux = ((ax * ax + ay * ay) * (by - cy) + (bx * bx + by * by) * (cy - ay) + (cx * cx + cy * cy) * (ay - by)) / dd;
+      const uy = ((ax * ax + ay * ay) * (cx - bx) + (bx * bx + by * by) * (ax - cx) + (cx * cx + cy * cy) * (bx - ax)) / dd;
+      const center = pa.clone().add(u.clone().multiplyScalar(ux)).add(v.clone().multiplyScalar(uy));
+      const r = center.distanceTo(pa);
+      const ring = [];
+      for (let i = 0; i <= 48; i++) {
+        const t = (i / 48) * Math.PI * 2;
+        ring.push(center.clone().add(u.clone().multiplyScalar(Math.cos(t) * r)).add(v.clone().multiplyScalar(Math.sin(t) * r)));
+      }
+      m = { type: 'circle', pts: measPts.slice(), circle: { center, ring }, label: '⌀ ' + fmtLen(r * 2) + ' ' + measUnits().unit, labelWorld: center };
+    } else {
+      measStatus.textContent = 'points are collinear — pick 3 points around a hole';
+      measPts = [];
+      updateMeasStatus();
+      return;
+    }
+  }
+  if (m) { measurements.push(m); measPts = []; rebuildMeasVisuals(); }
+  updateMeasStatus();
+}
+function onMeasurePointerUp(ev) {
+  if (!measActive || !model || measDragDist > 5) return;
+  const rect = renderer.domElement.getBoundingClientRect();
+  ndc.set(((ev.clientX - rect.left) / rect.width) * 2 - 1, -((ev.clientY - rect.top) / rect.height) * 2 + 1);
+  raycaster.setFromCamera(ndc, camera);
+  const hits = raycaster.intersectObject(model, true);
+  if (!hits.length) { measStatus.textContent = 'no model at that point — click the part'; return; }
+  measPts.push(snapToVertex(hits[0]));
+  const need = measMode === 'distance' ? 2 : 3;
+  if (measPts.length >= need) completeMeasurement();
+  else updateMeasStatus();
+}
+renderer.domElement.addEventListener('pointerdown', () => { measDragDist = 0; });
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (e.buttons) measDragDist += Math.abs(e.movementX) + Math.abs(e.movementY);
+});
+renderer.domElement.addEventListener('pointerup', onMeasurePointerUp);
+measOn.addEventListener('change', () => {
+  measActive = measOn.checked;
+  measPts = [];
+  if (!measActive) clearMeasurements();
+  updateMeasStatus();
+});
+measModeSel.addEventListener('change', () => {
+  measMode = measModeSel.value;
+  measPts = [];
+  updateMeasStatus();
+});
+document.getElementById('btn-meas-clear').addEventListener('click', clearMeasurements);
+document.getElementById('btn-meas-undo').addEventListener('click', undoLastMeasurement);
+updateMeasStatus();
+
+// ---- Project measurement labels to screen each frame
+function updateMeasLabels() {
+  const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
+  for (const o of measLabelEls) {
+    const v = o.world.clone().project(camera);
+    o.el.style.left = ((v.x * 0.5 + 0.5) * w) + 'px';
+    o.el.style.top = ((-v.y * 0.5 + 0.5) * h) + 'px';
+    o.el.style.display = v.z < 1 ? 'block' : 'none';
+  }
+}
+
 /* ============================ Resize + loop ============================ */
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -1540,6 +1731,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(animClock.getDelta(), 0.1);
   if (mixer) mixer.update(dt * animState.speed);
   controls.update();
+  updateMeasLabels();
   renderer.render(scene, camera);
 });
 

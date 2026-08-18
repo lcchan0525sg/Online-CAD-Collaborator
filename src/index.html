@@ -113,6 +113,25 @@
         <button class="btn" id="light-reset">Reset lighting</button>
       </section>
 
+      <section class="section">
+        <h2>Measure</h2>
+        <div class="row toggle">
+          <label class="tlabel">Mode
+            <select class="ctl" id="meas-mode">
+              <option value="distance">Distance</option>
+              <option value="angle">Angle</option>
+              <option value="circle">Hole (diameter)</option>
+            </select>
+          </label>
+          <label class="tlabel"><input class="ctl" type="checkbox" id="meas-on"><span>Measure</span></label>
+        </div>
+        <div id="meas-status" class="meas-status">off · click the model to measure</div>
+        <div class="row toggle" style="margin-bottom:0">
+          <button class="btn" id="btn-meas-clear" style="flex:1">Clear</button>
+          <button class="btn" id="btn-meas-undo" style="flex:1">Undo</button>
+        </div>
+      </section>
+
       <section class="section collapsible-sec">
         <h2><button class="collapse-toggle" aria-expanded="false">Info <span class="chev">▸</span></button></h2>
         <pre id="info" class="collapse-body" hidden>no model loaded</pre>
@@ -138,7 +157,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.49 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.50 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p class="notice">This application uses the OpenCascade Technology kernel
@@ -152,6 +171,7 @@
 
     <main id="viewport">
       <div id="stage"></div>
+      <div id="meas-overlay"></div>
       <div id="hud">
         <h1>CAD Viewer</h1>
         <p>drag&nbsp;to orbit &middot; scroll&nbsp;to zoom &middot; right-drag&nbsp;to pan</p>
