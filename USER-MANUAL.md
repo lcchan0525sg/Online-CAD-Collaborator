@@ -191,6 +191,12 @@ part names appearing in the Assembly tree.
 > Open dialog (Ctrl+click on Windows) so the materials are applied; opening
 > just the `.obj` still works, but parts get a neutral grey.
 
+> **OBJ part names.** Unlike STEP/IGES (which embed B-rep solid names), OBJ has
+> no mandatory part number. Part names come from the file's `o` (object) / `g`
+> (group) lines when the CAD tool writes them — e.g. SolidEdge's `Asm1.obj`
+> has none, so parts are named `Part1`, `Part2`. If an exporter writes `o Part2`
+> / `o Part3`, those names are used directly.
+
 ![STEP file being converted to GLB](manual-shots/11-step-converting.png)
 
 If Docker or the `chair-cq:local` image isn't installed, these formats show a
