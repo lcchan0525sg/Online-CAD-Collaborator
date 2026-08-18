@@ -134,11 +134,19 @@ function buildPartsTree(root) {
   partRows.clear();
   allPartRows.length = 0;
   let count = 0;
-  const hasMesh = (o) => { let h = false; o.traverse((x) => { if (x.isMesh) h = true; }); return h; };
+  // Three.js GLTFLoader makes ONE Mesh per glTF PRIMITIVE, and RWGltf_CafWriter
+  // emits one primitive per triangle/face — so a single part can spawn hundreds
+  // of child Mesh objects (auto-named "Part2_1", "Part2_2", ...). A part row
+  // must therefore be any NAMED node that is NOT one of those primitive Mesh
+  // leaves — i.e. a named assembly (Object3D/Group) or a lone top-level Mesh
+  // directly under the scene root (flat single-part GLB). The primitive Meshes
+  // nested under a part are geometry, not separate parts.
+  const isPartNode = (child, obj) =>
+    !!child.name && (obj === root || !child.isMesh);
   const walk = (obj, depth, path) => {
     obj.children.forEach((child, i) => {
       const p = [...path, i];
-      const isPart = !!(child.name || child.isMesh || hasMesh(child));
+      const isPart = isPartNode(child, obj);
       if (isPart) {
         count++;
         const key = p.join('.');
@@ -445,14 +453,18 @@ function showInfo(gltf, root, fileMaxDim) {
   const infoEl = document.getElementById('info');
   const box = new THREE.Box3().setFromObject(root);
   const size = box.getSize(new THREE.Vector3());
-  const meshes = [];
-  let tris = 0, verts = 0;
+  let tris = 0, verts = 0, parts = 0;
   root.traverse((o) => {
+    // Count part nodes the same way buildPartsTree does (three.js makes one
+    // Mesh per glTF primitive, so counting isMesh would report every triangle):
+    // any named non-primitive node (assembly/part), plus a lone top-level mesh.
     if (o.isMesh) {
-      meshes.push(o);
       const g = o.geometry;
       tris += (g.index ? g.index.count : g.attributes.position.count) / 3;
       verts += g.attributes.position.count;
+      if (o.name && o.parent === root) parts++;   // flat single-part GLB
+    } else if (o.name && !o.isPrimitive) {
+      parts++;
     }
   });
   const units = modelScale !== 1
@@ -461,7 +473,7 @@ function showInfo(gltf, root, fileMaxDim) {
   infoEl.textContent = [
     `generator: ${gltf.parser.json.asset?.generator ?? '?'}`,
     `glTF version: ${gltf.parser.json.asset?.version ?? '?'}`,
-    `meshes: ${meshes.length}`,
+    `meshes: ${parts}`,
     `triangles: ${Math.round(tris).toLocaleString()}`,
     `vertices: ${verts.toLocaleString()}`,
     `materials: ${gltf.parser.json.materials?.length ?? 0}`,
