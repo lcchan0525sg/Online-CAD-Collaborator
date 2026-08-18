@@ -130,6 +130,12 @@ const MIME = {
 const httpServer = http
   .createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
+    // ---- API: health check (for the server-reachability indicator) ----
+    if (req.method === 'GET' && url.pathname === '/health') {
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ ok: true, docker: !!CQ_CONTAINER }));
+      return;
+    }
     // ---- API: LAN addresses (for sharing the join link) ----
     if (req.method === 'GET' && url.pathname === '/ip') {
       const addrs = [];
@@ -353,6 +359,15 @@ wss.on('connection', (ws, req, url) => {
         loop: !!msg.s.loop, speed: Number(msg.s.speed),
       };
       broadcast(session, { t: 'anim', s: session.anim }, id);
+    } else if (msg.t === 'kick' && typeof msg.target === 'string') {
+      // Host kicks a viewer out of the session. Only the host may kick, and the
+      // host can't kick itself. Close the target's socket; onGone removes them
+      // and notifies the rest.
+      const member = session.members.get(id);
+      if (member && member.isHost && id !== msg.target) {
+        const target = session.members.get(msg.target);
+        if (target) { try { target.ws.close(4001, 'kicked by host'); } catch {} }
+      }
     } else if (msg.t === 'model-ack') {
       // A guest finished loading the shared model — relay the ACK to the other
       // members (the host) so it can clear its "Sending model to guest(s)…"

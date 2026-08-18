@@ -827,6 +827,31 @@ const sessionActiveEl = document.getElementById('session-active');
 const joinCodeInput = document.getElementById('join-code');
 
 function setSessionStatus(text) { if (sessionStatusEl) sessionStatusEl.textContent = text; }
+
+// ---- Server health indicator: polls /health so "nothing happens on open" is
+// diagnosable at a glance (grey = unknown, green = server up, red = down).
+const healthDot = document.getElementById('health-dot');
+function setHealth(state) {
+  if (!healthDot) return;
+  healthDot.className = 'health-dot ' + state;
+  healthDot.title = state === 'ok' ? 'server connected'
+    : state === 'bad' ? 'server unreachable - open will not work'
+    : 'checking server...';
+}
+let healthFailures = 0;
+async function pollHealth() {
+  try {
+    const r = await fetch('/health', { cache: 'no-store' });
+    if (r.ok) { healthFailures = 0; setHealth('ok'); }
+    else { healthFailures++; setHealth(healthFailures >= 2 ? 'bad' : 'unknown'); }
+  } catch {
+    healthFailures++;
+    setHealth(healthFailures >= 2 ? 'bad' : 'unknown');
+  }
+}
+setHealth('unknown');
+pollHealth();
+setInterval(pollHealth, 4000);
 function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 function renderRoster() {
@@ -836,8 +861,18 @@ function renderRoster() {
   roster.forEach((r) => {
     const row = document.createElement('div');
     row.className = 'matrow';
+    const isSelf = session && r.id === session.id;
+    const label = esc(r.name) + (r.isHost ? ' · host' : '') + (isSelf ? ' (you)' : '');
+    // The host can kick any non-host viewer.
+    const kick = session?.isHost && !r.isHost
+      ? `<button class="kick-btn" data-kick="${r.id}" title="Remove ${esc(r.name)}">kick</button>`
+      : '';
     row.innerHTML = `<span class="swatch" style="background:${r.isHost ? '#6ea8fe' : '#3a4356'}"></span>
-      <span class="matname">${esc(r.name)}${r.isHost ? ' · host' : ''}</span>`;
+      <span class="matname">${label}</span>${kick}`;
+    const kb = row.querySelector('.kick-btn');
+    if (kb) kb.addEventListener('click', () => {
+      try { session.ws.send(JSON.stringify({ t: 'kick', target: r.id })); } catch {}
+    });
     rosterEl.appendChild(row);
   });
 }
@@ -892,13 +927,18 @@ function connectTo(code, { create = false } = {}) {
   session = { code, ws, id: null, isHost: false, connected: false };
   setSessionStatus('connecting…');
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m); };
-  ws.onclose = () => {
+  ws.onclose = (ev) => {
     // A later connectTo() may have replaced this connection — if so, this
     // stale close handler must not clobber the new session's state.
     if (!session || session.ws !== ws) return;
     const wasIn = session?.connected;
     session = null;
-    if (wasIn) {
+    if (ev.code === 4001) {
+      setSessionStatus('removed by host');
+      showSessionUI(false);
+      roster = []; renderRoster();
+      xferToast('You were removed from the session by the host.');
+    } else if (wasIn) {
       setSessionStatus('disconnected');
       showSessionUI(false);
       roster = []; renderRoster();
