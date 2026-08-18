@@ -1126,6 +1126,12 @@ async function loadSharedModel(m) {
     const total = parseInt(res.headers.get('content-length') || '0', 10) || 0;
     xferProgress(0, total);
     const buf = await streamBytes(res, (r, t) => xferProgress(r, t || total));
+    // ACK the host as soon as the model BYTES arrive, not after the heavy
+    // parse/load below. The host's overlay only waits on transfer; the local
+    // load continues independently. Sending the ACK here removes the timing
+    // dependency on model size / client speed, so a large model can't make the
+    // host's 30s sendGuard fire early.
+    sendModelAck(label);
 
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;   // superseded — the newer load owns the UI
@@ -1138,20 +1144,18 @@ async function loadSharedModel(m) {
         infoEl.textContent = 'shared model load error: ' + (err?.message ?? err);
         xferError('shared model load error: ' + (err?.message ?? err));
       }
-      // Always ACK (success OR failure) so the host's "Sending model to
-      // guest(s)…" overlay clears. If we skip this on error, the host hangs.
-      sendModelAck(label);
     }, (e) => {
       if (!isCurrentGen(gen)) return;
       infoEl.textContent = 'shared model load failed: ' + e.message;
       xferError(e.message);
-      sendModelAck(label);              // still tell the host so it can move on
     });
   } catch (e) {
     if (!isCurrentGen(gen)) return;
     infoEl.textContent = 'failed to load shared model: ' + e.message;
     xferError(e.message);
-    sendModelAck(label);              // always ACK so the host overlay clears
+    // No ACK here: if the fetch/stream failed the model never arrived, so the
+    // host should legitimately wait for its sendGuard rather than think we got
+    // a model we didn't receive.
   }
 }
 
