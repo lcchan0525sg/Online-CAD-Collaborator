@@ -98,6 +98,7 @@ function clearModel() {
   if (!model) return;
   if (typeof setMoveAxis === 'function') setMoveAxis(null);
   if (typeof originalPositions !== 'undefined') originalPositions.clear();
+  if (typeof moveGizmo !== 'undefined' && moveGizmo) moveGizmo.visible = false;
   scene.remove(model);
   model.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
@@ -1543,10 +1544,8 @@ let originalPositions = new Map();   // path -> THREE.Vector3 (node.position at 
 function movableNode() {
   if (!model || !selectedPartKey) return null;
   const root = model.children[0];
-  let node = nodeAtPath(root, selectedPartKey.split('.').map(Number));
-  if (!node) return null;
-  while (node.parent && node.parent !== root) node = node.parent;  // climb to top-level unit
-  return node;
+  // Move the highlighted node itself (not its whole assembly ancestor).
+  return nodeAtPath(root, selectedPartKey.split('.').map(Number));
 }
 function setMoveAxis(a) {
   moveAxis = a;
@@ -1580,7 +1579,7 @@ function resetPartPositions() {
   const root = model.children[0];
   const visited = new Set();
   for (const [path, orig] of originalPositions) {
-    const node = nodeAtPath(root, path);
+    const node = nodeAtPath(root, path.split('.').map(Number));
     if (!node || visited.has(node.uuid)) continue;
     visited.add(node.uuid);
     node.position.copy(orig);
@@ -1593,10 +1592,16 @@ function saveOriginalPositions() {
   originalPositions.clear();
   if (!model) return;
   const root = model.children[0];
-  // Save the position of every top-level assembly/part unit (direct child of root).
-  (root.children || []).forEach((c, i) => {
-    originalPositions.set(String(i), c.position.clone());
-  });
+  // Save the position of every named part/assembly node keyed by its path, so
+  // Reset can restore any part that was moved (including nested sub-parts).
+  const walk = (obj, path) => {
+    (obj.children || []).forEach((c, i) => {
+      const p = [...path, i];
+      if (c.isObject3D || c.isMesh) originalPositions.set(p.join('.'), c.position.clone());
+      walk(c, p);
+    });
+  };
+  walk(root, []);
 }
 
 // pointer handlers on the canvas
@@ -1656,6 +1661,46 @@ document.addEventListener('keyup', (e) => { /* keep axis until re-pressed/off */
 moveOnChk.addEventListener('change', () => { if (!moveOnChk.checked) setMoveAxis(null); });
 document.getElementById('btn-reset-pos').addEventListener('click', resetPartPositions);
 
+// ---- X/Y/Z axis gizmo: shows the move directions at the selected part, with
+// the armed axis highlighted. Follows the part and updates each frame.
+const AXIS_COLORS = { x: 0xff7b72, y: 0x7ee2a8, z: 0x7cc4ff };
+let moveGizmo = new THREE.Group();
+let moveGizmoArrows = {};
+let moveGizmoActive = null;      // the armed arrow (brighter)
+scene.add(moveGizmo);
+function makeArrow(axis) {
+  const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0)
+    : axis === 'y' ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(0, 0, 1);
+  const a = new THREE.ArrowHelper(dir, new THREE.Vector3(), 0.5, AXIS_COLORS[axis], 0.16, 0.1);
+  a.line.material.depthTest = false;
+  a.cone.material.depthTest = false;
+  a.line.material.transparent = true;
+  a.cone.material.transparent = true;
+  a.visible = false;
+  moveGizmo.add(a);
+  return a;
+}
+['x', 'y', 'z'].forEach((a) => { moveGizmoArrows[a] = makeArrow(a); });
+function updateMoveGizmo() {
+  const node = movableNode();
+  const on = !!(moveOnChk?.checked && node);
+  moveGizmo.visible = on;
+  if (!on) return;
+  const p = node.getWorldPosition(new THREE.Vector3());
+  const gScale = modelScale < 1 ? modelScale * 30 : modelScale;   // sensible gizmo size in world units
+  const base = gScale * 0.5;
+  ['x', 'y', 'z'].forEach((axis) => {
+    const arrow = moveGizmoArrows[axis];
+    arrow.position.copy(p);
+    arrow.scale.setScalar(base / 0.5);
+    arrow.visible = true;
+    arrow.line.material.opacity = (moveAxis === axis) ? 1 : 0.35;
+    arrow.cone.material.opacity = (moveAxis === axis) ? 1 : 0.35;
+  });
+  moveGizmoActive = moveAxis;
+}
+
 /* ============================ Resize + loop ============================ */
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -1677,6 +1722,7 @@ renderer.setAnimationLoop(() => {
   const dt = Math.min(animClock.getDelta(), 0.1);
   if (mixer) mixer.update(dt * animState.speed);
   controls.update();
+  if (typeof updateMoveGizmo === 'function') updateMoveGizmo();
   renderer.render(scene, camera);
 });
 

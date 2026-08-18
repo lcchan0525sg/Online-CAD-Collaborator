@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.51 · **URL:** http://localhost:8088/
+**Version:** v0.52 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -103,10 +103,11 @@ part and its children. Ancestors stay visible so the isolated part still renders
 ### Move a part (X / Y / Z + drag)
 
 With a part highlighted, tick **Move part**, press **X**, **Y** or **Z** to choose
-an axis (the indicator lights up), then **left-drag** in the viewport to slide
-that part along the axis. The whole top-level assembly/part unit moves together.
-Moves are shared with the other viewers in the session, and **Reset** returns all
-parts to their original positions.
+an axis, then **left-drag** in the viewport to slide that part along the axis.
+The highlighted **part moves by itself** — its siblings stay put. An X/Y/Z axis
+gizmo (red/green/blue) appears at the part so you can see the move directions;
+the chosen axis glows brighter. Moves are shared with the other viewers in the
+session, and **Reset** returns all parts to their original positions.
 
 **In a session (see §5), all of this syncs to every member** — show/hide,
 expand/collapse, and the selection highlight are mirrored live in both
