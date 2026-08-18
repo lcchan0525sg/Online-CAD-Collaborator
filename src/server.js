@@ -183,7 +183,13 @@ const httpServer = http
     }
     try {
       const data = await readFile(filePath);
-      res.writeHead(200, { 'content-type': MIME[extname(filePath)] || 'application/octet-stream' });
+      // Never let the browser cache HTML/JS/CSS: the app is updated in place
+      // between builds, and a stale cached main.js has caused repeated
+      // 'nothing happens on open' bugs. Force revalidation every request.
+      const cache = filePath.endsWith('.html') || filePath.endsWith('.js') || filePath.endsWith('.css')
+        ? { 'cache-control': 'no-cache, no-store, must-revalidate' }
+        : {};
+      res.writeHead(200, { 'content-type': MIME[extname(filePath)] || 'application/octet-stream', ...cache });
       res.end(data);
     } catch {
       res.writeHead(404).end('not found: ' + urlPath);
