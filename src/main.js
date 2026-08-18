@@ -27,7 +27,8 @@ controls.dampingFactor = 0.08;
 controls.maxPolarAngle = Math.PI * 0.495;
 
 /* ---- Lighting ---- */
-scene.add(new THREE.HemisphereLight(0xbcd0ff, 0x20242c, 0.9));
+const hemi = new THREE.HemisphereLight(0xbcd0ff, 0x20242c, 0.9);
+scene.add(hemi);
 
 const key = new THREE.DirectionalLight(0xffffff, 2.4);
 key.position.set(1.6, 2.6, 1.4);
@@ -35,7 +36,18 @@ key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 key.shadow.bias = -0.0002;
 scene.add(key);
-scene.add(new THREE.DirectionalLight(0x8fb2ff, 0.6).translateX(-1.8).translateY(1.2).translateZ(-1.2));
+const fill = new THREE.DirectionalLight(0x8fb2ff, 0.6);
+fill.position.set(-1.8, 1.2, -1.2);
+scene.add(fill);
+
+// named refs for the lighting controls in the UI
+const LIGHTS = {
+  ambient: { label: 'Ambient', obj: hemi, def: 0.9 },
+  key:     { label: 'Key',     obj: key,  def: 2.4 },
+  fill:    { label: 'Fill',    obj: fill, def: 0.6 },
+};
+
+// Optional extra: a spotlight/presets later; for now three sliders + reset.
 
 /* ---- Grid (sized to fit the loaded model) ---- */
 let grid = null;
@@ -92,6 +104,7 @@ function clearModel() {
     }
   });
   model = null;
+  if (mixer) { mixer.stopAllAction(); mixer = null; }
   clearPartsTree();
   clearPartSelection();
 }
@@ -504,6 +517,7 @@ function showInfo(gltf, root, fileMaxDim) {
 
 function loadFromGltf(gltf) {
   clearModel();
+  lastGltf = gltf;
   const root = gltf.scene ?? gltf.scenes[0];
 
   // Guard: if the GLB carries no mesh, don't leave a silent blank viewport.
@@ -539,6 +553,7 @@ function loadFromGltf(gltf) {
   const box2 = new THREE.Box3().setFromObject(model);
   model.position.y -= box2.min.y;
   scene.add(model);
+  setupAnimation(gltf, root);
   frameModel();
   showInfo(gltf, model, maxDim);
   buildPartsTree(root);
@@ -547,8 +562,58 @@ function loadFromGltf(gltf) {
 }
 
 /* ============================ Loading ============================ */
-const loader = new GLTFLoader();
 
+// Set up GLB animation playback (three.js AnimationMixer) for clips carried
+// by the loaded model. CAD-converted GLBs have none; animated GLBs from other
+// tools do, and we play them back here.
+function setupAnimation(gltf, root) {
+  const clips = (gltf && (gltf.animations || [])) || [];
+  if (mixer) { mixer.stopAllAction(); mixer = null; }
+  if (!clips.length) { animState.clip = -1; refreshAnimUI(); return; }
+  animState.clip = 0;
+  mixer = new THREE.AnimationMixer(root);
+  applyClip(0);
+  refreshAnimUI();
+}
+
+function applyClip(i) {
+  if (!mixer) return;
+  const clips = (lastGltf && lastGltf.animations) || [];
+  if (i < 0 || i >= clips.length) return;
+  mixer.stopAllAction();
+  const action = mixer.clipAction(clips[i]);
+  action.setLoop(animState.loop ? THREE.LoopRepeat : THREE.LoopOnce);
+  action.clampWhenFinished = !animState.loop;
+  if (animState.playing) action.play();
+}
+
+function refreshAnimUI() {
+  const animSection = document.getElementById('anim-section');
+  const clipSel = document.getElementById('anim-clip');
+  if (!animSection) return;
+  const clips = (lastGltf && lastGltf.animations) || [];
+  const has = clips.length > 0;
+  animSection.style.display = has ? '' : 'none';
+  if (!has) return;
+  if (clipSel) {
+    clipSel.innerHTML = '';
+    clips.forEach((c, idx) => {
+      const op = document.createElement('option');
+      op.value = idx;
+      op.textContent = c.name || `Clip ${idx + 1}`;
+      clipSel.appendChild(op);
+    });
+    clipSel.value = animState.clip;
+  }
+  const playBtn = document.getElementById('anim-play');
+  if (playBtn) playBtn.textContent = animState.playing ? '⏸ Pause' : '▶ Play';
+  document.getElementById('anim-loop').checked = animState.loop;
+  document.getElementById('anim-speed').value = animState.speed;
+  document.getElementById('anim-speed-val').textContent = `${animState.speed.toFixed(1)}×`;
+}
+
+let lastGltf = null;
+const loader = new GLTFLoader();
 function loadUrl(url) {
   const gen = nextLoadGen();
   loader.load(url, (gltf) => { if (isCurrentGen(gen)) loadFromGltf(gltf); },
@@ -1170,6 +1235,62 @@ document.getElementById('btn-frame').addEventListener('click', frameModel);
 document.getElementById('btn-parts-all')?.addEventListener('click', () => setAllParts(true));
 document.getElementById('btn-parts-none')?.addEventListener('click', () => setAllParts(false));
 
+/* ---- Lighting controls ---- */
+function bindLightSlider(id, key) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener('input', () => {
+    LIGHTS[key].obj.intensity = parseFloat(el.value);
+    const v = document.getElementById(id + '-val');
+    if (v) v.textContent = `${parseFloat(el.value).toFixed(1)}`;
+  });
+}
+bindLightSlider('light-ambient', 'ambient');
+bindLightSlider('light-key', 'key');
+bindLightSlider('light-fill', 'fill');
+document.getElementById('light-reset')?.addEventListener('click', () => {
+  Object.entries(LIGHTS).forEach(([k, cfg]) => {
+    cfg.obj.intensity = cfg.def;
+    const el = document.getElementById('light-' + k);
+    if (el) el.value = cfg.def;
+    const v = document.getElementById('light-' + k + '-val');
+    if (v) v.textContent = cfg.def.toFixed(1);
+  });
+});
+
+/* ---- Animation controls ---- */
+document.getElementById('anim-play')?.addEventListener('click', () => {
+  animState.playing = !animState.playing;
+  const playBtn = document.getElementById('anim-play');
+  if (animState.playing) {
+    const clips = (lastGltf && lastGltf.animations) || [];
+    if (mixer && animState.clip >= 0 && animState.clip < clips.length) {
+      const action = mixer.clipAction(clips[animState.clip]);
+      action.setLoop(animState.loop ? THREE.LoopRepeat : THREE.LoopOnce);
+      action.clampWhenFinished = !animState.loop;
+      action.play();
+    }
+    playBtn.textContent = '⏸ Pause';
+  } else {
+    if (mixer) mixer.stopAllAction();
+    playBtn.textContent = '▶ Play';
+  }
+});
+document.getElementById('anim-loop')?.addEventListener('change', (e) => {
+  animState.loop = e.target.checked;
+  if (animState.clip >= 0) applyClip(animState.clip);
+});
+document.getElementById('anim-clip')?.addEventListener('change', (e) => {
+  animState.clip = parseInt(e.target.value, 10);
+  applyClip(animState.clip);
+});
+document.getElementById('anim-speed')?.addEventListener('input', (e) => {
+  animState.speed = parseFloat(e.target.value);
+  const v = document.getElementById('anim-speed-val');
+  if (v) v.textContent = `${animState.speed.toFixed(1)}×`;
+});
+refreshAnimUI();
+
 /* ---- Session controls ---- */
 function newSessionCode() {
   const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -1234,7 +1355,13 @@ function resize() {
 new ResizeObserver(resize).observe(stage);
 resize();
 
+const animClock = new THREE.Clock();
+let mixer = null;          // AnimationMixer for the loaded GLB's clips
+let animState = { playing: true, loop: true, speed: 1, clip: -1 };
+
 renderer.setAnimationLoop(() => {
+  const dt = Math.min(animClock.getDelta(), 0.1);
+  if (mixer) mixer.update(dt * animState.speed);
   controls.update();
   renderer.render(scene, camera);
 });

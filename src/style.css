@@ -58,6 +58,24 @@ body {
 .toggle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
 .toggle input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 
+/* control rows (animation + lighting sliders) */
+.row { margin-bottom: 10px; }
+.row .tlabel { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.row select {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--panel2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.row .slider { flex: 1; min-width: 0; accent-color: var(--accent); height: 4px; cursor: pointer; }
+.row span { font-size: 12px; color: var(--muted); width: 34px; text-align: right; }
+.row .tlabel select + span, .row .tlabel .slider + span { width: auto; }
+
 .btn {
   display: inline-block;
   padding: 9px 10px;
