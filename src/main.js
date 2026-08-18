@@ -1175,7 +1175,11 @@ function sendModelToPeers(m, ids) {
   currentModel = m;
   const guests = ids && ids.length
     ? ids.filter((id) => roster.some((r) => r.id === id))
-    : roster.filter((r) => !r.isHost).map((r) => r.id);
+    // Wait on every member EXCEPT this client (the uploader). Using !isHost
+    // assumed the host is always the sharer — when a guest shares, that wrongly
+    // dropped the host from the wait-list and added the sharer to its own
+    // pendingSend (which never ACKs), hanging the overlay for 30s.
+    : roster.filter((r) => r.id !== session.id).map((r) => r.id);
   // Only wait on guests that haven't already ACKed this model (a fast guest may
   // have ACKed before this function ran — see onModelAck/ackedSend).
   const waiting = guests.filter((id) => !ackedSend.has(id));

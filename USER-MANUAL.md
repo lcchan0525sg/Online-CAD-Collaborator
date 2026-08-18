@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.42 · **URL:** http://localhost:8088/
+**Version:** v0.43 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
