@@ -729,7 +729,17 @@ async function importStep(file, mtlFile) {
     const dt = ((performance.now() - t0) / 1000).toFixed(1);
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;
-      loadFromGltf(gltf);
+      // loadFromGltf builds the parts tree, info and frames the camera. If it
+      // throws (e.g. a very large OBJ with thousands of primitive meshes), we
+      // must still clear the blocking overlay — otherwise it hangs forever.
+      try {
+        loadFromGltf(gltf);
+      } catch (err) {
+        if (!isCurrentGen(gen)) return;
+        infoEl.textContent = 'model load error: ' + (err?.message ?? err);
+        xferError('model load error: ' + (err?.message ?? err));
+        return;
+      }
       let srcLine = `source: ${file.name} (converted to GLB in ${dt}s)`;
       // OBJ colours live in a sibling .mtl; if it wasn't selected, say so
       // clearly so a grey result isn't mistaken for a converter bug.
