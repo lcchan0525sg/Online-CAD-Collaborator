@@ -19,7 +19,18 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'cad-viewer-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
-const stepSrc = process.env.CQ_SCRIPT || 'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py';
+// Converter source: CQ_DIR env (a folder of per-format modules) -> legacy
+// CQ_SCRIPT env (single step2glb.py) -> dev-machine default folder. The
+// server resolves the same layout at runtime, so a folder and a legacy file
+// both work end to end.
+const convDirDefault = 'C:\\Users\\chan_\\Projects\\chair-3d-web\\converters';
+const convFileDefault = 'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py';
+function resolveConvSrc() {
+  if (process.env.CQ_DIR) return process.env.CQ_DIR;
+  if (process.env.CQ_SCRIPT) return process.env.CQ_SCRIPT;
+  return existsSync(convDirDefault) ? convDirDefault : convFileDefault;
+}
+const convSrc = resolveConvSrc();
 
 const versionArg = process.argv[2] || '';
 const keepOlder = process.argv.includes('--keep') || process.argv[3] === '--keep';
@@ -34,6 +45,9 @@ function resolveVersion() {
 }
 
 // ---- build from a given source root into dist/ ----
+// Source layout: the web app lives in <src>/src (server.js, main.js, index.html,
+// style.css); the portable zip is FLAT — app files are copied to the zip root
+// alongside a generated start.bat/start.sh that runs node server.js there.
 function buildFrom(src, version, zipName) {
   rmSync(APP, { recursive: true, force: true });
   mkdirSync(join(APP, 'node_modules', 'three', 'build'), { recursive: true });
@@ -42,8 +56,14 @@ function buildFrom(src, version, zipName) {
   mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recursive: true });
   mkdirSync(join(APP, 'node_modules', 'ws'), { recursive: true });
 
-  // ---- app files ----
-  for (const f of ['server.js', 'main.js', 'index.html', 'style.css', 'package.json', 'package-lock.json']) {
+  // ---- app files (into the zip root) ----
+  // Newer source trees keep the app in src/; older tags are flat. Handle both.
+  const SRC = existsSync(join(src, 'src', 'server.js')) ? join(src, 'src') : src;
+  for (const f of ['server.js', 'main.js', 'index.html', 'style.css']) {
+    copyFileSync(join(SRC, f), join(APP, f));
+  }
+  // package files sit at the source root (node resolution for ws/three imports)
+  for (const f of ['package.json', 'package-lock.json']) {
     copyFileSync(join(src, f), join(APP, f));
   }
   // Stamp the version into the About section of the copied index.html
@@ -52,8 +72,16 @@ function buildFrom(src, version, zipName) {
       .replace(/<strong>CAD Viewer<\/strong>\s*v[0-9][^<\s-]*/, `<strong>CAD Viewer</strong> v${version}`);
     writeFileSync(join(APP, 'index.html'), html);
   }
-  // STEP converter (needs Docker + chair-cq:local image on the target machine)
-  if (existsSync(stepSrc)) copyFileSync(stepSrc, join(APP, 'step2glb.py'));
+  // CAD converter (needs Docker + chair-cq:local image on the target machine).
+  // Prefer the per-format folder (converters/); fall back to a legacy single
+  // step2glb.py. Either layout works at runtime (server resolves both).
+  if (convSrc.toLowerCase().endsWith('.py')) {
+    if (existsSync(convSrc)) copyFileSync(convSrc, join(APP, 'step2glb.py'));
+  } else if (existsSync(join(convSrc, 'step2glb.py'))) {
+    cpSync(convSrc, join(APP, 'converters'), { recursive: true });
+  } else {
+    console.warn('WARNING: no converter found at', convSrc, '- zip will not convert STEP/IGES/OBJ');
+  }
   // One-click Docker + OpenCascade installer, and the Dockerfile it builds from
   const installBat = join(src, 'install-docker-opencascade.bat');
   if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
@@ -74,7 +102,7 @@ function buildFrom(src, version, zipName) {
     cpSync(join(src, 'licenses'), join(APP, 'licenses'), { recursive: true });
   }
 
-  // ---- slim three (only what main.js imports) ----
+  // ---- slim three (only what main.js imports) — from the source root's node_modules ----
   const T = join(src, 'node_modules', 'three');
   copyFileSync(join(T, 'package.json'), join(APP, 'node_modules', 'three', 'package.json'));
   copyFileSync(join(T, 'build', 'three.module.js'), join(APP, 'node_modules', 'three', 'build', 'three.module.js'));
@@ -164,7 +192,8 @@ function buildFrom(src, version, zipName) {
     '  1. Docker Desktop (or another Docker runtime) installed on this PC, and',
     '  2. the OpenCascade CAD converter image "chair-cq:local" (built from the',
     '     chair-3d-web repo, or provided as a separate image).',
-    '  The server shell out to Docker and runs the converter inside it (step2glb.py).',
+    '  The server shells out to Docker and runs the converter inside it',
+    '  (the converters/ folder, or a legacy step2glb.py in older zips).',
     '  Without Docker, GLB/GLTF files still work; STEP shows a conversion error.',
     '',
     'Port: 8088. Override with env PORT.',

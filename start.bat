@@ -9,5 +9,5 @@ if exist "port.txt" set /p PORT=<port.txt
 echo Starting CAD Viewer on port %PORT% ...
 start "" http://localhost:%PORT%/
 set PORT=%PORT%
-node server.js
+node src\server.js
 pause

@@ -3,10 +3,10 @@
 **Version:** v0.2 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
-(GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP files
-converted on the server). Create a session, share a model, and everyone on your
-LAN follows your camera and part visibility live — or just use it as a plain
-local viewer.
+(GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
+OBJ files converted on the server). Create a session, share a model, and
+everyone on your LAN follows your camera and part visibility live — or just
+use it as a plain local viewer.
 
 ---
 
@@ -18,7 +18,7 @@ local viewer.
 2. Double-click **`start.bat`**. It launches the server and opens the browser.
 3. The app is served at **http://localhost:8088/**
 
-**From source:** `node server.js` in the project folder, then open the same URL.
+**From source:** `npm start` (or `node src/server.js`) in the project folder, then open the same URL.
 
 ### Changing the port
 
@@ -27,16 +27,17 @@ The default port is **8088**. Any of these overrides it:
 | Method | Example |
 |---|---|
 | Launcher argument (zip) | `start.bat 5555` |
-| `port.txt` file next to `server.js` | create `port.txt` containing `5555` |
-| Environment variable | `set PORT=5555` then `node server.js` (Windows) / `PORT=5555 node server.js` (macOS/Linux) |
+| `port.txt` file next to the launcher (`start.bat` / `start.sh`) | create `port.txt` containing `5555` |
+| Environment variable | `set PORT=5555` then `npm start` (Windows) / `PORT=5555 npm start` (macOS/Linux) |
 
 Precedence: command-line argument → `port.txt` → env `PORT` → default 8088.
 The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
 
-> **STEP files** (.step/.stp) additionally need Docker + the `chair-cq:local`
-> OpenCascade image. Run **`install-docker-opencascade.bat`** once to set that
-> up. GLB/GLTF files work without any of it.
+> **STEP, IGES and OBJ files** (.step/.stp, .igs/.iges, .obj) additionally need
+> Docker + the `chair-cq:local` OpenCascade image. Run
+> **`install-docker-opencascade.bat`** once to set that up. GLB/GLTF files work
+> without any of it.
 
 ![Empty start — the viewport is blank until you open a model](manual-shots/01-empty-start.png)
 
@@ -45,10 +46,11 @@ need to know it.
 ## 2. Opening a model
 
 1. Click **Open model…** in the left sidebar.
-2. Choose a `.glb`, `.gltf`, `.step` or `.stp` file from your computer.
+2. Choose a `.glb`, `.gltf`, `.step`, `.stp`, `.igs`, `.iges` or `.obj` file from your computer.
 
-GLB/GLTF loads instantly. STEP files are converted to GLB by the OpenCascade
-kernel on the server (a blocking overlay shows progress — a few seconds).
+GLB/GLTF loads instantly. STEP, IGES and OBJ files are converted to GLB by the
+OpenCascade kernel on the server (a blocking overlay shows progress — a few
+seconds).
 
 ![A model loaded in the viewport, with Info, Assembly and Materials panels](manual-shots/02-model-loaded.png)
 
@@ -177,16 +179,21 @@ The session itself stays alive on the server for other members.
 
 ---
 
-## 8. Opening a STEP file
+## 8. Opening a STEP / IGES / OBJ file
 
-STEP conversion happens through the OpenCascade kernel (Docker). The first time
-you open a STEP file you'll see the conversion overlay; when it finishes the
-GLB is loaded — with the original **colours and materials** preserved, and part
-names appearing in the Assembly tree.
+STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
+The first time you open one you'll see the conversion overlay; when it finishes
+the GLB is loaded — with the original **colours and materials** preserved, and
+part names appearing in the Assembly tree.
+
+> **OBJ colours need the `.mtl` file too.** A Wavefront `.obj` stores colours in
+> a sibling `.mtl` (e.g. `Asm1.obj` + `asm1.mtl`). Select **both** files in the
+> Open dialog (Ctrl+click on Windows) so the materials are applied; opening
+> just the `.obj` still works, but parts get a neutral grey.
 
 ![STEP file being converted to GLB](manual-shots/11-step-converting.png)
 
-If Docker or the `chair-cq:local` image isn't installed, STEP files show a
+If Docker or the `chair-cq:local` image isn't installed, these formats show a
 conversion error while GLB/GLTF continues to work normally.
 
 ---
@@ -196,7 +203,8 @@ conversion error while GLB/GLTF continues to work normally.
 | Problem | Fix |
 |---|---|
 | Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 8088 isn't blocked by a firewall |
-| STEP shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
+| STEP/IGES/OBJ shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
+| OBJ parts are grey (no colours) | The `.obj` was opened without its `.mtl` — select both files together in the Open dialog |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |

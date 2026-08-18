@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile, writeFile, unlink, rmdir, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, unlink, rmdir, mkdir } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { extname, join, normalize, dirname } from 'node:path';
 import { tmpdir, networkInterfaces } from 'node:os';
@@ -37,8 +37,9 @@ function countGlbTriangles(buf) {
   }
 }
 
-const ROOT = fileURLToPath(new URL('.', import.meta.url));
-// Port: env PORT wins; else a port.txt next to server.js (portable zip);
+const ROOT = fileURLToPath(new URL('../', import.meta.url));  // repo / zip root
+const WEB = fileURLToPath(new URL('.', import.meta.url));    // src/ — served web files
+// Port: env PORT wins; else a port.txt next to the launcher (repo/zip root);
 // else the default 8088.
 let PORT = parseInt(process.env.PORT || '', 10) || 0;
 if (!PORT) {
@@ -50,13 +51,63 @@ if (!PORT) {
 if (!PORT) PORT = 8088;
 
 // STEP import runs the OpenCascade kernel (no Windows wheel) in Docker.
-// CQ_SCRIPT: env override -> step2glb.py next to server.js (portable zip) ->
-// dev-machine default.
+// The converter is a FOLDER of per-format modules (converters/step2glb.py
+// dispatcher + convert_step.py / convert_iges.py / convert_obj.py +
+// common.py), so a new format never touches a finished one.
+//
+// Host path resolution: CQ_DIR env -> converters/ next to server.js
+// (portable zip: src/converters) -> legacy single step2glb.py next to
+// server.js (old zips) -> dev-machine default. The container path is always
+// /converters/step2glb.py: a folder mounts to /converters, a legacy single
+// .py mounts to /converters/step2glb.py (docker creates the parent dir), so
+// the docker command is identical for both layouts.
 import { existsSync } from 'node:fs';
 const CQ_CONTAINER = process.env.CQ_CONTAINER || 'chair-cq:local';
-const CQ_SCRIPT = process.env.CQ_SCRIPT ||
-  (existsSync(join(ROOT, 'step2glb.py')) ? join(ROOT, 'step2glb.py')
-    : 'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py');
+function resolveConverter() {
+  const candidates = process.env.CQ_DIR
+    ? [process.env.CQ_DIR]
+    : [join(WEB, 'converters'), join(WEB, 'step2glb.py'),
+       'C:\\Users\\chan_\\Projects\\chair-3d-web\\converters',
+       'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py'];
+  for (const c of candidates) {
+    if (existsSync(c)) {
+      const isFile = c.toLowerCase().endsWith('.py');
+      return { host: c, inContainer: isFile ? '/converters/step2glb.py' : '/converters' };
+    }
+  }
+  return { host: candidates[candidates.length - 1], inContainer: '/converters' };
+}
+const CQ = resolveConverter();
+
+// Upload extensions the kernel can convert (mirrors the converters/step2glb.py
+// FORMATS map). The server stores the upload under its REAL extension so the
+// dispatcher inside the container routes it to the right per-format module —
+// storing everything as model.step would force every upload through the STEP
+// reader (IGES/OBJ would fail with IFSelect_RetFail).
+const CONVERT_EXT = {
+  '.step': 'step',
+  '.stp': 'step',
+  '.igs': 'iges',
+  '.iges': 'iges',
+  '.obj': 'obj',
+};
+function kindFromExt(name) { return CONVERT_EXT[(String(name).toLowerCase().match(/\.\w+$/) || [''])[0]]; }
+// Human label for a converted source, e.g. "STEP → GLB".
+function labelFromKind(kind) { return kind.toUpperCase() + ' → GLB'; }
+// Canonical extension per kind, used when the filename carries no convertible
+// extension (e.g. a client that sends x-kind but a bare filename).
+const KIND_EXT = { step: '.step', iges: '.igs', obj: '.obj' };
+// Extension to store the upload under: the file's REAL extension when it's
+// convertible (that's what the container's dispatcher routes on), else the
+// canonical extension for the declared kind.
+function storeExt(filename, kind) {
+  const fileExt = extname(filename).toLowerCase();
+  return CONVERT_EXT[fileExt] ? fileExt : KIND_EXT[kind] || '.step';
+}
+// Bare filename without its extension (used as the GLB root node name).
+function stemOf(filename) {
+  return String(filename).replace(/\.[^.]+$/, '').slice(0, 80) || 'model';
+}
 
 // HTTP header values must be ISO-8859-1 (latin-1). Non-ASCII in a filename or
 // note (e.g. the "→" in "STEP → GLB") makes writeHead throw ERR_INVALID_CHAR,
@@ -95,9 +146,13 @@ const httpServer = http
       res.end(JSON.stringify({ ips: addrs, lan: lan || addrs[0] || null, port: PORT }));
       return;
     }
-    // ---- API: STEP conversion (standalone) ----
+    // ---- API: STEP/IGES/OBJ conversion (standalone) ----
     if (req.method === 'POST' && url.pathname === '/convert/step') {
       return handleStepUpload(req, res);
+    }
+    // ---- API: OBJ companion .mtl staging (uploaded with the .obj) ----
+    if (req.method === 'POST' && url.pathname === '/convert/mtl') {
+      return handleMtlUpload(req, res);
     }
     // ---- API: shared-session model (GET = fetch current, POST = upload) ----
     const m = url.pathname.match(/^\/sessions\/([A-Z0-9]{4,12})\/model$/);
@@ -118,11 +173,11 @@ const httpServer = http
       if (req.method !== 'POST') { res.writeHead(405).end('method not allowed'); return; }
       return handleSessionModelUpload(req, res, session);
     }
-    // ---- Static files ----
+    // ---- Static files (served from src/) ----
     let urlPath = decodeURIComponent(url.pathname);
     if (urlPath === '/') urlPath = '/index.html';
-    const filePath = normalize(join(ROOT, urlPath));
-    if (!filePath.startsWith(ROOT)) {
+    const filePath = normalize(join(WEB, urlPath));
+    if (!filePath.startsWith(WEB)) {
       res.writeHead(403).end('forbidden');
       return;
     }
@@ -287,8 +342,8 @@ wss.on('connection', (ws, req, url) => {
 
 /**
  * POST /sessions/:code/model — host uploads the shared model (raw GLB body,
- * or a STEP body which is converted to GLB first). Stores the GLB in the
- * session and tells all members to load it.
+ * or a STEP/IGES/OBJ body which is converted to GLB first). Stores the GLB in
+ * the session and tells all members to load it.
  */
 async function handleSessionModelUpload(req, res, session) {
   let chunks = [];
@@ -302,29 +357,51 @@ async function handleSessionModelUpload(req, res, session) {
     if (!chunks.length) { res.writeHead(400).end('empty body'); return; }
     const buf = Buffer.concat(chunks);
     const filename = (req.headers['x-filename'] || 'model').toString().slice(0, 120);
-    const lower = filename.toLowerCase();
-    // The client knows what it's sending (it may have already converted a STEP
-    // to GLB locally and kept the original .step filename) — trust x-kind over
-    // a filename-extension guess.
+    // The client knows what it's sending (it may have already converted a
+    // STEP/IGES/OBJ to GLB locally and kept the original filename) — trust
+    // x-kind over a filename-extension guess.
     const declared = (req.headers['x-kind'] || '').toString().toLowerCase();
-    let kind = declared === 'glb' ? 'glb' : declared === 'step' ? 'step' : 'glb';
+    let kind = declared === 'glb' ? 'glb'
+      : declared === 'step' || declared === 'iges' || declared === 'obj' ? declared
+      : 'glb';
+    // A filename with a convertible extension also implies its kind (tolerant
+    // fallback for clients that omit x-kind).
+    if (kind === 'glb') {
+      const ek = kindFromExt(filename);
+      if (ek) kind = ek;
+    }
     let glb = buf;
 
-    if (kind === 'step' || ((lower.endsWith('.step') || lower.endsWith('.stp')) && declared !== 'glb')) {
-      kind = 'step';
-      // Reuse the kernel conversion in Docker.
+    if (kind !== 'glb') {
+      // Reuse the kernel conversion in Docker. The upload keeps its real
+      // extension so the /converters/step2glb.py dispatcher picks the matching
+      // convert_<kind>.py module (everything-as-model.step would force every
+      // format through the STEP reader).
+      const ext = storeExt(filename, kind);
       const tmp = join(tmpdir(), 'cadv-sess-' + randomUUID());
-      const inPath = join(tmp, 'model.step');
+      const inPath = join(tmp, 'model' + ext);
       const outPath = join(tmp, 'model.glb');
       await mkdir(tmp, { recursive: true });
       await writeFile(inPath, buf);
+      // OBJ colours come from a companion .mtl (staged via /convert/mtl).
+      if (kind === 'obj' && (req.headers['x-mtl'] || '').toString()) {
+        const mtlId = (req.headers['x-mtl'] || '').toString().replace(/[^a-zA-Z0-9-]/g, '');
+        try {
+          await copyFile(join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl'), join(tmp, 'model.mtl'));
+          await unlink(join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl')).catch(() => {});
+          console.log(`[session ${session.code}] attached companion .mtl`);
+        } catch (e) {
+          console.warn('[session] mtl attach failed: ' + e.message);
+        }
+      }
       const args = [
         'run', '--rm',
+        '--env', `CQ_STEM=${stemOf(filename) || 'model'}`,
         '-v', `${tmp}:/w`,
-        '-v', `${CQ_SCRIPT}:/step2glb.py:ro`,
+        '-v', `${CQ.host}:${CQ.inContainer}:ro`,
         '-w', '/w',
         CQ_CONTAINER,
-        'python', '/step2glb.py', '/w/model.step', '/w/model.glb',
+        'python', '/converters/step2glb.py', `/w/model${ext}`, '/w/model.glb',
       ];
       console.log(`[session ${session.code}] converting ${filename} ...`);
       const { code, stderr } = await new Promise((resolve) => {
@@ -335,20 +412,20 @@ async function handleSessionModelUpload(req, res, session) {
       if (code !== 0) {
         await Promise.allSettled([unlink(inPath), unlink(outPath), rmdir(tmp).catch(() => {})]);
         res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-        res.end('STEP conversion failed:\n' + stderr.slice(-1500));
+        res.end(labelFromKind(kind) + ' conversion failed:\n' + stderr.slice(-1500));
         return;
       }
       glb = await readFile(outPath);
       if (!countGlbTriangles(glb)) {
         await Promise.allSettled([unlink(inPath), unlink(outPath), rmdir(tmp).catch(() => {})]);
         res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-        res.end('STEP conversion produced no visible geometry (0 triangles). See server log.');
+        res.end(labelFromKind(kind) + ' conversion produced no visible geometry (0 triangles). See server log.');
         return;
       }
       await Promise.allSettled([unlink(inPath), unlink(outPath), rmdir(tmp).catch(() => {})]);
     }
 
-    const note = kind === 'step' ? `${filename} (STEP → GLB)` : filename;
+    const note = kind === 'glb' ? filename : `${filename} (${labelFromKind(kind)})`;
     session.model = { buf: glb, filename, kind, note, ts: Date.now() };
     session.partsState = {};   // part paths are model-specific — reset on new model
     console.log(`[session ${session.code}] model set: ${note} (${glb.length} B GLB), members=${session.members.size}`);
@@ -366,12 +443,59 @@ async function handleSessionModelUpload(req, res, session) {
 }
 
 /**
- * POST /convert/step — accepts a raw .step/.stp body, converts it to GLB via
- * the OpenCascade kernel in Docker, and responds with the GLB bytes.
+ * POST /convert/mtl — stage an OBJ companion .mtl (raw body). Returns a short
+ * id that the following /convert/step request passes in an x-mtl header; the
+ * file is then copied next to the .obj so convert_obj.py can read the material
+ * colours. Staged files are deleted after use and swept after 30 minutes.
+ */
+const MTL_TTL_MS = 30 * 60 * 1000;
+async function handleMtlUpload(req, res) {
+  let chunks = [];
+  let size = 0;
+  try {
+    for await (const chunk of req) {
+      size += chunk.length;
+      if (size > 10 * 1024 * 1024) { res.writeHead(413).end('mtl too large (10 MB max)'); return; }
+      chunks.push(chunk);
+    }
+    if (!chunks.length) { res.writeHead(400).end('empty mtl'); return; }
+    const id = randomUUID();
+    await writeFile(join(tmpdir(), 'cadv-mtl-' + id + '.mtl'), Buffer.concat(chunks));
+    // Opportunistic sweep of stale stages (crash orphans).
+    try {
+      const { readdir, stat } = await import('node:fs/promises');
+      const now = Date.now();
+      for (const f of await readdir(tmpdir())) {
+        if (!f.startsWith('cadv-mtl-')) continue;
+        const p = join(tmpdir(), f);
+        try {
+          if (now - (await stat(p)).mtimeMs > MTL_TTL_MS) await unlink(p).catch(() => {});
+        } catch {}
+      }
+    } catch {}
+    res.writeHead(200, { 'content-type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, id }));
+  } catch (e) {
+    res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+    res.end('mtl stage failed: ' + e.message);
+  }
+}
+
+/**
+ * POST /convert/step — accepts a raw .step/.stp/.igs/.iges/.obj body (the
+ * client sends its filename via x-filename), converts it to GLB via the
+ * OpenCascade kernel in Docker, and responds with the GLB bytes. The name is
+ * legacy: it is the generic "convert CAD → GLB" endpoint.
  */
 async function handleStepUpload(req, res) {
   const tmp = join(tmpdir(), 'cadv-step-' + randomUUID());
-  const inPath = join(tmp, 'model.step');
+  // The upload keeps its real extension so the /converters/step2glb.py
+  // dispatcher selects the matching convert_<kind>.py module. (The old
+  // everything-as-model.step forced every format through the STEP reader.)
+  const filename = (req.headers['x-filename'] || 'model.step').toString().slice(0, 120);
+  const kind = kindFromExt(filename) || 'step';
+  const ext = storeExt(filename, kind);
+  const inPath = join(tmp, 'model' + ext);
   const outPath = join(tmp, 'model.glb');
   let chunks = [];
   let size = 0;
@@ -391,17 +515,33 @@ async function handleStepUpload(req, res) {
     await mkdir(tmp, { recursive: true });
     await writeFile(inPath, Buffer.concat(chunks));
 
+    // OBJ colours come from a companion .mtl: if the client staged one via
+    // /convert/mtl (x-mtl = stage id), copy it next to the model under the
+    // expected name so convert_obj.py's sibling lookup finds it.
+    if (kind === 'obj' && (req.headers['x-mtl'] || '').toString()) {
+      const mtlId = (req.headers['x-mtl'] || '').toString().replace(/[^a-zA-Z0-9-]/g, '');
+      try {
+        const staged = join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl');
+        await copyFile(staged, join(tmp, 'model.mtl'));
+        await unlink(staged).catch(() => {});
+        console.log('[convert] attached companion .mtl');
+      } catch (e) {
+        console.warn('[convert] mtl attach failed: ' + e.message);
+      }
+    }
+
     // Mount the temp dir (read/write) and the converter script, run the kernel.
     // Docker Desktop on Windows accepts native C:\... paths in -v.
     const args = [
       'run', '--rm',
+      '--env', `CQ_STEM=${stemOf(filename) || 'model'}`,
       '-v', `${tmp}:/w`,
-      '-v', `${CQ_SCRIPT}:/step2glb.py:ro`,
+      '-v', `${CQ.host}:${CQ.inContainer}:ro`,
       '-w', '/w',
       CQ_CONTAINER,
-      'python', '/step2glb.py', '/w/model.step', '/w/model.glb',
+      'python', '/converters/step2glb.py', `/w/model${ext}`, '/w/model.glb',
     ];
-    console.log('[step] converting ' + (size / 1024).toFixed(1) + ' KB ...');
+    console.log(`[convert] ${kind.toUpperCase()} ${(size / 1024).toFixed(1)} KB ...`);
     const t0 = Date.now();
     const { code, stderr } = await new Promise((resolve) => {
       execFile('docker', args, { maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (err, _so, se) => {
@@ -410,28 +550,28 @@ async function handleStepUpload(req, res) {
       });
     });
     if (code !== 0) {
-      console.log('[step] conversion failed:\n' + stderr.slice(-2000));
+      console.log('[convert] conversion failed:\n' + stderr.slice(-2000));
       res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-      res.end('STEP conversion failed:\n' + stderr.slice(-2000));
+      res.end(labelFromKind(kind) + ' conversion failed:\n' + stderr.slice(-2000));
       return;
     }
-    console.log(`[step] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+    console.log(`[convert] done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     const glb = await readFile(outPath);
     const tris = countGlbTriangles(glb);
     if (!tris) {
       const tail = stderr.slice(-600).trim();
-      console.log('[step] produced GLB has 0 triangles');
+      console.log('[convert] produced GLB has 0 triangles');
       res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
       res.end(
-        'STEP conversion produced no visible geometry (0 triangles).\n' +
-        'This STEP file has no meshable B-rep solids the kernel could tessellate.\n' +
+        labelFromKind(kind) + ' conversion produced no visible geometry (0 triangles).\n' +
+        'The kernel could not tessellate any meshable geometry from this file.\n' +
         'It may be a surface/wire-only file, use an unsupported schema, or be a ' +
         'reference-based assembly the reader couldn\'t fully transfer.\n' +
         'Converter log tail:\n' + tail
       );
       return;
     }
-    console.log(`[step] GLB has ${tris} triangles`);
+    console.log(`[convert] GLB has ${tris} triangles`);
     res.writeHead(200, {
       'content-type': 'model/gltf-binary',
       'content-length': glb.length,

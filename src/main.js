@@ -589,23 +589,41 @@ function loadFile(file, afterLoad) {
   return p;
 }
 
-// STEP / AP214 import: the browser can't parse STEP B-reps, so we POST the
-// file to the server, which converts it to GLB via the OpenCascade kernel in
-// Docker (see /convert/step), then load the returned GLB. The whole thing is
-// behind the blocking overlay — the opening user cannot operate until the
-// conversion AND load have both completed.
-async function importStep(file) {
+// STEP / AP214 / IGES / OBJ import: the browser can't parse these B-rep/mesh
+// sources, so we POST the file to the server, which converts it to GLB via the
+// OpenCascade kernel in Docker (see /convert/step), then load the returned
+// GLB. The whole thing is behind the blocking overlay — the opening user
+// cannot operate until the conversion AND load have both completed. The
+// x-filename header lets the server keep the real extension so its dispatcher
+// routes to the right per-format converter. For OBJ, the user may also select
+// the companion .mtl — it is staged first (x-mtl) so part colours survive.
+async function importStep(file, mtlFile) {
   const infoEl = document.getElementById('info');
   const gen = nextLoadGen();
   const inSession = !!(session && session.connected);
-  xferBegin('Converting STEP file…', `OpenCascade kernel · Docker — ${file.name}`);
+  xferBegin('Converting CAD file…', `OpenCascade kernel · Docker — ${file.name}`);
   infoEl.textContent = `converting ${file.name} to GLB…\n(OpenCascade kernel · Docker — allow a few seconds)`;
   const t0 = performance.now();
   try {
+    // OBJ: stage the companion .mtl (if picked) so the converter can apply
+    // its material colours.
+    let mtlId = '';
+    if (mtlFile) {
+      try {
+        const mres = await fetch('/convert/mtl', { method: 'POST', body: mtlFile });
+        if (mres.ok) mtlId = ((await mres.json()) || {}).id || '';
+      } catch { mtlId = ''; }
+      if (!mtlId) infoEl.textContent = `${file.name}: .mtl staging failed — colours may be lost\n` + infoEl.textContent;
+    }
+    const headers = {
+      'content-type': file.type || 'application/octet-stream',
+      'x-filename': file.name,
+    };
+    if (mtlId) headers['x-mtl'] = mtlId;
     const res = await fetch('/convert/step', {
       method: 'POST',
       body: file,
-      headers: { 'content-type': file.type || 'application/octet-stream' },
+      headers,
     });
     if (!res.ok) {
       const errText = await res.text();
@@ -621,7 +639,7 @@ async function importStep(file) {
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;
       loadFromGltf(gltf);
-      infoEl.textContent = `source: ${file.name} (STEP→GLB in ${dt}s)\n` + infoEl.textContent;
+      infoEl.textContent = `source: ${file.name} (converted to GLB in ${dt}s)\n` + infoEl.textContent;
       lastLocalModel = { buf, filename: file.name, kind: 'glb' };
       // In a session the model is also pushed to the guests once the local
       // parse has landed — share the converted GLB and hold the overlay until
@@ -633,12 +651,12 @@ async function importStep(file) {
       }
     }, (e) => {
       if (!isCurrentGen(gen)) return;
-      infoEl.textContent = 'STEP GLB parse failed: ' + e.message;
+      infoEl.textContent = 'converted GLB parse failed: ' + e.message;
       xferError(e.message);
     });
   } catch (e) {
     if (!isCurrentGen(gen)) return;
-    infoEl.textContent = 'STEP conversion failed:\n' + (e.message ?? e);
+    infoEl.textContent = 'CAD conversion failed:\n' + (e.message ?? e);
     xferError(e.message);
   }
 }
@@ -1044,7 +1062,7 @@ function sendModelToPeers(m, ids) {
 async function shareBuffer(buf, filename, kind) {
   if (!session || !session.connected) return;
   const infoEl = document.getElementById('info');
-  const verb = kind === 'step' ? 'converting + sharing' : 'sharing';
+  const verb = kind === 'glb' ? 'sharing' : 'converting + sharing';
   infoEl.textContent = `${verb} ${filename} to the session…`;
   try {
     const res = await fetch(`/sessions/${session.code}/model`, {
@@ -1096,13 +1114,26 @@ function applyRemoteCamera(pos, target) {
 /* ============================ UI ============================ */
 // Local loads: if we're in a session, also share the model with the other viewers.
 document.getElementById('file').addEventListener('change', (e) => {
-  const f = e.target.files?.[0];
+  // Multi-select: pick the CAD file (an .obj may be accompanied by its .mtl —
+  // same stem, case-insensitive — which carries the part colours).
+  const files = [...(e.target.files || [])];
+  const isMtl = (n) => /\.mtl$/i.test(n || '');
+  const f = files.find((x) => !isMtl(x.name)) || files[0];
   if (f) {
     const ext = f.name.toLowerCase();
-    if (ext.endsWith('.step') || ext.endsWith('.stp')) {
+    if (ext.endsWith('.step') || ext.endsWith('.stp') ||
+        ext.endsWith('.igs') || ext.endsWith('.iges') || ext.endsWith('.obj')) {
       // importStep converts locally (so the opener sees it too) and, when in a
       // session, hands the resulting GLB to shareBuffer for the guests.
-      importStep(f);
+      // (Named "Step" from the first format; it covers every kernel-convertible
+      // format — the server routes by the real file extension.)
+      let mtlFile = null;
+      if (ext.endsWith('.obj')) {
+        const stem = f.name.replace(/\.[^.]+$/i, '').toLowerCase();
+        mtlFile = files.find((x) => isMtl(x.name) && x.name.toLowerCase().startsWith(stem))
+          || files.find((x) => isMtl(x.name)) || null;
+      }
+      importStep(f, mtlFile);
     } else {
       // Load locally, then hand off to the "sending model to guest(s)" step
       // IF a session is live by the time the model lands. Opening a model
