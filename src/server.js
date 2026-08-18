@@ -362,6 +362,7 @@ wss.on('connection', (ws, req, url) => {
       // A guest finished loading the shared model — relay the ACK to the other
       // members (the host) so it can clear its "Sending model to guest(s)…"
       // overlay. Without this relay the host's pendingSend never drains.
+      console.log(`[session ${session.code}] model-ack from member ${id}`);
       broadcast(session, { t: 'model-ack', from: id }, id);
     }
   });

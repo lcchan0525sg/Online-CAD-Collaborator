@@ -1151,6 +1151,7 @@ async function loadSharedModel(m) {
     if (!isCurrentGen(gen)) return;
     infoEl.textContent = 'failed to load shared model: ' + e.message;
     xferError(e.message);
+    sendModelAck(label);              // always ACK so the host overlay clears
   }
 }
 
