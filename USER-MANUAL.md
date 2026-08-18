@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.2 · **URL:** http://localhost:8088/
+**Version:** v0.33 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -120,7 +120,39 @@ directions.
 
 ---
 
-## 5. Collaborative sessions (host)
+## 5. Lighting & animation
+
+### Lighting
+
+A **Lighting** section in the sidebar lets you tune the light on the model:
+
+| Control | What it does | Range | Default |
+|---|---|---|---|
+| **Ambient** | Even fill from the sky and ground | 0–2 | 0.9 |
+| **Key** | Main directional light (casts shadows) | 0–6 | 2.4 |
+| **Fill** | Cool fill light from the opposite side | 0–3 | 0.6 |
+| **Front** | Light straight from the viewer's side — handy when the front face is too dark | 0–3 | 0 (off) |
+
+Drag a slider and the model updates live. **Reset lighting** restores the defaults.
+
+### Animation
+
+If the GLB you load contains **keyframe animation** (e.g. from Blender or a game pipeline — CAD-converted STEP/IGES/OBJ files have none), an **Animation** section appears with:
+
+| Control | What it does |
+|---|---|
+| **Play / Pause** | Start or stop the clip |
+| **Loop** | Repeat the clip (off = play once and stop) |
+| **Speed** | Playback speed 0.25×–4× |
+| **Clip** | Pick a clip when the model has several |
+
+### Session sync
+
+In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §6).
+
+---
+
+## 6. Collaborative sessions (host)
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
@@ -144,7 +176,7 @@ The roster under the code shows who is connected.
 
 ---
 
-## 6. Joining a session (guest)
+## 7. Joining a session (guest)
 
 On another computer (same network):
 
@@ -170,7 +202,7 @@ appears — same view, same parts, same visibility as the host.
 
 ---
 
-## 7. Leaving a session
+## 8. Leaving a session
 
 Click **Leave session** — you keep your local model and return to solo viewing.
 The session itself stays alive on the server for other members.
@@ -179,7 +211,7 @@ The session itself stays alive on the server for other members.
 
 ---
 
-## 8. Opening a STEP / IGES / OBJ file
+## 9. Opening a STEP / IGES / OBJ file
 
 STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
@@ -204,7 +236,7 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 | Problem | Fix |
 |---|---|
