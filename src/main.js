@@ -401,18 +401,53 @@ function setPartTransparent(key, transparent) {
     const copies = [];
     node.traverse((o) => {
       if (!o.isMesh || !o.material) return;
-      const mats = Array.isArray(o.material) ? o.material : [o.material];
-      const orig = Array.isArray(o.material) ? [...o.material] : o.material;
-      const clones = mats.map((m) => {
-        const c = m.clone();
-        c.transparent = true;
-        c.opacity = TRANSPARENT_OPACITY;
-        c.depthWrite = false;
-        c.needsUpdate = true;
-        return c;
-      });
-      copies.push({ mesh: o, original: orig });
-      o.material = Array.isArray(o.material) ? clones : clones[0];
+      // Clone from the mesh's BASE material, not the selection-highlight clone,
+      // so transparency is applied to the true colour (and the highlight is
+      // re-applied on top below). For a selected mesh the base is the selection's
+      // stored original; otherwise it's the current material.
+      const selIdx = selectedMaterialCopies.findIndex((sc) => sc.mesh === o);
+      const base = selIdx >= 0 ? selectedMaterialCopies[selIdx].original : o.material;
+      if (target) {
+        // Make transparent: swap in an opacity clone (keep the base's original
+        // stored in the selection, so deselect restores the transparent base).
+        const src = Array.isArray(base) ? base : [base];
+        const orig = Array.isArray(base) ? [...base] : base;
+        const clones = src.map((m) => {
+          const c = m.clone();
+          c.transparent = true;
+          c.opacity = TRANSPARENT_OPACITY;
+          c.depthWrite = false;
+          c.needsUpdate = true;
+          return c;
+        });
+        copies.push({ mesh: o, original: orig });
+        o.material = Array.isArray(base) ? clones : clones[0];
+        if (selIdx >= 0) {
+          selectedMaterialCopies[selIdx].original = Array.isArray(base) ? clones : clones[0];
+          // Keep the selection highlight on top of the transparent clone.
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.forEach((c) => {
+            c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
+            c.emissiveIntensity = 0.55;
+          });
+        }
+      } else {
+        // Make opaque: the restore pass already put the base back; just re-apply
+        // the selection highlight on top if this mesh is still selected, and
+        // point its stored original at the (now opaque) restored material so
+        // deselect keeps it opaque.
+        if (selIdx >= 0) {
+          // Clone the restored material so the stored "original" isn't the same
+          // object we then highlight (mutating it would taint the base too).
+          const restored = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
+          selectedMaterialCopies[selIdx].original = restored;
+          const mats = Array.isArray(o.material) ? o.material : [o.material];
+          mats.forEach((c) => {
+            c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
+            c.emissiveIntensity = 0.55;
+          });
+        }
+      }
     });
     if (target) transparentMaterialCopies.set(r.key, copies);
   }
@@ -2866,7 +2901,31 @@ window.__viewer = {
   transSet: (key, on) => { setPartTransparent(key, !!on); return partTransparent(key); },
   transKeys: () => [...transparentParts],
   get transCount() { return transparentParts.size; },
+  partMat: (key) => {
+    const root = model.children[0];
+    const node = nodeAtPath(root, key.split('.').map(Number));
+    if (!node) return null;
+    const res = [];
+    node.traverse((o) => {
+      if (o.isMesh && o.material) {
+        const mats = Array.isArray(o.material) ? o.material : [o.material];
+        res.push(mats.map((x) => ({ op: x.opacity, tr: x.transparent, em: x.emissiveIntensity })));
+      }
+    });
+    return res;
+  },
   openPartMenu: (key) => { showPartMenu(50, 50, key); return document.getElementById('part-menu-trans').textContent; },
+  doSelect: (key) => { selectPart(key); return window.__selKey; },
+  doDeselect: () => { clearPartSelection(); return window.__selKey; },
+  partScreen: (key) => {
+    const root = model.children[0];
+    const n = nodeAtPath(root, key.split('.').map(Number));
+    if (!n) return null;
+    const b = new THREE.Box3().setFromObject(n);
+    const c = b.getCenter(new THREE.Vector3()).clone().project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (-c.y * 0.5 + 0.5) * r.height };
+  },
   chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
   chatDownload: () => downloadChat(),
   chatTranscript: () => {

@@ -259,6 +259,38 @@ to disk.
 
 ---
 
+## [v0.65] — 2026-08-19
+
+> **Baseline:** v0.64 (tag `v0.64`). Release on top of the current working tree.
+
+### Fixed
+
+- **Clicking a transparent part no longer restores its colour.** Two systems both
+  swap `mesh.material` — the selection highlight (emissive clones) and
+  transparency (opacity clones) — and they were fighting: making a part
+  transparent, then clicking to select/deselect it, restored the opaque
+  pre-transparency material. Selection and transparency now compose:
+  - Transparency is applied to the part's **base** material, not the selection
+    clone, so the true colour (not the highlight tint) becomes transparent.
+  - When a selected part is made transparent (or opaque), the selection's stored
+    `original` is updated to the new transparent/opaque material, so deselecting
+    restores to the *current* state instead of reverting transparency.
+  - The selection highlight is re-applied on top of the transparent/opaque
+    material, and the stored original is cloned so mutating the highlight can't
+    taint the base.
+  - Also fixed: toggling a part **off** transparent now actually restores opacity
+    (previously the apply loop re-applied transparency regardless of the target
+    state).
+
+### Technical
+
+- Reworked `setPartTransparent()`: it now only swaps in opacity clones when the
+  target part row is actually transparent (`target` true); when making a part
+  opaque it restores the base and just re-applies the selection highlight. It
+  keeps `selectedMaterialCopies` in sync (updating each mesh's stored `original`
+  and re-applying emissive) so selection and transparency stay consistent through
+  any ordering of select/transparent/deselect. Lives in `src/main.js`.
+
 ## [v0.64] — 2026-08-19
 
 > **Baseline:** v0.63 (tag `v0.63`). Release on top of the current working tree.
