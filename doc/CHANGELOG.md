@@ -82,7 +82,7 @@ OpenCascade (LGPL-2.1 + OCCT exception), pythonocc (LGPL-3.0), Three.js / ws
 
 ---
 
-# Technical reference (v0.55)
+# Technical reference (v0.56)
 
 > Update this section when the architecture, protocol, conversion method or
 > build process changes, so future versions can follow the established
