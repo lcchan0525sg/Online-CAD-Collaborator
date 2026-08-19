@@ -44,6 +44,24 @@ STYLE = """
                background:#f0f6ff; color:#334155; }
   ul,ol { padding-left:26px; }
   li { margin:4px 0; }
+  /* Welcome page: hero banner */
+  .hero { border-radius:14px; overflow:hidden; margin:16px 0 6px; box-shadow:0 4px 18px rgba(0,0,0,.18); }
+  .hero img { display:block; width:100%; border:0; margin:0; border-radius:14px; }
+  .hero-caption { text-align:center; color:var(--muted); font-size:13px; margin:6px 0 18px; }
+  /* Feature cards */
+  .features { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin:14px 0; }
+  .feature { background:#f7f9fc; border:1px solid var(--line); border-left:4px solid var(--blue);
+             border-radius:10px; padding:14px 16px; }
+  .feature strong { color:#1e3a8a; display:block; margin-bottom:4px; }
+  .feature .ico { color:var(--blue); font-weight:700; margin-right:6px; }
+  @media (max-width:640px){ .features{grid-template-columns:1fr;} }
+  /* Callout */
+  .callout { border-left:5px solid var(--blue); background:#eef4ff; padding:12px 18px;
+             border-radius:8px; margin:16px 0; }
+  .callout strong { color:#1e3a8a; }
+  /* Comparison table highlight */
+  .comp td:first-child { font-weight:600; }
+  .comp th { background:var(--blue); color:#fff; }
   table { border-collapse:collapse; width:100%; margin:14px 0; }
   th,td { border:1px solid var(--line); padding:8px 12px; text-align:left; font-size:14px; }
   th { background:#f1f5f9; }
@@ -151,6 +169,35 @@ def convert():
             i -= 1
         elif raw == '':
             out.append('')
+        elif raw.startswith(':::') and not raw.startswith('::::'):
+            # custom directive block: :::hero / :::callout / :::features
+            name = raw[3:].strip().split()[0] if raw[3:].strip() else ''
+            body = []
+            i += 1
+            while i < n and not lines[i].strip().startswith(':::'):
+                body.append(lines[i]); i += 1
+            # i now points at the closing ::: (or past end)
+            joined = '\n'.join(body).strip()
+            if name == 'hero':
+                out.append(f'<div class="hero">{render_paragraph(joined)}</div>')
+            elif name == 'callout':
+                out.append(f'<div class="callout">{render_paragraph(joined)}</div>')
+            elif name == 'features':
+                # each non-empty line is one feature: "Title|text" or "Title — text"
+                cards = []
+                for ln in body:
+                    ln = ln.strip()
+                    if not ln: continue
+                    m = re.match(r'^\*\*(.+?)\*\*\s*[—\-:]\s*(.+)$', ln, re.S)
+                    if m:
+                        cards.append(f'<div class="feature"><strong><span class="ico">▸</span>{render_paragraph(m.group(1))}</strong>{render_paragraph(m.group(2))}</div>')
+                    else:
+                        cards.append(f'<div class="feature">{render_paragraph(ln)}</div>')
+                out.append('<div class="features">' + ''.join(cards) + '</div>')
+            # else: unrecognised -> emit the body as paragraphs
+            else:
+                for ln in body:
+                    out.append(f'<p>{render_paragraph(ln)}</p>')
         else:
             out.append(f'<p>{render_paragraph(raw)}</p>')
         i += 1

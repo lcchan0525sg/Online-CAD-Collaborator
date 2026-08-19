@@ -22,57 +22,86 @@
 
 ## 1. Welcome — why CAD Viewer?
 
-CAD Viewer is a real-time collaborative browser app for viewing CAD geometry.
-It turns a multi-megabyte CAD file into a live, shared 3D scene that anyone on
-your network can open with nothing more than a web browser — no CAD software,
-no licences, no installs.
+::: hero
+![CAD Viewer — a shared 3D model rendered in the browser](manual-shots/17-hero.png)
+:::
+
+::: callout
+**Turn a CAD file into a live, shared 3D scene.** CAD Viewer is a real-time
+collaborative browser app for viewing CAD geometry. Anyone on your network can
+open the model with nothing more than a web browser — no CAD software, no
+licences, no installs. Everyone shares the same view, and everyone can interact
+with it.
+:::
+
+### At a glance
+
+Instead of emailing files back and forth, share a live model:
+
+| Instead of… | CAD Viewer lets you… |
+|---|---|
+| Export → email → wait → open → repeat | Share one **join link**; the model appears instantly |
+| Sending multi-MB CAD bundles | Convert to lightweight **GLB/GLTF** once and share a small file |
+| Explaining with static screenshots | **Point, move and zoom together** on the live model |
+| Guests installing CAD software | Guests open the link in **any browser — nothing to install** |
+| Worrying about files leaving your PC | The model is **streamed to memory only**; nothing is written to the guest's disk |
 
 ### Application features
 
-- **Both host and guest can interact with the model.** This is not a one-way
-  broadcast. Anyone in a session can orbit, zoom and pan, show or hide parts,
-  highlight a part, and even move parts along X/Y/Z — and every action is
-  mirrored live to everyone else, in both directions.
-- **Live sync.** Camera, part visibility, selection, and the lighting and
-  animation settings are shared between all members in real time. Late joiners
-  automatically receive the current model and view state.
-- **No install for guests.** A guest needs only a browser — open a link, and
-  the shared model appears. Nothing to download, nothing to set up, no CAD
-  licence required.
-- **Nothing is stored on the guest.** The model is **streamed to the guest's
-  computer memory (RAM) only** and rendered in the browser. **No file is ever
-  written** to the guest's disk — close the tab and the model is gone. This is
-  ideal when geometry is sensitive or under NDA.
-- **Efficient sharing.** STEP, IGES and OBJ files are converted to **GLB/GLTF**
-  — a lightweight, web-native format — on the server, so one compact file moves
-  fast across the network instead of a bulky CAD bundle.
-- **Cross-platform.** Works in any modern browser on Windows, macOS, Linux, and
-  tablets — anything with a browser.
-- **Fidelity preserved.** Part names, colours and materials survive the
-  conversion, so reviewers see the design the way it was authored.
+::: features
+**Both host and guest can interact.** This is not a one-way broadcast — anyone
+in a session can orbit, zoom and pan, show or hide parts, highlight a part, and
+even move parts along X/Y/Z, mirrored live in both directions.
+
+**Live sync.** Camera, part visibility, selection, and lighting/animation are
+shared between all members in real time. Late joiners automatically receive the
+current model and view state.
+
+**No install for guests.** A guest needs only a browser — open a link and the
+shared model appears. Nothing to download, nothing to set up, no CAD licence.
+
+**Nothing is stored on the guest.** The model is streamed to the guest's memory
+(RAM) only and rendered in the browser; no file is written to their disk. Close
+the tab and it's gone — ideal for sensitive geometry or NDA work.
+
+**Efficient sharing.** STEP, IGES and OBJ files are converted to **GLB/GLTF** —
+a lightweight, web-native format — on the server, so one compact file moves fast
+across the network instead of a bulky CAD bundle.
+
+**Cross-platform & faithful.** Works in any modern browser on Windows, macOS,
+Linux and tablets; part names, colours and materials survive the conversion, so
+reviewers see the design the way it was authored.
+:::
 
 ### What it helps with
 
-**Online calibration of engineering design.** CAD Viewer lets a reviewer,
-colleague or client inspect a model *as it is being shown*. Because everyone
-shares the same live view and can interact with it, the design-review /
-calibration loop collapses from email-and-export cycles into one shared session
-— questions are answered immediately, on the actual geometry, by pointing and
-looking together.
+::: callout
+**Online calibration of engineering design.** Because everyone shares the same
+live view and can interact with it, the design-review / calibration loop
+collapses from email-and-export cycles into one shared session — questions are
+answered immediately, on the actual geometry, by pointing and looking together.
+:::
 
 ### Use cases
 
-- **Design review / sign-off** across offices or the shop floor — review the
-  model together instead of exchanging exports.
-- **Remote inspection** of a part or assembly before manufacturing.
-- **Live collaboration during a design change** — everyone watches the part
-  move as it happens.
-- **Quick client demo** without installing CAD on the client's machine.
-- **Discuss with vendors and subcontractors** — share the live model with a
-  supplier or subcontractor to align on geometry, fit and tolerances before
-  fabrication, so both sides are looking at the same thing.
-- **Cross-site calibration** — compare a real part against the shared model
-  live, from a different location.
+::: features
+**Design review / sign-off** — review the model together across offices or the
+shop floor instead of exchanging exports.
+
+**Remote inspection** — check a part or assembly before manufacturing, from
+anywhere on the network.
+
+**Live design changes** — everyone watches the part move as it happens.
+
+**Client demo** — show the design without installing CAD on the client's
+machine.
+
+**Vendors & subcontractors** — share the live model with a supplier to align on
+geometry, fit and tolerances before fabrication.
+
+**Cross-site calibration** — compare a real part against the shared model live,
+from a different location.
+:::
 
 ---
 
