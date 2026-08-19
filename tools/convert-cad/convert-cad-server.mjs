@@ -85,17 +85,13 @@ function parseMultipart(buf, boundary){
   return parts;
 }
 
-// Host-side glTF geometry compression (Draco) via gltf-pipeline. Runs after
-// Docker conversion so the container image stays untouched. GLB only.
+// Host-side glTF geometry compression (Draco) via the self-contained draco3d
+// compressor (draco-compress.mjs). Runs after Docker conversion so the
+// container image stays untouched. GLB only.
 async function compressGlbBuffer(glbBuf, level = 7) {
-  const t0 = Date.now();
-  const mod = await import('gltf-pipeline');
-  const pkg = mod.default || mod;
-  const result = await pkg.processGlb(glbBuf, {
-    dracoOptions: { compressionLevel: level, quantizePositionBits: 14, quantizeNormalBits: 10 },
-  });
-  const out = result.glb || result.gltf;
-  return { buf: out, ms: Date.now() - t0, inBytes: glbBuf.length, outBytes: out.length };
+  const { compressGlb } = await import('./draco-compress.mjs');
+  const r = await compressGlb(glbBuf, { level });
+  return { buf: r.buf, ms: r.ms, inBytes: r.inBytes, outBytes: r.outBytes };
 }
 
 async function handleConvert(req,res){

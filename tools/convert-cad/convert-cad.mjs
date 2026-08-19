@@ -28,26 +28,17 @@ const CONVERTER = join(__dirname, 'convert-cad.py');
 
 const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.obj': 'OBJ' };
 
-// Host-side glTF geometry compression via gltf-pipeline (Draco). Runs after
-// the Docker conversion so the container image stays untouched.
+// Host-side glTF geometry compression (Draco) via the self-contained draco3d
+// compressor (draco-compress.mjs). Runs after the Docker conversion so the
+// container image stays untouched.
 async function compressGlb(glbPath, method, opts = {}) {
   const t0 = Date.now();
-  const mod = await import('gltf-pipeline');
-  const pkg = mod.default || mod;   // CJS interop: named exports live on .default
+  const { compressGlb: doCompress } = await import('./draco-compress.mjs');
   const fs = await import('node:fs');
   const buf = fs.readFileSync(glbPath);
-  const options = {};
-  if (method === 'draco') {
-    options.dracoOptions = {
-      compressionLevel: opts.level || 7,
-      quantizePositionBits: opts.posBits || 14,
-      quantizeNormalBits: opts.normalBits || 10,
-    };
-  }
-  const result = await pkg.processGlb(buf, options);
-  const out = result.glb || result.gltf;
-  fs.writeFileSync(glbPath, out);
-  return { method, ms: Date.now() - t0, inBytes: buf.length, outBytes: out.length };
+  const r = await doCompress(buf, { level: opts.level || 7 });
+  if (r.compressed) fs.writeFileSync(glbPath, r.buf);
+  return { method, ms: Date.now() - t0, inBytes: buf.length, outBytes: r.outBytes };
 }
 
 function usage() {

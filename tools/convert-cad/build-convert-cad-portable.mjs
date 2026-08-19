@@ -34,7 +34,8 @@ mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recu
 
 // ---- tool files (into the zip root) ----
 for (const f of ['convert-cad.py', 'convert-cad.mjs', 'convert-cad.bat',
-                 'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html', 'README.md']) {
+                 'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html',
+                 'draco-compress.mjs', 'README.md']) {
   copyFileSync(join(TOOL, f), join(APP, f));
 }
 // Stamp the version into the copied index.html title
@@ -55,8 +56,19 @@ copyFileSync(join(T, 'build', 'three.module.js'), join(APP, 'node_modules', 'thr
 copyFileSync(join(T, 'build', 'three.core.js'),  join(APP, 'node_modules', 'three', 'build', 'three.core.js'));
 copyFileSync(join(T, 'examples', 'jsm', 'controls', 'OrbitControls.js'),         join(APP, 'node_modules', 'three', 'examples', 'jsm', 'controls', 'OrbitControls.js'));
 copyFileSync(join(T, 'examples', 'jsm', 'loaders', 'GLTFLoader.js'),             join(APP, 'node_modules', 'three', 'examples', 'jsm', 'loaders', 'GLTFLoader.js'));
+copyFileSync(join(T, 'examples', 'jsm', 'loaders', 'DRACOLoader.js'),            join(APP, 'node_modules', 'three', 'examples', 'jsm', 'loaders', 'DRACOLoader.js'));
 copyFileSync(join(T, 'examples', 'jsm', 'utils', 'BufferGeometryUtils.js'),      join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils', 'BufferGeometryUtils.js'));
 copyFileSync(join(T, 'examples', 'jsm', 'utils', 'SkeletonUtils.js'),            join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils', 'SkeletonUtils.js'));
+
+// ---- draco3d (host-side compressor) + Draco decoder libs (for the preview) ----
+const D3 = join(ROOT, 'node_modules', 'draco3d');
+if (existsSync(D3)) {
+  cpSync(D3, join(APP, 'node_modules', 'draco3d'), { recursive: true });
+}
+const DRACO_LIBS = join(T, 'examples', 'jsm', 'libs', 'draco');
+if (existsSync(DRACO_LIBS)) {
+  cpSync(DRACO_LIBS, join(APP, 'node_modules', 'three', 'examples', 'jsm', 'libs', 'draco'), { recursive: true });
+}
 
 // ---- bundled node.exe (portable runtime) ----
 if (existsSync(NODE_EXE)) copyFileSync(NODE_EXE, join(APP, 'node.exe'));
@@ -108,11 +120,14 @@ writeFileSync(join(APP, 'README.txt'), [
   'Drop a .step/.stp/.igs/.iges/.obj file (add a companion .mtl for OBJ colours),',
   'pick GLB or GLTF, hit Convert, then Download. After converting you get a live',
   '3D preview — drag to rotate, scroll to zoom, right-drag / two-finger to pan.',
+  'Set Compress = Draco to shrink the GLB geometry (browser decodes it on load);',
+  'it applies to converted GLB output and to passthrough .glb files.',
   '',
   'The zip bundles node.exe, so NO installs are needed on Windows.',
   '',
   'Command line (same conversion engine):',
   '  convert-cad.bat <input.(step|stp|igs|iges|obj)> [out.glb|out.gltf] [opts]',
+  '  --compress draco   compress the GLB geometry (host-side, self-contained)',
   '  See README.md for full options.',
   '',
   'NOTE: conversion requires TWO external pieces that are NOT bundled:',
