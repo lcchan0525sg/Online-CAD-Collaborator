@@ -259,6 +259,37 @@ to disk.
 
 ---
 
+## [v0.58] — 2026-08-19
+
+> **Baseline:** v0.57 (tag `v0.57`). Release on top of the current working tree.
+
+### Added
+
+- **Part hover labels** — mouse over a part in the 3D viewport and a small
+  tooltip appears at the cursor with the part's name, and its row in the
+  Assembly tree highlights. Directly answers "which part is this?".
+  - The tooltip follows the cursor and shows the deepest named part under it.
+  - The hovered tree row gets an `.hov` highlight (distinct from the `.sel`
+    selection highlight).
+  - Raycasting is throttled to ~30fps and only re-runs when the cursor crosses
+    into a different part, so it stays cheap even on large models. Leaving the
+    viewport clears the hover.
+
+### Fixed
+
+- _(none for this release)_
+
+### Technical
+
+- `hoverPickKey()` raycasts and resolves the hit mesh up to its deepest named
+  part ancestor — the same path-key rule as tree rows and `pickPartKey`, so the
+  tooltip and highlight always refer to the same part the tree lists. The
+  tooltip is a `#part-hover-tip` overlay positioned at the cursor (offset from
+  the canvas origin by `clientX - rect.left`, its containing block being
+  `#viewport`); a `pointermove` handler throttled to `HOVER_TICK_MS` (33ms)
+  updates it. The `.partrow.hov` CSS distinguishes hover from selection. Lives
+  in `src/main.js`; markup in `src/index.html`.
+
 ## [v0.57] — 2026-08-19
 
 > **Baseline:** v0.56 (tag `v0.56`). Release on top of the current working tree.

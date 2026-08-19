@@ -230,6 +230,22 @@ body {
   background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1;
 }
 #measure-list .ml-del:hover { color: #ff7b72; }
+#part-hover-tip {
+  position: absolute;
+  z-index: 22;
+  transform: translate(10px, -100%);
+  max-width: 260px;
+  padding: 3px 8px;
+  font-size: 12px;
+  color: #e8ecf4;
+  background: rgba(12, 15, 22, 0.92);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 #session-controls .actions,
 #join-code { grid-column: span 1; }
 #join-code {
@@ -344,6 +360,7 @@ body {
 .partrow.off .partname { color: var(--muted); text-decoration: line-through; }
 .partrow.sel { background: rgba(47, 125, 255, 0.14); box-shadow: inset 2px 0 0 var(--accent); }
 .partrow.sel .partname { color: var(--accent); font-weight: 600; }
+.partrow.hov { background: var(--panel2); box-shadow: inset 2px 0 0 var(--accent); }
 .parttoggle {
   flex: 0 0 16px;
   width: 16px;

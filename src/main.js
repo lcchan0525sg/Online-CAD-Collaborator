@@ -2178,6 +2178,89 @@ document.addEventListener('keydown', (e) => {
 });
 measureClearBtn.addEventListener('click', measureClear);
 
+/* ============================ Part hover (name tooltip + tree highlight) ============================ */
+// Mouse over a part in the 3D viewport: show its name in a small tooltip next
+// to the cursor and highlight its row in the Assembly tree. Raycasting every
+// pointermove is wasteful, so it's throttled to ~30fps and only re-runs when
+// the pointer actually crossed into a different part.
+const partHoverTipEl = document.getElementById('part-hover-tip');
+let hoverKey = null;            // the path key currently hovered, or null
+let hoverRow = null;            // the tree <label> currently highlighted
+let lastHoverPick = 0;          // last pointermove time we raycast
+const hoverRay = new THREE.Raycaster();
+const HOVER_TICK_MS = 33;
+
+function partNameForKey(key) {
+  if (!model || !key) return '';
+  const node = nodeAtPath(model.children[0], key.split('.').map(Number));
+  return (node && node.name) ? node.name : `Part ${key}`;
+}
+function highlightHoverRow(key) {
+  if (hoverRow) hoverRow.classList.remove('hov');
+  hoverRow = null;
+  if (key && partRows.has(key)) {
+    hoverRow = partRows.get(key).row;
+    hoverRow.classList.add('hov');
+  }
+}
+function showPartHoverTip(clientX, clientY) {
+  const r = renderer.domElement.getBoundingClientRect();
+  // Containing block is #viewport; the canvas fills it, so offset the tip from
+  // the canvas origin (r.left/top) to land at the cursor.
+  partHoverTipEl.style.left = (clientX - r.left) + 'px';
+  partHoverTipEl.style.top = (clientY - r.top) + 'px';
+  partHoverTipEl.hidden = false;
+}
+function hidePartHover() {
+  highlightHoverRow(null);
+  hoverKey = null;
+  partHoverTipEl.hidden = true;
+}
+// Raycast the pointer to the deepest named part under it. Returns a path key.
+function hoverPickKey(clientX, clientY) {
+  if (!model) return null;
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  hoverRay.setFromCamera(ndc, camera);
+  const hits = hoverRay.intersectObject(model, true);
+  const hit = hits.find((h) => isPickVisible(h.object));
+  if (!hit) return null;
+  // Resolve the hit mesh up to its deepest named part ancestor (same rule as
+  // pickPartKey, but we also need the ancestor's name for the tooltip).
+  const root = model.children[0];
+  let n = hit.object;
+  while (n && n !== model) {
+    const parent = n.parent;
+    if (n.name && (parent === root || !n.isMesh)) {
+      const path = [];
+      let c = n;
+      while (c && c !== root) { path.unshift(c.parent.children.indexOf(c)); c = c.parent; }
+      return path.join('.');
+    }
+    n = parent;
+  }
+  return null;
+}
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const now = performance.now();
+  if (now - lastHoverPick < HOVER_TICK_MS) return;   // throttle raycast
+  lastHoverPick = now;
+  const key = hoverPickKey(e.clientX, e.clientY);
+  if (key === hoverKey) return;                       // no change — keep current
+  hoverKey = key;
+  if (key) {
+    highlightHoverRow(key);
+    partHoverTipEl.textContent = partNameForKey(key);
+    showPartHoverTip(e.clientX, e.clientY);
+  } else {
+    hidePartHover();
+  }
+});
+// Leaving the viewport clears the hover.
+renderer.domElement.addEventListener('pointerleave', hidePartHover);
+// When measure is on, its corner snap also needs the hover raycast at full rate;
+// a pointermove here just re-hides if we drift off a part. Safe to clear.
+
 /* ============================ Resize + loop ============================ */
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
