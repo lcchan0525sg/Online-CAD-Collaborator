@@ -259,6 +259,22 @@ to disk.
 
 ---
 
+## [v0.61] — 2026-08-19
+
+> **Baseline:** v0.60 (tag `v0.60`). Release on top of the current working tree.
+
+### Fixed
+
+- **Reset also collapses the exploded view.** Pressing the **Reset** button (part
+  positions) now first collapses the Explode slider to 0, so the model returns to
+  its assembled resting state alongside the position reset.
+
+### Technical
+
+- `resetPartPositions()` calls `resetExplode()` (collapse to 0) before restoring
+  baseline positions, so the explode offset is removed first and the parts land
+  exactly at their original resting positions.
+
 ## [v0.60] — 2026-08-19
 
 > **Baseline:** v0.59 (tag `v0.59`). Release on top of the current working tree.

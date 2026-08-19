@@ -1637,6 +1637,9 @@ function applyRemoteMove(msg) {
 }
 function resetPartPositions() {
   if (!model) return;
+  // Collapse the exploded view first so parts return to their resting positions
+  // before the baseline positions are restored.
+  if (typeof resetExplode === 'function') resetExplode();
   const root = model.children[0];
   const visited = new Set();
   for (const [path, orig] of originalPositions) {
