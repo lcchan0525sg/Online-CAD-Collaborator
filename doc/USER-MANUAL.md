@@ -101,9 +101,35 @@ The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
 
 > **STEP, IGES and OBJ files** (.step/.stp, .igs/.iges, .obj) additionally need
-> Docker + the `chair-cq:local` OpenCascade image. Run
-> **`install-docker-opencascade.bat`** once to set that up. GLB/GLTF files work
-> without any of it.
+> Docker + the `chair-cq:local` OpenCascade image. GLB/GLTF files work without
+> any of it.
+
+### Installing the STEP converter (Docker + OpenCascade)
+
+To open **STEP / IGES / OBJ** files, the server needs a small converter built on
+the OpenCascade CAD kernel, which runs inside a **Docker** container. This is a
+**one-time** setup on the PC that runs the server — guests never need it.
+
+Run **`install-docker-opencascade.bat`** (double-click it; it sits in the same
+folder as `start.bat`). It walks through everything:
+
+| Step | What the script does |
+|---|---|
+| **1. Docker check** | If Docker Desktop isn't installed, it installs it automatically via `winget` (~500 MB download) and starts it. You can also install it yourself from https://www.docker.com/products/docker-desktop/ and re-run. |
+| **2. Wait for engine** | Waits until the Docker engine is running (first start can take a few minutes). |
+| **3. Build the image** | Builds the **`chair-cq:local`** OpenCascade image from the bundled `Dockerfile` — first build downloads ~1 GB and can take **5–15 minutes**. |
+| **4. Verify** | Runs a quick check that the OpenCascade kernel is ready, so you know STEP conversion will work. |
+
+**To install it manually** (instead of the script):
+
+1. Install **Docker Desktop** and make sure the engine is running.
+2. Open a terminal in the distribution folder and build the image:
+   ```
+   docker build -t chair-cq:local .
+   ```
+
+That's it. Once the image exists, STEP / IGES / OBJ files convert normally. If
+you only ever open **GLB / GLTF** files, you can skip this entirely.
 
 ![Empty start — the viewport is blank until you open a model](manual-shots/01-empty-start.png)
 
