@@ -63,6 +63,16 @@
             background:linear-gradient(#eef1f5,#dfe4ea); cursor:grab; display:block; }
   #viewer:active { cursor:grabbing; }
   .vhlp { font-size:12px; color:#667; margin-top:6px; text-align:center; }
+  /* Conversion statistics box */
+  .stats { margin-top:14px; padding:12px 14px; background:#f4f7fb; border:1px solid var(--border);
+           border-radius:10px; }
+  .stats-title { font-size:12px; font-weight:700; color:#445; text-transform:uppercase;
+                 letter-spacing:.05em; margin-bottom:8px; }
+  .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; }
+  .stat { background:#fff; border:1px solid var(--border); border-radius:8px; padding:6px 10px; }
+  .stat .k { font-size:10px; color:#889; text-transform:uppercase; letter-spacing:.04em; }
+  .stat .v { font-size:15px; font-weight:700; color:#1a2b4a; margin-top:2px; }
+  .stat .v small { font-size:11px; color:#889; font-weight:500; }
 </style>
 </head>
 <body>
@@ -99,6 +109,11 @@
 
     <div class="status" id="status"></div>
 
+    <div class="stats" id="stats" hidden>
+      <div class="stats-title">Conversion statistics</div>
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+
     <div class="preview" id="preview">
       <h3>Preview <span class="pbar" id="pbar"></span></h3>
       <canvas id="viewer"></canvas>
@@ -120,6 +135,50 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
   const compressSel = document.getElementById('compress');
+  const statsEl = document.getElementById('stats');
+  const statsGrid = document.getElementById('stats-grid');
+
+  // Render the conversion-statistics box. info = { inSize, outSize, log, gltf }
+  function renderStats(info) {
+    if (!statsEl || !statsGrid) return;
+    const cells = [];
+    const inKb = (info.inSize/1024).toFixed(1);
+    const outKb = (info.outSize/1024).toFixed(1);
+    const saved = info.inSize>0 ? Math.max(0, 100*(1-info.outSize/info.inSize)) : 0;
+    cells.push(`<div class="stat"><div class="k">Input</div><div class="v">${inKb} <small>KB</small></div></div>`);
+    cells.push(`<div class="stat"><div class="k">Output</div><div class="v">${outKb} <small>KB</small></div></div>`);
+    let compressCell = '<div class="k">Compression</div><div class="v">none</div>';
+    let timeCell = null;
+    if (info.log) {
+      const m = /draco\s+(\d+)->(\d+)\s+bytes in\s+([\d.]+)\s*ms/.exec(info.log);
+      if (m) {
+        const savedPct = +m[1]>0 ? Math.max(0,100*(1-(+m[2])/(+m[1]))) : 0;
+        compressCell = `<div class="k">Compression</div><div class="v">Draco <small>−${savedPct.toFixed(1)}%</small></div>`;
+        timeCell = `<div class="stat"><div class="k">Compress time</div><div class="v">${(+m[3]).toFixed(0)} <small>ms</small></div></div>`;
+      }
+    }
+    cells.push(`<div class="stat">${compressCell}</div>`);
+    if (timeCell) cells.push(timeCell);
+    if (info.inSize>0 && info.outSize>0) {
+      cells.push(`<div class="stat"><div class="k">Size saved</div><div class="v">−${saved.toFixed(1)}<small>%</small></div></div>`);
+    }
+    if (info.gltf) {
+      const meshes = (info.gltf.meshes||[]).length;
+      let tris = 0;
+      for (const m of (info.gltf.meshes||[])) for (const p of (m.primitives||[])) {
+        if (p.indices!==undefined && info.gltf.accessors && info.gltf.accessors[p.indices]) {
+          tris += (info.gltf.accessors[p.indices].count||0)/3;
+        }
+      }
+      const mats = (info.gltf.materials||[]).length;
+      cells.push(`<div class="stat"><div class="k">Meshes</div><div class="v">${meshes}</div></div>`);
+      cells.push(`<div class="stat"><div class="k">Triangles</div><div class="v">${Math.round(tris).toLocaleString()}</div></div>`);
+      if (mats) cells.push(`<div class="stat"><div class="k">Materials</div><div class="v">${mats}</div></div>`);
+    }
+    statsGrid.innerHTML = cells.join('');
+    statsEl.hidden = false;
+  }
+
   const runBtn = document.getElementById('run');
   const dlBtn = document.getElementById('dl');
   const status = document.getElementById('status');
@@ -278,6 +337,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     // Draco applies to GLB output — converted CAD or a passthrough .glb (but not .gltf).
     const wantCompress = (fmt === 'glb' && compressSel.value === 'draco');
     runBtn.disabled = true; dlBtn.disabled = true; latest = null;
+    if (statsEl) statsEl.hidden = true;
     setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
     const fd = new FormData();
     fd.append('model', model.file, model.name);
@@ -294,6 +354,17 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
         latest = { name: m?m[1]:'out.'+fmt, blob };
         dlBtn.disabled = false;
         setStatus([`✓ Done — ${latest.name} (${(blob.size/1024).toFixed(1)} KB) — ${isAlready?'loaded for preview':'ready to download & preview.'}`], 'ok');
+        // statistics box
+        let log = '';
+        try { log = decodeURIComponent(escape(atob((res.headers.get('x-convert-log')||'')))); } catch {}
+        let gltf = null;
+        try {
+          const ab = await blob.arrayBuffer();
+          const dv = new DataView(ab);
+          const jsonLen = dv.getUint32(12, true);
+          gltf = JSON.parse(new TextDecoder().decode(new Uint8Array(ab, 20, jsonLen)));
+        } catch {}
+        renderStats({ inSize: model.file.size, outSize: blob.size, log, gltf });
         showPreview(blob, latest.name, { rotate: !isAlready });
       } else {
         const err = await res.text();
