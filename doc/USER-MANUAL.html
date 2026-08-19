@@ -53,9 +53,36 @@
   a { color:var(--blue); }
   @media print { body{background:#fff} .page{border:0;max-width:100%} }
   @media (max-width:640px){ .page{padding:20px 16px} }
+
+  /* ---- Screen layout: sticky sidebar TOC + content column ---- */
+  .layout { display:flex; align-items:flex-start; gap:28px; max-width:1200px;
+            margin:0 auto; padding:0 20px; }
+  .toc { position:sticky; top:0; flex:0 0 240px; max-height:100vh;
+         overflow-y:auto; padding:28px 8px 28px 0; font-size:14px; }
+  .toc h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+            color:var(--muted); border:0; padding:0; margin:0 0 14px; }
+  .toc ul { list-style:none; padding:0; margin:0; }
+  .toc li { margin:0; }
+  .toc a { display:block; padding:6px 10px; border-radius:6px; color:var(--ink);
+           text-decoration:none; border-left:2px solid transparent; }
+  .toc a:hover { background:#eef2ff; }
+  .toc a.active { background:#eef2ff; color:var(--blue); border-left-color:var(--blue); font-weight:600; }
+  .toc .sub a { padding-left:24px; font-size:13px; color:var(--muted); }
+  .page { max-width:860px; margin:0; padding:36px 40px 80px; background:#fff;
+          border-left:1px solid var(--line); border-right:1px solid var(--line);
+          min-height:100vh; flex:1 1 auto; }
+  /* Print / PDF: hide the sidebar TOC (the inline TOC in the body is used). */
+  @media print {
+    .layout { display:block; padding:0; }
+    .toc { display:none; }
+    .page { margin:0 auto; border:0; max-width:100%; }
+  }
+  @media (max-width:860px){ .toc{display:none} .layout{padding:0} }
 </style>
 </head>
 <body>
+<div class="layout">
+<nav class="toc" aria-label="Table of contents"><h2>Contents</h2><ul><li><a href="#table-of-contents">Table of Contents</a></li><li><a href="#1-welcome--why-cad-viewer">1. Welcome — why CAD Viewer?</a></li><li class="sub"><ul><li><a href="#at-a-glance">At a glance</a></li><li><a href="#application-features">Application features</a></li><li><a href="#what-it-helps-with">What it helps with</a></li><li><a href="#use-cases">Use cases</a></li></ul></li><li><a href="#2-starting-the-app">2. Starting the app</a></li><li class="sub"><ul><li><a href="#changing-the-port">Changing the port</a></li><li><a href="#installing-the-step-converter-docker--opencascade">Installing the STEP converter (Docker + OpenCascade)</a></li></ul></li><li><a href="#3-opening-a-model">3. Opening a model</a></li><li><a href="#4-the-assembly-panel--parts-and-visibility">4. The Assembly panel — parts and visibility</a></li><li class="sub"><ul><li><a href="#expand--collapse">Expand / collapse</a></li><li><a href="#show--hide-parts">Show / hide parts</a></li><li><a href="#highlight-a-part-click-the-name-or-click-it-in-the-viewport">Highlight a part (click the name, or click it in the viewport)</a></li><li><a href="#show-me-only-right-click">&quot;Show me only&quot; (right-click)</a></li><li><a href="#move-a-part-x--y--z--drag">Move a part (X / Y / Z + drag)</a></li></ul></li><li><a href="#5-navigating-the-viewport">5. Navigating the viewport</a></li><li><a href="#6-lighting--animation">6. Lighting &amp; animation</a></li><li class="sub"><ul><li><a href="#lighting">Lighting</a></li><li><a href="#animation">Animation</a></li><li><a href="#session-sync">Session sync</a></li></ul></li><li><a href="#7-collaborative-sessions-host">7. Collaborative sessions (host)</a></li><li><a href="#8-joining-a-session-guest">8. Joining a session (guest)</a></li><li class="sub"><ul><li><a href="#what-stays-in-sync">What stays in sync</a></li></ul></li><li><a href="#9-leaving-a-session">9. Leaving a session</a></li><li><a href="#10-opening-a-step--iges--obj-file">10. Opening a STEP / IGES / OBJ file</a></li><li><a href="#11-standalone-cad-converter-convert-cad">11. Standalone CAD converter (convert-cad)</a></li><li class="sub"><ul><li><a href="#what-it-converts">What it converts</a></li><li><a href="#using-the-drag--drop-web-ui-recommended">Using the drag-&amp;-drop web UI (recommended)</a></li><li><a href="#using-the-command-line">Using the command line</a></li><li><a href="#requirements">Requirements</a></li><li><a href="#how-it-helps-sharing">How it helps sharing</a></li></ul></li><li><a href="#12-troubleshooting">12. Troubleshooting</a></li><li><a href="#13-sharing-with-external-parties">13. Sharing with external parties</a></li><li class="sub"><ul><li><a href="#option-1--port-forwarding-on-the-router">Option 1 — Port forwarding on the router</a></li><li><a href="#option-2--deploy-on-a-public--virtual-server">Option 2 — Deploy on a public / virtual server</a></li></ul></li></ul></nav>
 <div class="page">
 <h1 id="cad-viewer--user-manual">CAD Viewer — User Manual</h1>
 
@@ -436,5 +463,24 @@ answered immediately, on the actual geometry, by pointing and looking together.<
 <p><em>CAD Viewer v0.55 — collaborative CAD viewing for the LAN.</em></p>
 
 </div>
+</div>
+<script>
+/* Scroll-spy: highlight the sidebar link for the section in view. */
+(() => {
+  const links = [...document.querySelectorAll('.toc a')];
+  const map = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+  const active = () => {
+    const y = window.scrollY + 90;
+    let cur = null;
+    for (let i = 0; i < map.length; i++) {
+      const el = map[i];
+      if (el && el.offsetTop <= y) cur = i;
+    }
+    links.forEach((a, i) => a.classList.toggle('active', i === cur));
+  };
+  window.addEventListener('scroll', active, { passive: true });
+  active();
+})();
+</script>
 </body>
 </html>

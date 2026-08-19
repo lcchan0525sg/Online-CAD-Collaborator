@@ -69,6 +69,31 @@ STYLE = """
   a { color:var(--blue); }
   @media print { body{background:#fff} .page{border:0;max-width:100%} }
   @media (max-width:640px){ .page{padding:20px 16px} }
+
+  /* ---- Screen layout: sticky sidebar TOC + content column ---- */
+  .layout { display:flex; align-items:flex-start; gap:28px; max-width:1200px;
+            margin:0 auto; padding:0 20px; }
+  .toc { position:sticky; top:0; flex:0 0 240px; max-height:100vh;
+         overflow-y:auto; padding:28px 8px 28px 0; font-size:14px; }
+  .toc h2 { font-size:13px; text-transform:uppercase; letter-spacing:.06em;
+            color:var(--muted); border:0; padding:0; margin:0 0 14px; }
+  .toc ul { list-style:none; padding:0; margin:0; }
+  .toc li { margin:0; }
+  .toc a { display:block; padding:6px 10px; border-radius:6px; color:var(--ink);
+           text-decoration:none; border-left:2px solid transparent; }
+  .toc a:hover { background:#eef2ff; }
+  .toc a.active { background:#eef2ff; color:var(--blue); border-left-color:var(--blue); font-weight:600; }
+  .toc .sub a { padding-left:24px; font-size:13px; color:var(--muted); }
+  .page { max-width:860px; margin:0; padding:36px 40px 80px; background:#fff;
+          border-left:1px solid var(--line); border-right:1px solid var(--line);
+          min-height:100vh; flex:1 1 auto; }
+  /* Print / PDF: hide the sidebar TOC (the inline TOC in the body is used). */
+  @media print {
+    .layout { display:block; padding:0; }
+    .toc { display:none; }
+    .page { margin:0 auto; border:0; max-width:100%; }
+  }
+  @media (max-width:860px){ .toc{display:none} .layout{padding:0} }
 """
 
 
@@ -116,6 +141,8 @@ def convert():
     text = open(MD, encoding='utf-8').read()
     lines = text.split('\n')
     out = []
+    toc = []            # [{id, title, subs:[{id,title}]}]
+    cur = None
     i = 0
     n = len(lines)
     while i < n:
@@ -130,9 +157,13 @@ def convert():
             i += 1
             continue
         if raw.startswith('### '):
-            out.append(f'<h3 id="{slugify(raw[4:])}">{render_paragraph(raw[4:])}</h3>')
+            h = {'id': slugify(raw[4:]), 'title': re.sub(r'[*`]', '', raw[4:]).strip()}
+            if cur is not None: cur['subs'].append(h)
+            out.append(f'<h3 id="{h["id"]}">{render_paragraph(raw[4:])}</h3>')
         elif raw.startswith('## '):
-            out.append(f'<h2 id="{slugify(raw[3:])}">{render_paragraph(raw[3:])}</h2>')
+            h = {'id': slugify(raw[3:]), 'title': re.sub(r'[*`]', '', raw[3:]).strip(), 'subs': []}
+            toc.append(h); cur = h
+            out.append(f'<h2 id="{h["id"]}">{render_paragraph(raw[3:])}</h2>')
         elif raw.startswith('# '):
             out.append(f'<h1 id="{slugify(raw[2:])}">{render_paragraph(raw[2:])}</h1>')
         elif raw.strip() == '---':
@@ -210,6 +241,19 @@ def convert():
         i += 1
 
     body = '\n'.join(out)
+
+    # Build the sidebar TOC (screen only; hidden on print).
+    def toc_list(items, sub=False):
+        lis = []
+        for it in items:
+            lis.append(f'<li><a href="#{it["id"]}">{html.escape(it["title"])}</a></li>')
+            if it.get('subs'):
+                lis.append(f'<li class="sub"><ul>' + ''.join(
+                    f'<li><a href="#{s["id"]}">{html.escape(s["title"])}</a></li>' for s in it['subs']) + '</ul></li>')
+        return '<ul>' + ''.join(lis) + '</ul>'
+
+    sidebar = '<h2>Contents</h2>' + toc_list(toc)
+
     doc = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -219,9 +263,30 @@ def convert():
 <style>{STYLE}</style>
 </head>
 <body>
+<div class="layout">
+<nav class="toc" aria-label="Table of contents">{sidebar}</nav>
 <div class="page">
 {body}
 </div>
+</div>
+<script>
+/* Scroll-spy: highlight the sidebar link for the section in view. */
+(() => {{
+  const links = [...document.querySelectorAll('.toc a')];
+  const map = links.map(a => document.getElementById(a.getAttribute('href').slice(1)));
+  const active = () => {{
+    const y = window.scrollY + 90;
+    let cur = null;
+    for (let i = 0; i < map.length; i++) {{
+      const el = map[i];
+      if (el && el.offsetTop <= y) cur = i;
+    }}
+    links.forEach((a, i) => a.classList.toggle('active', i === cur));
+  }};
+  window.addEventListener('scroll', active, {{ passive: true }});
+  active();
+}})();
+</script>
 </body>
 </html>
 """
