@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile, writeFile, copyFile, unlink, rmdir, mkdir } from 'node:fs/promises';
+import { readFile, writeFile, copyFile, unlink, rmdir, mkdir, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { extname, join, normalize, dirname } from 'node:path';
 import { tmpdir, networkInterfaces } from 'node:os';
@@ -182,6 +182,23 @@ const httpServer = http
       }
       if (req.method !== 'POST') { res.writeHead(405).end('method not allowed'); return; }
       return handleSessionModelUpload(req, res, session);
+    }
+    // ---- User manual (doc/) — served from repo root in dev, zip root in portable ----
+    if (url.pathname.startsWith('/doc/')) {
+      const rel = url.pathname.slice('/doc/'.length);
+      const docPath = join(ROOT, 'doc', rel);
+      const norm = normalize(docPath);
+      if (norm.startsWith(normalize(join(ROOT, 'doc'))) && (await stat(norm))?.isFile()) {
+        const data = await readFile(norm);
+        const cache = norm.endsWith('.html') || norm.endsWith('.js') || norm.endsWith('.css')
+          ? { 'cache-control': 'no-cache, no-store, must-revalidate' }
+          : {};
+        res.writeHead(200, { 'content-type': MIME[extname(norm)] || 'application/octet-stream', ...cache });
+        res.end(data);
+        return;
+      }
+      res.writeHead(404).end('not found: ' + url.pathname);
+      return;
     }
     // ---- Static files (served from src/ or the portable zip root) ----
     let urlPath = decodeURIComponent(url.pathname);

@@ -87,11 +87,10 @@ function buildFrom(src, version, zipName) {
   if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
   const dockerFile = join(src, 'Dockerfile');
   if (existsSync(dockerFile)) copyFileSync(dockerFile, join(APP, 'Dockerfile'));
-  // User manual (PDF + MD + screenshots referenced by the MD)
-  if (existsSync(join(src, 'USER-MANUAL.pdf'))) copyFileSync(join(src, 'USER-MANUAL.pdf'), join(APP, 'USER-MANUAL.pdf'));
-  if (existsSync(join(src, 'USER-MANUAL.md'))) copyFileSync(join(src, 'USER-MANUAL.md'), join(APP, 'USER-MANUAL.md'));
-  if (existsSync(join(src, 'manual-shots'))) {
-    cpSync(join(src, 'manual-shots'), join(APP, 'manual-shots'), { recursive: true });
+  // User manual (doc/: HTML + PDF + MD + screenshots). Served at /doc/ by
+  // the server (repo root in dev, zip root here), so copy the whole folder.
+  if (existsSync(join(src, 'doc'))) {
+    cpSync(join(src, 'doc'), join(APP, 'doc'), { recursive: true });
   }
   // Third-party license notices (OCCT/OCP/CadQuery/three.js/ws licensing)
   if (existsSync(join(src, 'THIRD-PARTY-NOTICES.txt'))) {
@@ -175,8 +174,9 @@ function buildFrom(src, version, zipName) {
     'The zip bundles node.exe, so NO installs are needed on Windows.',
     '',
     'User manual:',
-    '  Open USER-MANUAL.pdf (or USER-MANUAL.md) for full instructions with',
-    '  screenshots — starting the app, opening models, sessions, part visibility.',
+    '  Open doc/USER-MANUAL.html (or doc/USER-MANUAL.pdf) for full',
+    '  instructions with screenshots — starting the app, opening models,',
+    '  sessions, part visibility and selection.',
     '',
     'Licensing:',
     '  THIRD-PARTY-NOTICES.txt lists the components and their licences',
