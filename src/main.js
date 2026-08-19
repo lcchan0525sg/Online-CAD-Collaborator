@@ -484,6 +484,7 @@ function clearPartSelection(silent) {
     if (prev) prev.row.classList.remove('sel');
     selectedPartKey = null;
     applyAllMaterials();
+    if (typeof renderExplodeScope === 'function') renderExplodeScope();
     window.__selKey = null;   // dev/debug hook for headless inspection
     if (!silent) broadcastSel(null);
   }
@@ -503,6 +504,13 @@ function selectPart(key, force) {
   const row = partRows.get(key);
   if (row) row.row.classList.add('sel');
   applyAllMaterials();
+  // Selecting an assembly re-scopes the explode to its immediate children.
+  if (row && row.hasKids && typeof recomputeExplode === 'function') {
+    if (explodeMode === 'gap') recomputeExplodeGap();
+    else recomputeExplode();
+  } else if (typeof renderExplodeScope === 'function') {
+    renderExplodeScope();
+  }
   if (!force) broadcastSel(key);
 }
 // Clicking elsewhere / scrolling dismisses the menu.
@@ -721,10 +729,13 @@ function loadFromGltf(gltf) {
   if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
   if (typeof flushPendingTrans === 'function') flushPendingTrans();
   if (typeof computeExplodeDirs === 'function') computeExplodeDirs();
-  // Re-apply any stored explode amount on the fresh model (move from rest by the
+  // Re-apply any stored explode state on the fresh model (move from rest by the
   // full amount, not a zero delta).
-  if (typeof explodeAmount !== 'undefined' && explodeAmount) {
-    const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(a);
+  if (typeof explodeMode !== 'undefined' && (explodeAmount || explodeGap)) {
+    if (explodeMode === 'gap') { const g = explodeGap; explodeGap = 0; applyExplodeGap(g); }
+    else { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(a); }
+  } else if (typeof renderExplodeScope === 'function') {
+    renderExplodeScope();
   }
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
 }
@@ -2592,82 +2603,103 @@ renderer.domElement.addEventListener('pointerleave', hidePartHover);
 // a pointermove here just re-hides if we drift off a part. Safe to clear.
 
 /* ============================ Exploded view ============================ */
-// A slider spreads the assembly's parts/sub-assemblies outward so the structure
-// reads at a glance. Non-destructive: explode only adds a per-part offset on top
-// of the part's resting position (which may itself have been moved), and
-// collapsing to 0 returns every part exactly to where it was. State syncs across
-// a session like light/anim.
-// - Direction: radial (from the assembly centre) or an explicit X/Y/Z axis.
-// - Level: "parts" explodes every leaf part (the actual components) so you see
-//   them separate; "sub" explodes the top-level sub-assemblies as rigid units.
-// Parts are collected with the SAME rule the assembly tree uses (isPartNode), so
-// "which nodes are parts" matches what the user sees in the tree — this is what
-// fixes the earlier bug where a single top-level wrapper node ("GearBox")
-// swallowed the whole model.
+// Selection-driven explode: you pick an assembly in the tree, and the explode
+// spreads that assembly's IMMEDIATE CHILDREN apart. A child that is itself a
+// sub-assembly (has children) moves as a rigid unit — its own descendants ride
+// along. Default scope is the top level (the highest assembly with >1 child,
+// descending past any single-child "pure wrapper").
+//
+// Two separation modes:
+//   pct  — a 0..100% slider; works with Radial and X/Y/Z (current behaviour).
+//   gap  — a numeric mm value; the clear space between adjacent bounding boxes
+//          along the chosen axis. Axis-only: choosing gap while in Radial
+//          auto-switches direction to X.
+//
+// Non-destructive: explode only adds a per-part offset on top of the part's
+// resting position, and collapsing to 0 (or Reset) returns every part exactly
+// to where it was. State syncs across the session like light/anim.
 const explodeSliderEl = document.getElementById('explode-slider');
 const explodeValEl = document.getElementById('explode-val');
 const explodeDirEl = document.getElementById('explode-dir');
-const explodeLevelEl = document.getElementById('explode-level');
-let explodeAmount = 0;          // 0..1
-let explodeScale = 1;           // world distance at 100% (model-size fraction)
-let explodeTargets = [];        // [{ node, parent, dirLocal }] parts to spread
+const explodeModeEl = document.getElementById('explode-mode');
+const explodeGapEl = document.getElementById('explode-gap');
+const explodeGapUnitEl = document.getElementById('explode-gap-unit');
+const explodeScopeEl = document.getElementById('explode-scope');
+let explodeAmount = 0;          // 0..1 (pct mode)
+let explodeGap = 10;            // mm (gap mode)
+let explodeMode = 'pct';        // 'pct' | 'gap'
+let explodeScale = 1;           // world distance at 100% (scope-size fraction)
+let explodeTargets = [];        // [{ node, parent, dirLocal }] children to spread
 let explodeDir = 'radial';      // 'radial' | 'x' | 'y' | 'z'
-let explodeLevel = 'parts';     // 'parts' | 'sub'
+let explodeScopeKey = null;     // selected assembly path key, or null (top level)
+let explodeScopeName = '—';     // display name of the scope for the readout
+let explodeNothing = false;     // scope has <=1 child (nothing to spread)
 let applyingRemoteExplode = false;
 
-function broadcastExplode() {
-  if (!session?.connected || applyingRemoteExplode) return;
-  try { session.ws.send(JSON.stringify({ t: 'explode', amount: explodeAmount, dir: explodeDir, level: explodeLevel })); } catch {}
-}
-// Set the slider UI to an amount without re-broadcasting (remote or init).
-function setExplodeUi(amount) {
-  explodeAmount = Math.max(0, Math.min(1, amount));
-  if (explodeSliderEl) explodeSliderEl.value = Math.round(explodeAmount * 100);
-  if (explodeValEl) explodeValEl.textContent = Math.round(explodeAmount * 100) + '%';
-}
-// Collect the part nodes to explode, using the tree's isPartNode rule.
-function collectExplodeNodes() {
-  if (!model) return [];
+// ---- Scope resolution ----
+function explodeScopeNode() {
+  if (!model) return null;
   const root = model.children[0];
-  const isPartNode = (child, obj) => !!child.name && (obj === root || !child.isMesh);
-  const rows = [];   // { node, path, depth }
-  const walk = (obj, depth, path) => {
-    obj.children.forEach((child, i) => {
-      const p = [...path, i];
-      const isPart = isPartNode(child, obj);
-      if (isPart) rows.push({ node: child, path: p, depth });
-      if (child.children?.length) walk(child, depth + (isPart ? 1 : 0), p);
-    });
-  };
-  walk(root, 0, []);
-  if (!rows.length) return [];
-  // Leaf parts = rows that are not an ancestor of any other row.
-  const isAncestorOf = (a, b) => a !== b && b.path.length > a.path.length
-    && a.path.every((v, i) => b.path[i] === v);
-  const leaves = rows.filter((r) => !rows.some((o) => isAncestorOf(r, o)));
-  if (explodeLevel === 'sub') return rows.filter((r) => r.depth === 0);
-  return leaves;
+  // A selected assembly (a row with kids) becomes the scope.
+  if (selectedPartKey) {
+    const n = nodeAtPath(root, selectedPartKey.split('.').map(Number));
+    const row = n && partRows.get(selectedPartKey);
+    if (n && row && row.hasKids) return n;
+    // Leaf part selected -> fall through to top level (scope unchanged).
+  }
+  // Default top level: descend past single-child "pure wrapper" nodes to the
+  // highest assembly with more than one child.
+  let node = root;
+  const namedKids = (o) => (o.children || []).filter((c) => c.name);
+  while (node) {
+    const kids = namedKids(node);
+    if (kids.length > 1) return node;
+    if (kids.length === 1) { node = kids[0]; continue; }
+    return null;   // single leaf / empty -> nothing to explode
+  }
+  return null;
 }
-// Compute each target's local-space unit direction in its PARENT's frame.
+function explodeScopeInfo() {
+  const scope = explodeScopeNode();
+  if (!scope) { explodeScopeKey = null; explodeScopeName = '—'; explodeNothing = true; return []; }
+  const kids = (scope.children || []).filter((c) => c.name);
+  explodeScopeKey = scope === model.children[0] && !partRows.has('') ? null : scopeKeyOf(scope);
+  explodeScopeName = scope.name || 'Assembly';
+  explodeNothing = kids.length <= 1;
+  return kids;
+}
+// Path key of a node (child indices from the scene root), same rule as the tree.
+function scopeKeyOf(node) {
+  const root = model.children[0];
+  const path = [];
+  let c = node;
+  while (c && c !== root) { path.unshift(c.parent.children.indexOf(c)); c = c.parent; }
+  return path.join('.');
+}
+
+// ---- Collect targets + compute directions (percentage mode) ----
 function computeExplodeDirs() {
   explodeTargets = [];
-  if (!model) return;
-  const nodes = collectExplodeNodes();
-  if (!nodes.length) return;
-  const box = new THREE.Box3().setFromObject(model);
-  const centre = box.getCenter(new THREE.Vector3());
-  explodeScale = box.getSize(new THREE.Vector3()).length() * 0.5 || 1;
+  if (!model) { renderExplodeScope(); return; }
+  const kids = explodeScopeInfo();
+  if (!kids.length || explodeNothing) { renderExplodeScope(); return; }
+  // Skip hidden parts in the layout — no phantom gap around hidden geometry.
+  const visible = kids.filter((n) => n.visible !== false);
+  if (!visible.length) { renderExplodeScope(); return; }
+  const scope = explodeScopeNode();
+  const sbox = new THREE.Box3().setFromObject(scope);
+  const centre = sbox.getCenter(new THREE.Vector3());
+  explodeScale = sbox.getSize(new THREE.Vector3()).length() * 0.5 || 1;
   const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
     : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
     : explodeDir === 'z' ? new THREE.Vector3(0, 0, 1) : null;
   const _d = new THREE.Vector3();
-  for (const { node, path } of nodes) {
+  for (const node of visible) {
     const parent = node.parent || model.children[0];
     const pbox = new THREE.Box3().setFromObject(node);
     const pc = pbox.getCenter(new THREE.Vector3());
     let dirWorld;
     if (axisWorld) {
-      // Signed along the axis: parts on the + side go +, on the - side go -.
       const s = _d.copy(pc).sub(centre).dot(axisWorld);
       dirWorld = axisWorld.clone().multiplyScalar(s >= 0 ? 1 : -1);
     } else {
@@ -2675,17 +2707,15 @@ function computeExplodeDirs() {
       if (dirWorld.lengthSq() < 1e-12) dirWorld.set(0, 1, 0);   // centred -> up
       dirWorld.normalize();
     }
-    // Convert the world direction to the part's parent local frame so
-    // node.position (parent-local) can be offset directly.
     const wA = parent.worldToLocal(pc.clone());
     const wB = parent.worldToLocal(pc.clone().add(dirWorld));
-    const dirLocal = wB.sub(wA).normalize();
-    explodeTargets.push({ node, parent, dirLocal, path });
+    explodeTargets.push({ node, parent, dirLocal: wB.sub(wA).normalize(), resting: node.position.clone() });
   }
+  renderExplodeScope();
 }
-// Move each target outward by delta = dir * (amount - prevAmount) * scale.
+// ---- Apply percentage-mode separation ----
 function applyExplodeAmount(newAmount) {
-  if (!model || !explodeTargets.length) { setExplodeUi(newAmount); return; }
+  if (!model || !explodeTargets.length || explodeNothing) { setExplodeUi(newAmount); return; }
   const prev = explodeAmount;
   const delta = (newAmount - prev) * explodeScale;
   const seen = new Set();
@@ -2698,65 +2728,199 @@ function applyExplodeAmount(newAmount) {
   setExplodeUi(newAmount);
   broadcastExplode();
 }
-function resetExplode() {
-  // Return every target to its resting position (delta to 0).
-  if (model && explodeTargets.length) applyExplodeAmount(0);
-  else setExplodeUi(0);
-}
-explodeSliderEl.addEventListener('input', () => {
-  applyExplodeAmount(Number(explodeSliderEl.value) / 100);
-});
-// Changing direction/level recomputes the spread directions from the current
-// resting positions, then re-applies the same amount.
-explodeDirEl.addEventListener('change', () => { explodeDir = explodeDirEl.value; recomputeExplode(); });
-explodeLevelEl.addEventListener('change', () => { explodeLevel = explodeLevelEl.value; recomputeExplode(); });
-function recomputeExplode() {
-  const amt = explodeAmount;
-  if (model && explodeTargets.length) applyExplodeAmount(0);   // collapse first
-  computeExplodeDirs();
-  applyExplodeAmount(amt);                                     // re-apply
+// ---- Apply mm-gap separation along an axis (bbox-driven layout) ----
+// Each target is moved along the chosen axis just enough to keep `gap` mm of
+// clear space after the previous box (in sorted order). Starting from each
+// box's RESTING position, a box is only pushed forward when the required gap
+// exceeds its current position — so gap=0 leaves every box where it rests
+// (fully reversible), and larger gaps push boxes apart to create the spacing.
+// Sub-assemblies are rigid (their whole box moves together).
+function applyExplodeGap(newGap) {
+  const gap = Math.max(0, Number(newGap) || 0);
+  if (explodeDir === 'radial') { explodeDir = 'x'; if (explodeDirEl) explodeDirEl.value = 'x'; }
+  if (!model || !explodeTargets.length || explodeNothing) { setExplodeGapUi(gap); return; }
+  const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
+    : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
+    : new THREE.Vector3(0, 0, 1);
+  // gap=0 means "assembled": restore every box to its resting position.
+  if (gap <= 0) {
+    const seen = new Set();
+    for (const t of explodeTargets) {
+      if (seen.has(t.node.uuid)) continue;
+      seen.add(t.node.uuid);
+      t.node.position.copy(t.resting);
+      t.node.updateMatrixWorld(true);
+    }
+    setExplodeGapUi(0);
+    broadcastExplode();
+    return;
+  }
+  const gapWorld = gap / 1000;   // scene is mm -> m
+  // Each target's resting world position + bbox extent along the axis.
+  const items = [];
+  for (const t of explodeTargets) {
+    const box = new THREE.Box3().setFromObject(t.node);
+    const min = box.min, max = box.max;
+    const extent = new THREE.Vector3().subVectors(max, min).dot(axisWorld);
+    const center = box.getCenter(new THREE.Vector3());
+    const half = Math.abs(extent) / 2;
+    items.push({ t, axisPos: center.dot(axisWorld), min: center.dot(axisWorld) - half, extent: Math.abs(extent), offset: 0 });
+  }
+  items.sort((a, b) => a.axisPos - b.axisPos);
+  // Push each box forward only as far as needed to maintain `gap` after the
+  // previous box. Cursor tracks the new trailing edge of the last box.
+  let cursor = -Infinity;
+  for (const it of items) {
+    const requiredMin = cursor === -Infinity ? it.min : cursor + gapWorld;
+    const offset = Math.max(0, requiredMin - it.min);
+    it.offset = offset;
+    cursor = it.min + offset + it.extent;
+  }
+  // Apply offsets (absolute from resting) in each target's parent frame.
+  const seen = new Set();
+  for (const it of items) {
+    if (seen.has(it.t.node.uuid)) continue;
+    seen.add(it.t.node.uuid);
+    const p = it.t.parent || model.children[0];
+    const a = p.worldToLocal(new THREE.Vector3());
+    const b = p.worldToLocal(axisWorld.clone().multiplyScalar(it.offset));
+    const localDelta = b.sub(a);
+    it.t.node.position.copy(it.t.resting).add(localDelta);
+    it.t.node.updateMatrixWorld(true);
+  }
+  setExplodeGapUi(gap);
   broadcastExplode();
 }
-// Apply a remote explode change (no echo). Direction/level only recompute the
-// spread directions when they actually change; otherwise the same stored
-// directions are reused so the delta path is reversible (collapse-to-0 restores
-// every part exactly).
+
+// ---- UI setters (no broadcast) ----
+function setExplodeUi(amount) {
+  explodeAmount = Math.max(0, Math.min(1, amount));
+  if (explodeSliderEl) explodeSliderEl.value = Math.round(explodeAmount * 100);
+  if (explodeValEl) explodeValEl.textContent = Math.round(explodeAmount * 100) + '%';
+}
+function setExplodeGapUi(gap) {
+  explodeGap = Math.max(0, Number(gap) || 0);
+  if (explodeGapEl) explodeGapEl.value = explodeGap;
+}
+function renderExplodeScope() {
+  if (!explodeScopeEl) return;
+  if (explodeNothing || !explodeScopeName || explodeScopeName === '—') {
+    explodeScopeEl.textContent = 'Exploding: nothing to spread (select an assembly)';
+    return;
+  }
+  const n = explodeTargets.length || (explodeScopeNode()?.children || []).filter((c) => c.name).length;
+  explodeScopeEl.textContent = `Exploding: ${explodeScopeName} — ${n} children`;
+}
+function resetExplode() {
+  // Return every target to its resting position (delta to 0 in the active mode).
+  if (model && explodeTargets.length) {
+    if (explodeMode === 'gap') applyExplodeGap(0);
+    else applyExplodeAmount(0);
+  } else {
+    setExplodeUi(0); setExplodeGapUi(0);
+  }
+}
+
+// ---- Event wiring ----
+explodeSliderEl.addEventListener('input', () => {
+  explodeMode = 'pct'; if (explodeModeEl) explodeModeEl.value = 'pct'; showExplodeModeUi();
+  applyExplodeAmount(Number(explodeSliderEl.value) / 100);
+});
+explodeGapEl.addEventListener('change', () => {
+  explodeMode = 'gap'; if (explodeModeEl) explodeModeEl.value = 'gap'; showExplodeModeUi();
+  recomputeExplodeGap();
+});
+explodeModeEl.addEventListener('change', () => {
+  explodeMode = explodeModeEl.value;
+  if (explodeMode === 'gap') recomputeExplodeGap(); else recomputeExplode();
+  showExplodeModeUi();
+});
+explodeDirEl.addEventListener('change', () => {
+  explodeDir = explodeDirEl.value;
+  if (explodeMode === 'gap') recomputeExplodeGap(); else recomputeExplode();
+});
+function showExplodeModeUi() {
+  const isGap = explodeMode === 'gap';
+  if (explodeGapEl) explodeGapEl.style.display = isGap ? '' : 'none';
+  if (explodeGapUnitEl) explodeGapUnitEl.style.display = isGap ? '' : 'none';
+  if (explodeSliderEl) explodeSliderEl.style.display = isGap ? 'none' : '';
+  if (explodeValEl) explodeValEl.style.display = isGap ? 'none' : '';
+  if (explodeDirEl) {
+    if (isGap && explodeDir === 'radial') { explodeDir = 'x'; explodeDirEl.value = 'x'; }
+  }
+}
+function recomputeExplode() {
+  // Reset all targets to their resting positions first (clean slate), then
+  // recompute directions and re-apply the stored amount.
+  resetExplodeToResting();
+  const amt = explodeAmount;
+  explodeAmount = 0;
+  computeExplodeDirs();
+  applyExplodeAmount(amt);
+  broadcastExplode();
+}
+function recomputeExplodeGap() {
+  resetExplodeToResting();
+  const gap = explodeGap;
+  explodeGap = 0;
+  computeExplodeDirs();
+  applyExplodeGap(gap);
+  broadcastExplode();
+}
+// Put every target back at its resting position (captured at last compute).
+function resetExplodeToResting() {
+  if (!model) return;
+  const seen = new Set();
+  for (const t of explodeTargets) {
+    if (seen.has(t.node.uuid)) continue;
+    seen.add(t.node.uuid);
+    t.node.position.copy(t.resting);
+    t.node.updateMatrixWorld(true);
+  }
+}
+function broadcastExplode() {
+  if (!session?.connected || applyingRemoteExplode) return;
+  try {
+    session.ws.send(JSON.stringify({
+      t: 'explode', amount: explodeAmount, dir: explodeDir, mode: explodeMode,
+      gap: explodeGap, scopeKey: explodeScopeKey,
+    }));
+  } catch {}
+}
+
+// ---- Remote apply (no echo) ----
 function applyRemoteExplode(msg) {
   applyingRemoteExplode = true;
   try {
     const dirChanged = typeof msg.dir === 'string' && msg.dir !== explodeDir;
-    const levelChanged = typeof msg.level === 'string' && msg.level !== explodeLevel;
+    const modeChanged = typeof msg.mode === 'string' && msg.mode !== explodeMode;
     if (dirChanged) { explodeDir = msg.dir; if (explodeDirEl) explodeDirEl.value = msg.dir; }
-    if (levelChanged) { explodeLevel = msg.level; if (explodeLevelEl) explodeLevelEl.value = msg.level; }
-    const amount = Math.max(0, Math.min(1, Number(msg.amount) || 0));
-    if (dirChanged || levelChanged) {
-      if (model && explodeTargets.length && explodeAmount) applyExplodeAmount(0);  // collapse on stored dirs
-      computeExplodeDirs();
-      if (amount) { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(amount); }
-      else setExplodeUi(0);
+    if (modeChanged) { explodeMode = msg.mode; if (explodeModeEl) explodeModeEl.value = msg.mode; showExplodeModeUi(); }
+    const mode = explodeMode;
+    if (mode === 'gap') {
+      const gap = Math.max(0, Number(msg.gap) || 0);
+      if (dirChanged || modeChanged) recomputeExplodeGap();
+      else if (gap !== explodeGap) applyExplodeGap(gap);
+      else recomputeExplodeGap();
+      setExplodeGapUi(gap);
     } else {
-      applyExplodeAmount(amount);
+      const amount = Math.max(0, Math.min(1, Number(msg.amount) || 0));
+      if (dirChanged || modeChanged) recomputeExplode();
+      else applyExplodeAmount(amount);
     }
   } finally { applyingRemoteExplode = false; }
 }
-// Programmatic set (debug hook + dir/level recompute). Same rule: only recompute
-// directions when dir/level changed.
-function explodeSet(amount, dir, level) {
-  const dirChanged = typeof dir === 'string' && dir !== explodeDir;
-  const levelChanged = typeof level === 'string' && level !== explodeLevel;
-  if (dirChanged) { explodeDir = dir; if (explodeDirEl) explodeDirEl.value = dir; }
-  if (levelChanged) { explodeLevel = level; if (explodeLevelEl) explodeLevelEl.value = level; }
-  amount = Math.max(0, Math.min(1, Number(amount) || 0));
-  if (dirChanged || levelChanged) {
-    if (model && explodeTargets.length && explodeAmount) applyExplodeAmount(0);
-    computeExplodeDirs();
-    if (amount) { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(amount); }
-    else setExplodeUi(0);
-  } else {
-    applyExplodeAmount(amount);
-  }
+// Programmatic set (debug hook).
+function explodeSet(amount, dir, mode, gap) {
+  if (typeof dir === 'string' && dir !== explodeDir) { explodeDir = dir; if (explodeDirEl) explodeDirEl.value = dir; }
+  if (typeof mode === 'string' && mode !== explodeMode) { explodeMode = mode; if (explodeModeEl) explodeModeEl.value = mode; showExplodeModeUi(); }
+  if (typeof amount === 'number') explodeAmount = Math.max(0, Math.min(1, amount));
+  if (typeof gap === 'number') explodeGap = Math.max(0, gap);
+  if (explodeMode === 'gap') { recomputeExplodeGap(); return explodeGap; }
+  recomputeExplode();
   return explodeAmount;
 }
+
 
 /* ============================ Resize + loop ============================ */
 function resize() {
@@ -2952,9 +3116,14 @@ window.__viewer = {
   get chatHistory() { return chatHistory.map((m) => ({ name: m.name, text: m.text, ts: m.ts, self: !!m.self, system: !!m.system })); },
   chatOpen: () => { if (chatWindowEl) chatWindowEl.hidden = false; return !chatWindowEl.hidden; },
   get explode() {
-    return { amount: explodeAmount, scale: explodeScale, targets: explodeTargets.length, dir: explodeDir, level: explodeLevel };
+    return {
+      amount: explodeAmount, gap: explodeGap, mode: explodeMode,
+      scale: explodeScale, targets: explodeTargets.length, dir: explodeDir,
+      scopeKey: explodeScopeKey, scopeName: explodeScopeName, nothing: explodeNothing,
+    };
   },
-  explodeSet: (amount, dir, level) => explodeSet(amount, dir, level),
+  explodeSet: (amount, dir, mode, gap) => explodeSet(amount, dir, mode, gap),
+  explodeScope: () => explodeScopeNode()?.name || null,
   projectWorld: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();

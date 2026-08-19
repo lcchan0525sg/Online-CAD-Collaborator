@@ -259,6 +259,52 @@ to disk.
 
 ---
 
+## [v0.70] — 2026-08-20
+
+> **Baseline:** v0.69 (tag `v0.69`). Release on top of the current working tree.
+
+### Added
+
+- **Explode is now selection-driven** (replaces the **Level: All parts / Top
+  sub-assembly** dropdown). You pick an assembly in the tree and the explode
+  spreads that assembly's **immediate children**; a child that is itself a
+  sub-assembly moves as a **rigid unit** (its descendants ride along). The
+  default scope is the **top level** — the highest assembly with more than one
+  child, descending past any single-child "pure wrapper" (so a one-node wrapper
+  around a whole model like the GearBox's "GearBox" node correctly explodes its
+  45 parts).
+  - **Select a sub-assembly** → scope jumps to that assembly's children (targets
+    recompute, the slider/gap value stays). **Select a leaf part** → scope
+    unchanged.
+  - A **scope readout** shows **"Exploding: <assembly> — N children"** so
+    selection-driven changes are visible.
+  - Selecting an assembly with **≤1 child** (or a single-part model) shows
+    "nothing to spread (select an assembly)" instead of silently doing nothing.
+- **Two separation modes** (the **Sep** selector):
+  - **% (percentage)** — the slider, 0–100%, works with **Radial** and **X/Y/Z**.
+  - **mm gap** — a numeric input; the **clear space (mm) between adjacent
+    bounding boxes** along the chosen axis. **Axis-only**: choosing gap while in
+    Radial auto-switches to **X**. Bounding boxes are computed once and cached
+    (only the scope's immediate children, a few ms), and the layout is fully
+    reversible (gap 0 restores every part exactly).
+
+### Changed
+
+- **Hidden parts are skipped** in the explode layout — no phantom gap around
+  hidden geometry.
+- Explode state now syncs as `{ amount, mode, gap, dir, scopeKey }`; late joiners
+  receive the full current state.
+
+### Technical
+
+- Rewrote the explode section in `src/main.js`: scope resolution
+  (`explodeScopeNode` / `explodeScopeInfo`), percentage separation
+  (`applyExplodeAmount`), bbox-gap axis layout (`applyExplodeGap`, reversible via
+  `resetExplodeToResting`), mode UI (`showExplodeModeUi`), scope readout
+  (`renderExplodeScope`), and the extended `explode` sync message. Server
+  (`src/server.js`) stores/replays the new shape. Removed `explodeLevel` and the
+  Level dropdown. The `explode` message protocol doc was updated.
+
 ## [v0.69] — 2026-08-20
 
 > **Baseline:** v0.68 (tag `v0.68`). Documentation release — no code changes.

@@ -166,6 +166,12 @@ body {
 .row .move-axis, .row .measure-status, .row .move-axis.armed, .row .measure-status.active {
   width: auto; text-align: left; white-space: nowrap; margin-left: 4px;
 }
+.explode-scope {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+  white-space: nowrap;
+}
 
 /* ---------- Part move ---------- */
 .move-axis {

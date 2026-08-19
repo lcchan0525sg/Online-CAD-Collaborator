@@ -142,7 +142,7 @@
           <input class="slider" type="range" id="explode-slider" min="0" max="100" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
           <span id="explode-val" class="move-axis">0%</span>
         </div>
-        <div class="row toggle" style="margin-bottom:8px; align-items:center; gap:6px">
+        <div class="row toggle" style="margin-bottom:4px; align-items:center; gap:6px">
           <label class="tlabel" style="font-size:12px">Dir</label>
           <select id="explode-dir" class="ctl" title="Explosion direction">
             <option value="radial">Radial</option>
@@ -150,11 +150,17 @@
             <option value="y">Y</option>
             <option value="z">Z</option>
           </select>
-          <label class="tlabel" style="font-size:12px">Level</label>
-          <select id="explode-level" class="ctl" title="Which nodes to spread apart">
-            <option value="parts">All parts</option>
-            <option value="sub">Top sub-assembly</option>
+          <label class="tlabel" style="font-size:12px">Sep</label>
+          <select id="explode-mode" class="ctl" title="Separation control: percentage of size, or a fixed mm gap between bounding boxes">
+            <option value="pct">%</option>
+            <option value="gap">mm gap</option>
           </select>
+          <input type="number" id="explode-gap" class="ctl" min="0" max="100000" value="10" step="1"
+                 title="Clear space (mm) between bounding boxes along the chosen axis" style="width:64px; display:none">
+          <span id="explode-gap-unit" class="move-axis" style="display:none">mm</span>
+        </div>
+        <div class="row" style="margin-bottom:8px">
+          <span id="explode-scope" class="explode-scope" title="Which assembly's children are being spread apart">Exploding: —</span>
         </div>
         <div id="parts" class="parts"><span class="hint">—</span></div>
         <div id="part-menu" class="part-menu" hidden>
@@ -173,7 +179,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.69 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.70 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
