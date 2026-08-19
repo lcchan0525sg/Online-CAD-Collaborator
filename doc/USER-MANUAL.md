@@ -525,4 +525,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.55 — collaborative CAD viewing for the LAN.*
+*CAD Viewer v0.55 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
