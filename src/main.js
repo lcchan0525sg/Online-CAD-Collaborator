@@ -322,6 +322,7 @@ function clearPartSelection(silent) {
     mesh.material = original;
   }
   selectedMaterialCopies = [];
+  window.__selKey = null;   // dev/debug hook for headless inspection
   if (selectedPartKey) {
     const prev = partRows.get(selectedPartKey);
     if (prev) prev.row.classList.remove('sel');
@@ -340,6 +341,7 @@ function selectPart(key, force) {
   const node = nodeAtPath(model.children[0], key.split('.').map(Number));
   if (!node) return;
   selectedPartKey = key;
+  window.__selKey = key;   // dev/debug hook for headless inspection
   const row = partRows.get(key);
   if (row) row.row.classList.add('sel');
   // Highlight every mesh in this part's subtree.
@@ -1684,6 +1686,64 @@ function undoLastMove() {
 renderer.domElement.addEventListener('pointerup', endMoveDrag);
 renderer.domElement.addEventListener('pointercancel', endMoveDrag);
 
+/* ---- Click a part in the 3D viewport to select it (mirrors a tree click) ----
+   Left-click on a part selects/highlights it (and syncs to every viewer via
+   the same 'sel' broadcast as tree selection). A click on empty space
+   deselects. Right-click on a part opens the "Show me only" menu. A pointer
+   that moved more than a few pixels is treated as an orbit drag and ignored. */
+const pickRay = new THREE.Raycaster();
+const pickNdc = new THREE.Vector2();
+let pickDown = null;   // { x, y } captured on left pointerdown
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button === 0) pickDown = { x: e.clientX, y: e.clientY };
+});
+// True if the object (or any ancestor up to the scene) is visible.
+function isPickVisible(o) {
+  while (o && o !== scene) { if (!o.visible) return false; o = o.parent; }
+  return true;
+}
+// Resolve a hit object to the deepest part-node key (path from the scene root)
+// that contains it, matching the part-row rules in buildPartsTree.
+function pickPartKey(e) {
+  if (!model) return null;
+  const r = renderer.domElement.getBoundingClientRect();
+  pickNdc.set(((e.clientX - r.left) / r.width) * 2 - 1,
+              -((e.clientY - r.top) / r.height) * 2 + 1);
+  pickRay.setFromCamera(pickNdc, camera);
+  const hits = pickRay.intersectObject(model, true);
+  const hit = hits.find((h) => isPickVisible(h.object));
+  if (!hit) return null;
+  const root = model.children[0];
+  let n = hit.object;
+  while (n && n !== model) {
+    const parent = n.parent;
+    if (n.name && (parent === root || !n.isMesh)) {
+      const path = [];
+      let c = n;
+      while (c && c !== root) { path.unshift(c.parent.children.indexOf(c)); c = c.parent; }
+      return path.join('.');
+    }
+    n = parent;
+  }
+  return null;
+}
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (e.button !== 0 || !pickDown) return;
+  const moved = Math.hypot(e.clientX - pickDown.x, e.clientY - pickDown.y);
+  pickDown = null;
+  if (moved > 5) return;                 // orbit / move drag, not a click
+  const key = pickPartKey(e);
+  if (key) selectPart(key);              // select, or toggle off if already selected
+  else clearPartSelection();             // clicked empty space -> deselect
+});
+renderer.domElement.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  e.stopPropagation();                    // don't let the doc listener auto-hide
+  const key = pickPartKey(e);
+  if (key) showPartMenu(e.clientX, e.clientY, key);
+  else hidePartMenu();
+});
+
 document.addEventListener('keydown', (e) => {
   if (!moveOnChk?.checked) return;
   const k = e.key.toLowerCase();
@@ -1770,6 +1830,13 @@ let userName = '';
 function askName() {
   let name = '';
   try { name = (localStorage.getItem('cadv_name') || '').trim(); } catch {}
+  // A blocking window.prompt never returns under headless/automation (it
+  // deadlocks the renderer), so skip it when navigator.webdriver is set —
+  // headless tests and embedded viewers fall back to the stored name.
+  if (navigator.webdriver) {
+    userName = name || 'viewer';
+    return userName;
+  }
   const entered = (window.prompt('Enter your name (shown to other viewers):', name) || '').trim().slice(0, 24);
   if (entered) {
     userName = entered;

@@ -84,19 +84,21 @@ levels are collapsed until you expand them.
   to render anything).
 - **Show all / Hide all** buttons apply to the whole model at once.
 
-### Highlight a part (click the name)
+### Highlight a part (click the name, or click it in the viewport)
 
-Click a part's **name** to highlight it in blue in the viewport. Click another
-part to move the highlight; click the same part again to clear it. The highlight
-uses per-mesh material copies, so other parts sharing the same source material
-are unaffected.
+Click a part's **name** to highlight it in blue in the viewport — or **click the
+part directly in the 3D viewport** to select it the same way (left-click on the
+part; left-click empty space to clear). Click another part to move the
+highlight; click the same part again to clear it. The highlight uses per-mesh
+material copies, so other parts sharing the same source material are unaffected.
 
 ![A part selected in the tree, highlighted blue in the viewport](manual-shots/12-part-selected.png)
 
 ### "Show me only" (right-click)
 
-Right-click a part and choose **Show me only** to hide everything except that
-part and its children. Ancestors stay visible so the isolated part still renders.
+Right-click a part — either its name in the tree, or the part directly in the
+viewport — and choose **Show me only** to hide everything except that part and
+its children. Ancestors stay visible so the isolated part still renders.
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
 
