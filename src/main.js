@@ -98,6 +98,7 @@ function orientModel(root) {
 function clearModel() {
   if (!model) return;
   if (typeof measureClear === 'function') measureClear();
+  if (typeof resetExplode === 'function') resetExplode();
   if (typeof setMoveAxis === 'function') setMoveAxis(null);
   if (typeof originalPositions !== 'undefined') originalPositions.clear();
   if (typeof moveGizmo !== 'undefined' && moveGizmo) moveGizmo.visible = false;
@@ -596,6 +597,9 @@ function loadFromGltf(gltf) {
   buildPartsTree(root);
   if (typeof saveOriginalPositions === 'function') saveOriginalPositions();
   flushPendingParts();
+  if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
+  if (typeof computeExplodeDirs === 'function') computeExplodeDirs();
+  if (typeof explodeAmount !== 'undefined' && explodeAmount) resetExplode();
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
 }
 
@@ -1068,6 +1072,21 @@ function onSessionMsg(msg) {
       break;
     case 'move':
       applyRemoteMove(msg);
+      break;
+    case 'measure-add':
+      applyRemoteMeasureAdd(msg);
+      break;
+    case 'measure-del':
+      applyRemoteMeasureDel(msg);
+      break;
+    case 'measure-clear':
+      applyRemoteMeasureClear();
+      break;
+    case 'measure-sync':
+      applyRemoteMeasureSync(msg.measures);
+      break;
+    case 'explode':
+      applyRemoteExplode(msg.amount);
       break;
     case 'anim':
       applyRemoteAnim(msg.s);
@@ -1896,7 +1915,10 @@ let measureLayer = new THREE.Group(); // glow + markers + committed dimension li
 scene.add(measureLayer);
 let measureGlow = null;               // hover-glow dot
 let measureP1Dot = null;              // marker at the first corner
-let measureList = [];                 // [{ p1, p2, mm }]
+let measureList = [];                 // [{ id, p1, p2, mm }]
+let measureSeq = 0;                   // local id generator for new measurements
+let applyingRemoteMeasure = false;    // guard: don't re-broadcast applied remote ops
+let pendingRemoteMeasures = [];       // measure ops that arrived before a model loaded
 const MEASURE_TOL_PX = 12;
 
 function setMeasureStatus(txt, active) {
@@ -2053,26 +2075,110 @@ function measureEnsureVisuals() {
 }
 function clearHoverGlow() { if (measureGlow) measureGlow.visible = false; measureLabelEl.hidden = true; }
 
-function commitMeasurement(p1, p2) {
+/* ---- Measure sync (committed measurements, server-snapshotted) ---- */
+function broadcastMeasureAdd(entry) {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'measure-add', id: entry.id, p1: entry.p1, p2: entry.p2 })); } catch {}
+}
+function broadcastMeasureDel(id) {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'measure-del', id })); } catch {}
+}
+function broadcastMeasureClear() {
+  if (!session?.connected) return;
+  try { session.ws.send(JSON.stringify({ t: 'measure-clear' })); } catch {}
+}
+// Build a measurement entry from two world points (id + derived angles).
+function makeMeasureEntry(p1, p2) {
   const mm = p1.distanceTo(p2);
   const v = new THREE.Vector3().subVectors(p2, p1);
-  // Elevation = angle from the horizontal (XY) plane; azimuth = bearing in the XY plane.
   const elevation = (mm > 1e-9) ? THREE.MathUtils.radToDeg(Math.asin(v.y / mm)) : 0;
   const azimuth = THREE.MathUtils.radToDeg(Math.atan2(v.z, v.x));
+  return { id: 'm' + (++measureSeq), p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth };
+}
+function addMeasurement(entry, broadcast) {
+  measureList.push(entry);
+  renderMeasureList();
+  if (broadcast) broadcastMeasureAdd(entry);
+}
+function removeMeasurement(id) {
+  measureList = measureList.filter((m) => m.id !== id);
+  rebuildMeasureLayer();
+  renderMeasureList();
+  if (!applyingRemoteMeasure) broadcastMeasureDel(id);
+}
+function measureClear() {
+  measureList = [];
+  measureP1 = null;
+  clearHoverGlow();
+  rebuildMeasureLayer();
+  if (measureListEl) measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+  if (!applyingRemoteMeasure) broadcastMeasureClear();
+}
+// Apply a remote add/del/clear (guarded so we don't echo them back).
+function applyRemoteMeasureAdd(msg) {
+  if (!Array.isArray(msg.p1) || !Array.isArray(msg.p2) || !msg.id) return;
+  if (!model) { pendingRemoteMeasures.push({ t: 'add', ...msg }); return; }
+  applyingRemoteMeasure = true;
+  try {
+    const p1 = new THREE.Vector3(...msg.p1), p2 = new THREE.Vector3(...msg.p2);
+    const entry = makeMeasureEntry(p1, p2);
+    entry.id = msg.id;   // keep the sender's id so del matches
+    addMeasurement(entry, false);
+  } finally { applyingRemoteMeasure = false; }
+}
+function applyRemoteMeasureDel(msg) {
+  if (!model) { pendingRemoteMeasures.push({ t: 'del', ...msg }); return; }
+  applyingRemoteMeasure = true;
+  try { removeMeasurement(msg.id); } finally { applyingRemoteMeasure = false; }
+}
+function applyRemoteMeasureClear() {
+  if (!model) { pendingRemoteMeasures.push({ t: 'clear' }); return; }
+  applyingRemoteMeasure = true;
+  try { measureClear(); } finally { applyingRemoteMeasure = false; }
+}
+// Late joiner snapshot: replace the whole list.
+function applyRemoteMeasureSync(measures) {
+  if (!Array.isArray(measures)) return;
+  if (!model) { pendingRemoteMeasures.push({ t: 'sync', measures }); return; }
+  applyingRemoteMeasure = true;
+  try {
+    measureList = measures.map((m) => ({
+      id: m.id, p1: m.p1, p2: m.p2,
+      mm: new THREE.Vector3(...m.p1).distanceTo(new THREE.Vector3(...m.p2)),
+      elevation: m.elevation, azimuth: m.azimuth,
+    }));
+    rebuildMeasureLayer();
+    renderMeasureList();
+  } finally { applyingRemoteMeasure = false; }
+}
+function flushPendingMeasures() {
+  if (!pendingRemoteMeasures.length || !model) return;
+  const ops = pendingRemoteMeasures;
+  pendingRemoteMeasures = [];
+  for (const op of ops) {
+    if (op.t === 'add') applyRemoteMeasureAdd(op);
+    else if (op.t === 'del') applyRemoteMeasureDel(op);
+    else if (op.t === 'clear') applyRemoteMeasureClear();
+    else if (op.t === 'sync') applyRemoteMeasureSync(op.measures);
+  }
+}
+
+function commitMeasurement(p1, p2) {
+  const entry = makeMeasureEntry(p1, p2);
   const sz = measureDotSize();
-  const pts = [p1.clone(), p2.clone()];
-  const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false }));
+  const line = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints([p1.clone(), p2.clone()]),
+    new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false }));
   line.renderOrder = 10;
   measureLayer.add(line);
   measureLayer.add(placeDot(p1, sz * 0.9));
   measureLayer.add(placeDot(p2, sz * 0.9));
-  measureList.push({ p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth });
-  renderMeasureList();
+  addMeasurement(entry, true);   // broadcast the committed measurement
   measureP1 = null;
   measureP1Dot.visible = false;
   updateMeasureStatus();
-  xferToast('Measured ' + formatMm(mm));
+  xferToast('Measured ' + formatMm(entry.mm));
 }
 function placeDot(world, size) {
   const d = makeMeasureDot(0xffd166, size);
@@ -2108,7 +2214,7 @@ function renderMeasureList() {
     del.className = 'ml-del';
     del.textContent = '✕';
     del.title = 'Remove measurement ' + (i + 1);
-    del.addEventListener('click', () => removeMeasurement(i));
+    del.addEventListener('click', () => removeMeasurement(m.id));
     head.append(info, del);
     const pts = document.createElement('div');
     pts.className = 'ml-pts';
@@ -2117,18 +2223,6 @@ function renderMeasureList() {
     measureListEl.appendChild(item);
   });
   if (!measureList.length) measureListEl.innerHTML = '<span class="hint">no measurements</span>';
-}
-function removeMeasurement(i) {
-  measureList.splice(i, 1);
-  rebuildMeasureLayer();
-  renderMeasureList();
-}
-function measureClear() {
-  measureList = [];
-  measureP1 = null;
-  clearHoverGlow();
-  rebuildMeasureLayer();
-  if (measureListEl) measureListEl.innerHTML = '<span class="hint">no measurements</span>';
 }
 function rebuildMeasureLayer() {
   if (measureLayer) scene.remove(measureLayer);
@@ -2261,6 +2355,87 @@ renderer.domElement.addEventListener('pointerleave', hidePartHover);
 // When measure is on, its corner snap also needs the hover raycast at full rate;
 // a pointermove here just re-hides if we drift off a part. Safe to clear.
 
+/* ============================ Exploded view ============================ */
+// A slider spreads the top-level sub-assemblies/parts radially outward from the
+// assembly centre, so the structure reads at a glance. Non-destructive: explode
+// only adds a per-part offset on top of the part's resting position (which may
+// itself have been moved), and collapsing to 0 returns every part exactly to
+// where it was. State syncs across a session like light/anim.
+const explodeSliderEl = document.getElementById('explode-slider');
+const explodeValEl = document.getElementById('explode-val');
+let explodeAmount = 0;          // 0..1
+let explodeScale = 1;           // world distance at 100% (model-size fraction)
+let explodeDirs = new Map();    // pathKey -> local unit direction per top-level part
+let applyingRemoteExplode = false;
+
+function broadcastExplode(amount) {
+  if (!session?.connected || applyingRemoteExplode) return;
+  try { session.ws.send(JSON.stringify({ t: 'explode', amount })); } catch {}
+}
+// Set the slider UI to an amount without re-broadcasting (remote or init).
+function setExplodeUi(amount) {
+  explodeAmount = Math.max(0, Math.min(1, amount));
+  if (explodeSliderEl) explodeSliderEl.value = Math.round(explodeAmount * 100);
+  if (explodeValEl) explodeValEl.textContent = Math.round(explodeAmount * 100) + '%';
+}
+// Compute each top-level part's local-space radial explosion direction from the
+// assembly centre. Top-level = nodes under the scene root with a name (the depth-0
+// rows of the tree): a sub-assembly moves as a unit, its internals stay together.
+function computeExplodeDirs() {
+  explodeDirs.clear();
+  if (!model) return;
+  const root = model.children[0];
+  const parts = (root.children || []).filter((c) => c.name);
+  if (!parts.length) return;
+  const box = new THREE.Box3().setFromObject(model);
+  const centre = box.getCenter(new THREE.Vector3());
+  explodeScale = box.getSize(new THREE.Vector3()).length() * 0.5 || 1;
+  parts.forEach((part, i) => {
+    const pbox = new THREE.Box3().setFromObject(part);
+    const pc = pbox.getCenter(new THREE.Vector3());
+    const dWorld = pc.clone().sub(centre);
+    if (dWorld.lengthSq() < 1e-12) dWorld.set(0, 1, 0);   // centred part -> up
+    dWorld.normalize();
+    // Convert the world unit direction to the part's parent (root) local frame so
+    // node.position (root-local) can be offset directly.
+    const wA = root.worldToLocal(pc.clone());
+    const wB = root.worldToLocal(pc.clone().add(dWorld));
+    explodeDirs.set(String(i), wB.sub(wA).normalize());
+  });
+}
+// Move each top-level part outward by delta = dir * (amount - prevAmount) * scale.
+function applyExplodeAmount(newAmount) {
+  if (!model || !explodeDirs.size) { setExplodeUi(newAmount); return; }
+  const prev = explodeAmount;
+  const delta = (newAmount - prev) * explodeScale;
+  const root = model.children[0];
+  const visited = new Set();
+  root.children.forEach((part, i) => {
+    const key = String(i);
+    const dir = explodeDirs.get(key);
+    if (!dir || visited.has(part.uuid)) return;
+    visited.add(part.uuid);
+    part.position.addScaledVector(dir, delta);
+    part.updateMatrixWorld(true);
+  });
+  setExplodeUi(newAmount);
+  broadcastExplode(explodeAmount);
+}
+function resetExplode() {
+  // Return every top-level part to its resting position (delta to 0).
+  if (model && explodeDirs.size) applyExplodeAmount(0);
+  else setExplodeUi(0);
+}
+explodeSliderEl.addEventListener('input', () => {
+  applyExplodeAmount(Number(explodeSliderEl.value) / 100);
+});
+// Apply a remote explode change (no echo).
+function applyRemoteExplode(amount) {
+  applyingRemoteExplode = true;
+  try { applyExplodeAmount(Math.max(0, Math.min(1, Number(amount) || 0))); }
+  finally { applyingRemoteExplode = false; }
+}
+
 /* ============================ Resize + loop ============================ */
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -2392,6 +2567,11 @@ window.__viewer = {
     commitMeasurement(measureP1, c); return 'p2';
   },
   measureClear: () => { measureClear(); return true; },
+  measureIds: () => measureList.map((m) => m.id),
+  get explode() {
+    return { amount: explodeAmount, scale: explodeScale, parts: explodeDirs.size };
+  },
+  explodeSet: (amount) => { explodeSliderEl.value = Math.round(amount * 100); applyExplodeAmount(amount); return explodeAmount; },
   projectWorld: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();

@@ -259,6 +259,56 @@ to disk.
 
 ---
 
+## [v0.59] — 2026-08-19
+
+> **Baseline:** v0.58 (tag `v0.58`). Release on top of the current working tree.
+
+### Added
+
+- **Measure sync across session members** — a committed measurement (dimension
+  line + points) made by any member now appears on every viewer in real time.
+  - Only committed measurements sync (the hover glow and in-progress first point
+    stay local to the viewer making them).
+  - Each measurement gets a stable **id**; add/remove/clear are relayed to the
+    session, so a delete by one member removes the same line for everyone (id-based
+    delete, not index-based, so concurrent deletes stay correct).
+  - The server **snapshots** the committed measurements, so a **late joiner** sees
+    the measurements that were already made (replayed on join).
+  - Points are sent in world coords; length / elevation / azimuth are recomputed
+    locally, so both viewers always agree on the numbers.
+- **Exploded view** — an **Explode** slider spreads the assembly's top-level
+  sub-assemblies/parts radially outward from the assembly centre, revealing the
+  sub-assembly structure at a glance.
+  - Explodes at the **top-level sub-assembly level** (the depth-0 tree nodes), so
+    each sub-assembly moves as a rigid unit and its internals stay together.
+  - **Non-destructive**: it only adds a per-part offset on top of each part's
+    resting position (even if the part was moved), and collapsing the slider to 0
+    returns every part exactly to where it was.
+  - **Synced across the session** like light/anim: whoever moves the slider, the
+    whole session follows, and late joiners get the current explode state.
+
+### Fixed
+
+- _(none for this release)_
+
+### Technical
+
+- **Protocol:** new client→server messages `measure-add`/`measure-del`/
+  `measure-clear`/`explode`; new server→client relays plus a `measure-sync`
+  (late-joiner snapshot) and `explode` replay. The server stores `session.measures`
+  (capped at 200) and `session.explode`, and replays both on join. Client handlers
+  in `onSessionMsg` route to `applyRemoteMeasure*` / `applyRemoteExplode`, each
+  guarded by an `applyingRemoteMeasure`/`applyingRemoteExplode` flag so applied
+  ops aren't echoed back. Measure ops are queued in `pendingRemoteMeasures` and
+  flushed on model load (mirrors `pendingRemoteParts`).
+- **Explode math:** `computeExplodeDirs()` computes, per top-level part, the radial
+  world direction from the assembly centre to the part's bounding-box centre,
+  converted to the root's local frame (so `node.position`, root-local, can be
+  offset directly). `applyExplodeAmount(new)` moves each part by
+  `dir * (new - prev) * scale`, where `scale` is 50% of the model's bounding-box
+  diagonal — so collapsing to 0 subtracts back exactly. Works with parts that were
+  already moved. Lives in `src/main.js`; server handlers in `src/server.js`.
+
 ## [v0.58] — 2026-08-19
 
 > **Baseline:** v0.57 (tag `v0.57`). Release on top of the current working tree.

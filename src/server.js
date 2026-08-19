@@ -268,6 +268,11 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'parts', ops:[{path:[i,j,...], visible:bool}] }  (part show/hide changes)
  *     { t:'tree', key:'i.j', collapsed:bool }        (assembly-tree expand/collapse)
  *     { t:'sel',  key:'i.j'|null }                   (part selection highlight)
+ *     { t:'move', path:[i,j,...], pos:[x,y,z] }      (part move)
+ *     { t:'measure-add', id, p1:[x,y,z], p2:[x,y,z] } (committed measurement)
+ *     { t:'measure-del', id }                        (remove one measurement)
+ *     { t:'measure-clear' }                          (remove all measurements)
+ *     { t:'explode', amount:0..1 }                   (exploded-view spread)
  *   server -> client
  *     { t:'joined', id, session, isHost, roster:[{id,name,isHost}], model|null }
  *     { t:'roster', roster }                          (membership changed)
@@ -279,6 +284,12 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'tree', key, collapsed }                    (assembly-tree sync)
  *     { t:'sel', key|null }                           (part selection sync)
  *     { t:'cam',    from, pos:[x,y,z], target:[x,y,z] }    (someone moved camera)
+ *     { t:'move', path, pos }                              (part move sync)
+ *     { t:'measure-add', id, p1, p2 }                      (new measurement)
+ *     { t:'measure-del', id }                              (removed measurement)
+ *     { t:'measure-clear' }                                (all measurements cleared)
+ *     { t:'measure-sync', measures:[{id,p1,p2}] }          (late-joiner snapshot)
+ *     { t:'explode', amount }                              (exploded-view spread)
  */
 const sessions = new Map();   // code -> { model: {buf, filename, kind, note, ts} | null, members: Map<id, {ws, name, isHost}> }
 const wss = new WebSocketServer({ noServer: true });
@@ -323,7 +334,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0 };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -346,6 +357,9 @@ wss.on('connection', (ws, req, url) => {
   // Late joiner: replay lighting + animation state too.
   if (session.light) send(ws, { t: 'light', s: session.light });
   if (session.anim) send(ws, { t: 'anim', s: session.anim });
+  // Late joiner: replay the committed measurements + explode state.
+  if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
+  if (session.explode) send(ws, { t: 'explode', amount: session.explode });
   // Let everyone else know a new member arrived (host uses this to offer its
   // current model to the newcomer — see the 'peer-join' handler client-side).
   broadcast(session, { t: 'peer-join', id, name, isHost }, id);
@@ -390,6 +404,24 @@ wss.on('connection', (ws, req, url) => {
       // Part move: relay the new position to the other members so everyone sees
       // the same part placement. No stored state needed (host Reset re-broadcasts).
       broadcast(session, { t: 'move', path: msg.path, pos: msg.pos }, id);
+    } else if (msg.t === 'measure-add' && typeof msg.id === 'string'
+      && Array.isArray(msg.p1) && Array.isArray(msg.p2)) {
+      // Committed measurement: store (for late joiners) and relay to the others.
+      session.measures = session.measures || [];
+      if (session.measures.length >= 200) session.measures.shift();
+      session.measures.push({ id: msg.id, p1: msg.p1, p2: msg.p2 });
+      broadcast(session, { t: 'measure-add', id: msg.id, p1: msg.p1, p2: msg.p2 }, id);
+    } else if (msg.t === 'measure-del' && typeof msg.id === 'string') {
+      // Remove a measurement by id: drop it from state and relay.
+      session.measures = (session.measures || []).filter((m) => m.id !== msg.id);
+      broadcast(session, { t: 'measure-del', id: msg.id }, id);
+    } else if (msg.t === 'measure-clear') {
+      session.measures = [];
+      broadcast(session, { t: 'measure-clear' }, id);
+    } else if (msg.t === 'explode' && typeof msg.amount === 'number') {
+      // Explode state: store (for late joiners) and relay to the others.
+      session.explode = Math.max(0, Math.min(1, msg.amount));
+      broadcast(session, { t: 'explode', amount: session.explode }, id);
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {
       // Host kicks a viewer out of the session. Only the host may kick, and the
       // host can't kick itself. Close the target's socket; onGone removes them

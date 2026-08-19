@@ -136,6 +136,11 @@
           <button class="btn" id="btn-measure-clear" title="Clear all measurements" style="margin-left:auto">Clear</button>
         </div>
         <div id="measure-list" class="mats" style="margin-top:4px"></div>
+        <div class="row toggle" style="margin-bottom:6px; align-items:center">
+          <span class="tlabel" style="font-size:13px">Explode</span>
+          <input class="slider" type="range" id="explode-slider" min="0" max="100" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
+          <span id="explode-val" class="move-axis">0%</span>
+        </div>
         <div id="parts" class="parts"><span class="hint">—</span></div>
         <div id="part-menu" class="part-menu" hidden>
           <button type="button" id="part-menu-hide">Hide part</button>
@@ -152,7 +157,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.58 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.59 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
