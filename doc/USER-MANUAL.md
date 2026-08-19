@@ -1,23 +1,27 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.56 · **URL:** http://localhost:8088/
+**Version:** v0.69 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
 1. [Welcome — why CAD Viewer?](#1-welcome--why-cad-viewer)
 2. [Starting the app](#2-starting-the-app)
 3. [Opening a model](#3-opening-a-model)
-4. [The Assembly panel](#4-the-assembly-panel--parts-and-visibility)
+4. [The Assembly panel — parts and visibility](#4-the-assembly-panel--parts-and-visibility)
 5. [Moving a part](#5-moving-a-part)
-6. [Navigating the viewport](#6-navigating-the-viewport)
-7. [Lighting & animation](#7-lighting--animation)
-8. [Collaborative sessions (host)](#8-collaborative-sessions-host)
-9. [Joining a session (guest)](#9-joining-a-session-guest)
-10. [Leaving a session](#10-leaving-a-session)
-11. [Opening a STEP / IGES / OBJ file](#11-opening-a-step--iges--obj-file)
-12. [Standalone CAD converter (convert-cad)](#12-standalone-cad-converter-convert-cad)
-13. [Troubleshooting](#13-troubleshooting)
-14. [Sharing with external parties](#14-sharing-with-external-parties)
+6. [Measuring distances](#6-measuring-distances)
+7. [Exploded view](#7-exploded-view)
+8. [Part transparency](#8-part-transparency)
+9. [Navigating the viewport](#9-navigating-the-viewport)
+10. [Lighting & animation](#10-lighting--animation)
+11. [Collaborative sessions (host)](#11-collaborative-sessions-host)
+12. [Joining a session (guest)](#12-joining-a-session-guest)
+13. [Session chat](#13-session-chat)
+14. [Leaving a session](#14-leaving-a-session)
+15. [Opening a STEP / IGES / OBJ file](#15-opening-a-step--iges--obj-file)
+16. [Standalone CAD converter (convert-cad)](#16-standalone-cad-converter-convert-cad)
+17. [Troubleshooting](#17-troubleshooting)
+18. [Sharing with external parties](#18-sharing-with-external-parties)
 
 ---
 
@@ -43,7 +47,7 @@ Instead of emailing files back and forth, share a live model:
 |---|---|
 | Export → email → wait → open → repeat | Share one **join link**; the model appears instantly |
 | Sending multi-MB CAD bundles | Convert to lightweight **GLB/GLTF** once and share a small file |
-| Explaining with static screenshots | **Point, move and zoom together** on the live model |
+| Explaining with static screenshots | **Point, move, measure and zoom together** on the live model |
 | Guests installing CAD software | Guests open the link in **any browser — nothing to install** |
 | Worrying about files leaving your PC | The model is **streamed to memory only**; nothing is written to the guest's disk |
 
@@ -51,12 +55,17 @@ Instead of emailing files back and forth, share a live model:
 
 ::: features
 **Both host and guest can interact.** This is not a one-way broadcast — anyone
-in a session can orbit, zoom and pan, show or hide parts, highlight a part, and
-even move parts along X/Y/Z, mirrored live in both directions.
+in a session can orbit, zoom and pan, show or hide parts, highlight a part, move
+parts along X/Y/Z, measure distances, and chat — all mirrored live in both
+directions.
 
-**Live sync.** Camera, part visibility, selection, and lighting/animation are
-shared between all members in real time. Late joiners automatically receive the
-current model and view state.
+**Live sync.** Camera, part visibility, selection, part moves, measurements,
+transparency, the exploded view, and lighting/animation are shared between all
+members in real time. Late joiners automatically receive the current model and
+view state.
+
+**Measure & inspect.** Click two corners of any part to read an exact distance in
+millimetres, and add notes in the session chat.
 
 **No install for guests.** A guest needs only a browser — open a link and the
 shared model appears. Nothing to download, nothing to set up, no CAD licence.
@@ -80,7 +89,8 @@ reviewers see the design the way it was authored.
 **Online calibration of engineering design.** Because everyone shares the same
 live view and can interact with it, the design-review / calibration loop
 collapses from email-and-export cycles into one shared session — questions are
-answered immediately, on the actual geometry, by pointing and looking together.
+answered immediately, on the actual geometry, by pointing, measuring and looking
+together.
 :::
 
 ### Use cases
@@ -220,16 +230,25 @@ Clicking a part directly in the 3D viewport highlights it the same way:
 
 ![A part clicked in the 3D viewport, highlighted blue](manual-shots/14-part-selected-3d.png)
 
-### Right-click menu (Hide / Move / Show me only)
+### Part name on hover
+
+Move the mouse over a part in the 3D viewport and a small **tooltip** shows the
+part's name at the cursor, while its row in the Assembly tree highlights. This
+answers "which part is this?" instantly, without clicking.
+
+![Hovering a part shows its name in a tooltip](manual-shots/22-part-hover.png)
+
+### Right-click menu (Hide / Move / Show me only / Make transparent)
 
 Right-click a part — either its name in the tree, or the part directly in the
-viewport — to open a menu with three actions:
+viewport — to open a menu with four actions:
 
 | Action | What it does |
 |---|---|
 | **Hide part** | Turns that part (and its subtree) off in the viewport |
 | **Move part** | Selects the part and arms the axis gizmo so you can move it (see §5) |
 | **Show me only** | Hides everything except that part and its children; ancestors stay visible so the isolated part still renders |
+| **Make transparent** | Renders the part at 25% opacity so you can see through it (see §8); the item reads **Make opaque** when the part is already transparent |
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
 
@@ -265,8 +284,8 @@ brighter than the others.
 ### Undo & reset
 
 - **Undo** steps back through your last part movements (up to 200).
-- **Reset** returns all parts to their original positions and clears the move
-  history.
+- **Reset** returns all parts to their original positions, collapses the exploded
+  view, and clears the move history.
 
 ![A part moved along the X axis, with the axis gizmo visible](manual-shots/15-part-move.png)
 
@@ -275,7 +294,85 @@ watch it move live, and can move it back.
 
 ---
 
-## 6. Navigating the viewport
+## 6. Measuring distances
+
+The **Measure** tool reports the exact distance between two corners of a part in
+millimetres — handy for checking a dimension during review.
+
+![Two-point distance measured between corners of a part](manual-shots/20-measure.png)
+
+### How to measure
+
+1. Tick the **Measure** checkbox in the Assembly panel (it turns **Move part**
+   off — the two are mutually exclusive).
+2. Move the mouse over a part. As you get near a **corner**, a small amber glow
+   snaps to it and a live readout appears.
+3. **Click the first corner**, then **click the second corner**. An amber
+   dimension line is drawn between them and added to the measurements list.
+
+### The measurements list
+
+Each measurement is shown in the list with:
+
+- the **distance** (mm) and its elevation angle,
+- the **P1** and **P2** corner positions (mm),
+- its azimuth angle.
+
+Use the **✕** next to an entry to delete it, or **Clear** to remove all. **Esc**
+cancels the in-progress first point.
+
+> **Corners only.** The tool snaps to the part's corners (sharp edges), so it
+> gives meaningful points rather than random spots on a face.
+
+**In a session, committed measurements sync to every member** — and late joiners
+see the measurements that were already made.
+
+---
+
+## 7. Exploded view
+
+The **Explode** slider spreads the assembly's parts outward so you can see how
+it is put together — each part slides away from the assembly centre along its
+own direction.
+
+![The assembly exploded into its parts](manual-shots/18-explode.png)
+
+### Controls
+
+- **Explode** slider — drag from **0%** (assembled) to **100%** (spread apart).
+- **Dir** — choose **Radial** (outward from the centre) or an explicit **X / Y /
+  Z** axis. Parts on the + side move +, on the − side move −.
+- **Level** — **All parts** separates every individual part; **Top sub-assembly**
+  keeps each top-level sub-assembly together as a rigid unit.
+
+The explosion is **non-destructive**: sliding back to 0% returns every part
+exactly to where it was (even parts you've moved). Pressing **Reset** in the
+Move panel also collapses the explosion.
+
+**In a session, the explode state syncs to every member** — whoever moves the
+slider, everyone follows.
+
+---
+
+## 8. Part transparency
+
+Make a part **transparent** so you can see through it to the geometry behind —
+great for inspecting a housing, cover, or how parts nest.
+
+1. **Right-click** a part (its name in the tree, or the part in the viewport).
+2. Choose **Make transparent**. The part renders at 25% opacity.
+3. To restore it, right-click again and choose **Make opaque** (the menu item
+   reflects the current state).
+
+![A part made transparent so the parts behind it are visible](manual-shots/19-transparent.png)
+
+Transparency composes cleanly with selection — you can select, move, and
+measure a transparent part without it snapping back to opaque. **In a session,
+transparency syncs to every member.**
+
+---
+
+## 9. Navigating the viewport
 
 | Action | Effect |
 |---|---|
@@ -289,7 +386,7 @@ watch it move live, and can move it back.
 
 ---
 
-## 7. Lighting & animation
+## 10. Lighting & animation
 
 ### Lighting
 
@@ -317,11 +414,11 @@ If the GLB you load contains **keyframe animation** (e.g. from Blender or a game
 
 ### Session sync
 
-In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §9).
+In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse, selection, part moves, measurements, transparency and the exploded view sync as well (see §12).
 
 ---
 
-## 8. Collaborative sessions (host)
+## 11. Collaborative sessions (host)
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
@@ -350,9 +447,12 @@ session" shows whether the server is reachable (green = up, red = down).
 
 ![Host view: guest connected in the roster](manual-shots/05-host-roster.png)
 
+The **chat window opens automatically** when you create or join a session (see
+§13) — just start typing.
+
 ---
 
-## 9. Joining a session (guest)
+## 12. Joining a session (guest)
 
 On another computer (same network):
 
@@ -369,6 +469,8 @@ appears — same view, same parts, same visibility as the host.
 - **Camera** — whoever orbits/zooms/pans, everyone follows (both directions)
 - **Part visibility** — show/hide any part and it changes for all members
 - **Part moves** — moving a part updates it for everyone
+- **Measurements** — a dimension you add appears for everyone
+- **Transparency & explode** — part transparency and the exploded view match
 - **The model itself** — late joiners automatically receive the current model
   and visibility state
 - **Expand/collapse & selection** — the assembly-tree view and part highlight
@@ -383,7 +485,33 @@ appears — same view, same parts, same visibility as the host.
 
 ---
 
-## 10. Leaving a session
+## 13. Session chat
+
+Every session has a built-in **chat window** so members can talk while they
+review. It opens automatically when you create or join a session.
+
+![The session chat window with a live conversation](manual-shots/21-chat.png)
+
+### Chatting
+
+- Type in the message box at the bottom and press **Enter** (or click **Send**).
+- Each message shows the **sender's name**, the **text**, and the **time**; your
+  own messages are highlighted in green.
+- Close the window with **✕** and reopen it with the **Chat** button in the
+  session panel.
+
+### Chat history
+
+- Messages are kept on the server (up to 200) and **replayed to late joiners**,
+  so a new member sees the whole conversation, not just what's said after they
+  join.
+- Click the **⬇** button in the chat header to **download the transcript** as a
+  `.txt` file (`chat-<session-code>-<date>.txt`). Each line is
+  `HH:MM  name: message`, with a header recording when it was generated.
+
+---
+
+## 14. Leaving a session
 
 Click **Leave session** to leave. What happens depends on your role:
 
@@ -398,7 +526,7 @@ The session itself stays alive on the server for the remaining members.
 
 ---
 
-## 11. Opening a STEP / IGES / OBJ file
+## 15. Opening a STEP / IGES / OBJ file
 
 STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
@@ -423,10 +551,10 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 12. Standalone CAD converter (convert-cad)
+## 16. Standalone CAD converter (convert-cad)
 
 Besides the viewer, the distribution includes a **separate, standalone CAD
-converter** — **`convert-cad`** (v0.1) — that turns STEP / IGES / OBJ files into
+converter** — **`convert-cad`** (v0.2) — that turns STEP / IGES / OBJ files into
 GLB / GLTF **without** the viewer. It is independent of the viewer's own
 converters, so using it can never disturb them.
 
@@ -475,7 +603,7 @@ It's the same "one compact file over the network" idea, applied offline.
 
 ---
 
-## 13. Troubleshooting
+## 17. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -485,10 +613,12 @@ It's the same "one compact file over the network" idea, applied offline.
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |
+| Measure tool won't snap | Make sure the **Measure** checkbox is on, and click near a part's **corner** (the tool snaps to corners, not faces) |
+| Explode looks like the whole model moves | Set **Level** to **All parts** — a single top-level sub-assembly (e.g. one wrapper node) moves as one unit |
 
 ---
 
-## 14. Sharing with external parties
+## 18. Sharing with external parties
 
 By default the viewer is meant for the **local network (LAN)**. To let someone
 outside your network view a session, you have two main options.
@@ -525,4 +655,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.56 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.69 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

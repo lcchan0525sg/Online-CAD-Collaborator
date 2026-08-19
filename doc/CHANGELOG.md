@@ -259,6 +259,38 @@ to disk.
 
 ---
 
+## [v0.69] — 2026-08-20
+
+> **Baseline:** v0.68 (tag `v0.68`). Documentation release — no code changes.
+
+### Added / Changed
+
+- **User manual rewritten and expanded to v0.69.** The manual now documents the
+  full feature set shipped since v0.56, with five new screenshots:
+  - **§6 Measuring distances** — the two-point corner-snap Measure tool
+    (new shot `20-measure.png`).
+  - **§7 Exploded view** — the Explode slider with Direction / Level options
+    (new shot `18-explode.png`).
+  - **§8 Part transparency** — the right-click Make transparent / Make opaque
+    toggle (new shot `19-transparent.png`).
+  - **§13 Session chat** — the chat window, history replay and transcript
+    download (new shot `21-chat.png`).
+  - **Part name on hover** added to the Assembly section (new shot
+    `22-part-hover.png`).
+  - The right-click context menu is documented as four actions (Hide / Move /
+    Show me only / Make transparent); the "What stays in sync" list now covers
+    measurements, transparency and the exploded view; and the troubleshooting
+    table gains Measure and Explode entries.
+- Regenerated `USER-MANUAL.html` (self-contained, images embedded) and
+  `USER-MANUAL.pdf` from the updated markdown.
+
+### Technical
+
+- `doc/USER-MANUAL.md` → `build-manual.py` → `doc/USER-MANUAL.html`; the PDF is
+  rendered from the HTML via headless Chrome `Page.printToPDF`. New screenshots
+  captured with a self-contained headless-Chrome harness (which kills Chrome and
+  removes its profile afterwards).
+
 ## [v0.68] — 2026-08-19
 
 > **Baseline:** v0.67 (tag `v0.67`). Release on top of the current working tree.
