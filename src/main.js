@@ -97,6 +97,7 @@ function orientModel(root) {
 
 function clearModel() {
   if (!model) return;
+  if (typeof measureClear === 'function') measureClear();
   if (typeof setMoveAxis === 'function') setMoveAxis(null);
   if (typeof originalPositions !== 'undefined') originalPositions.clear();
   if (typeof moveGizmo !== 'undefined' && moveGizmo) moveGizmo.visible = false;
@@ -1791,6 +1792,21 @@ renderer.domElement.addEventListener('pointerup', (e) => {
   const moved = Math.hypot(e.clientX - pickDown.x, e.clientY - pickDown.y);
   pickDown = null;
   if (moved > 5) return;                 // orbit / move drag, not a click
+  // In Measure mode a click snaps to a corner and commits the two-point measure.
+  if (measureOn) {
+    const c = pickNearestCorner(e.clientX, e.clientY);
+    if (!c) { clearHoverGlow(); return; }
+    measureGlow.position.copy(c);
+    measureGlow.visible = true;
+    if (!measureP1) {
+      measureP1 = c.clone();
+      if (measureP1Dot) { measureP1Dot.position.copy(c); measureP1Dot.visible = true; }
+      updateMeasureStatus();
+    } else {
+      commitMeasurement(measureP1, c);
+    }
+    return;
+  }
   // First, a click on a gizmo arrow sets the move axis (from "Move part" menu).
   const axis = pickGizmoAxis(e);
   if (axis) { setMoveAxis(axis); return; }
@@ -1861,6 +1877,306 @@ function updateMoveGizmo() {
   });
   moveGizmoActive = moveAxis;
 }
+
+/* ============================ Measure (2-point, corner-snap) ============================ */
+// A Measure toggle (mutually exclusive with Move). With it armed, the cursor
+// glow-snaps to a part's corner vertices; click a first corner, then a second,
+// and a dimension line + mm readout are committed and listed. Corners are
+// detected from the mesh's sharp crease edges, so it works on closed solids
+// (boxes) as well as open faces, and skips mid-edge/mid-face tessellation
+// vertices.
+const measureOnChk = document.getElementById('measure-on');
+const measureStatusEl = document.getElementById('measure-status');
+const measureClearBtn = document.getElementById('btn-measure-clear');
+const measureLabelEl = document.getElementById('measure-label');
+const measureListEl = document.getElementById('measure-list');
+let measureOn = false;
+let measureP1 = null;                 // world Vector3 of the first corner, or null
+let measureLayer = new THREE.Group(); // glow + markers + committed dimension lines
+scene.add(measureLayer);
+let measureGlow = null;               // hover-glow dot
+let measureP1Dot = null;              // marker at the first corner
+let measureList = [];                 // [{ p1, p2, mm }]
+const MEASURE_TOL_PX = 12;
+
+function setMeasureStatus(txt, active) {
+  if (!measureStatusEl) return;
+  measureStatusEl.textContent = txt;
+  measureStatusEl.classList.toggle('active', !!active);
+}
+function updateMeasureStatus() {
+  setMeasureStatus(measureOn ? 'on' : 'off', measureOn);
+}
+function formatMm(v) {
+  const mm = Math.abs(v) * 1000;            // scene is normalized mm->m, so 1 unit = 1000 mm
+  if (mm >= 100) return mm.toFixed(0) + ' mm';
+  if (mm >= 10) return mm.toFixed(1) + ' mm';
+  return mm.toFixed(2) + ' mm';
+}
+function measureDotSize() {
+  if (!model) return 0.01;
+  const s = new THREE.Sphere();
+  new THREE.Box3().setFromObject(model).getBoundingSphere(s);
+  return Math.max(0.002, s.radius * 0.015);
+}
+
+// Mutual exclusion with Move.
+measureOnChk.addEventListener('change', () => {
+  measureOn = measureOnChk.checked;
+  if (measureOn && moveOnChk.checked) { moveOnChk.checked = false; setMoveAxis(null); }
+  if (!measureOn) measureClear();
+  else measureEnsureVisuals();
+  updateMeasureStatus();
+});
+moveOnChk.addEventListener('change', () => {
+  if (moveOnChk.checked && measureOnChk.checked) {
+    measureOnChk.checked = false; measureOn = false;
+    measureClear();
+  }
+});
+
+/* ---- Corner detection (cached per mesh, stored in LOCAL coords) ---- */
+const measureCornerCache = new Map();
+function computeMeshCorners(mesh) {
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  if (!pos) return [];
+  const index = geo.index ? geo.index.array : null;
+  const nV = pos.count;
+  const nTri = index ? index.length / 3 : nV / 3;
+  const _A = new THREE.Vector3(), _B = new THREE.Vector3(), _C = new THREE.Vector3();
+  const getV = (i, out) => out.fromBufferAttribute(pos, i);
+  const triN = new Float32Array(nTri * 3);
+  for (let t = 0; t < nTri; t++) {
+    const ia = index ? index[t * 3] : t * 3, ib = index ? index[t * 3 + 1] : t * 3 + 1, ic = index ? index[t * 3 + 2] : t * 3 + 2;
+    getV(ia, _A); getV(ib, _B); getV(ic, _C);
+    const n = new THREE.Vector3().subVectors(_B, _A).cross(new THREE.Vector3().subVectors(_C, _A)).normalize();
+    triN[t * 3] = n.x; triN[t * 3 + 1] = n.y; triN[t * 3 + 2] = n.z;
+  }
+  const edgeKey = (a, b) => (a < b ? a + ':' + b : b + ':' + a);
+  const edgeTris = new Map();
+  for (let t = 0; t < nTri; t++) {
+    const ia = index ? index[t * 3] : t * 3, ib = index ? index[t * 3 + 1] : t * 3 + 1, ic = index ? index[t * 3 + 2] : t * 3 + 2;
+    for (const [u, v] of [[ia, ib], [ib, ic], [ic, ia]]) {
+      const k = edgeKey(u, v);
+      if (!edgeTris.has(k)) edgeTris.set(k, []);
+      edgeTris.get(k).push(t);
+    }
+  }
+  const COS_CREASE = Math.cos(THREE.MathUtils.degToRad(35));
+  const vtxDirs = new Map();   // vertexIdx -> array of incident crease-edge unit dirs (local)
+  const _p = new THREE.Vector3(), _q = new THREE.Vector3();
+  for (const [k, tris] of edgeTris) {
+    if (tris.length > 2) continue;                 // skip non-manifold
+    const [a, b] = k.split(':').map(Number);
+    let crease;
+    if (tris.length === 1) crease = true;          // boundary edge
+    else {
+      const t0 = tris[0], t1 = tris[1];
+      const n0 = new THREE.Vector3(triN[t0 * 3], triN[t0 * 3 + 1], triN[t0 * 3 + 2]);
+      const n1 = new THREE.Vector3(triN[t1 * 3], triN[t1 * 3 + 1], triN[t1 * 3 + 2]);
+      crease = Math.abs(n0.dot(n1)) < COS_CREASE;  // sharp dihedral
+    }
+    if (!crease) continue;
+    getV(a, _p); getV(b, _q);
+    const d = _q.clone().sub(_p).normalize();
+    if (!vtxDirs.has(a)) vtxDirs.set(a, []);
+    if (!vtxDirs.has(b)) vtxDirs.set(b, []);
+    vtxDirs.get(a).push(d);
+    vtxDirs.get(b).push(d.clone().negate());
+  }
+  const corners = [];
+  for (const [vi, dirs] of vtxDirs) {
+    const kept = [];
+    let distinct = 0;
+    for (const d of dirs) {
+      let dup = false;
+      for (const k of kept) { if (Math.abs(k.dot(d)) > 0.995) { dup = true; break; } }
+      if (!dup) { kept.push(d.clone()); distinct++; }
+    }
+    if (distinct >= 2) { getV(vi, _p); corners.push(_p.clone()); }
+  }
+  return corners;
+}
+function meshCorners(mesh) {
+  if (measureCornerCache.has(mesh.uuid)) return measureCornerCache.get(mesh.uuid);
+  const c = computeMeshCorners(mesh);
+  measureCornerCache.set(mesh.uuid, c);
+  return c;
+}
+
+/* ---- Snap: nearest corner under the cursor (world point) or null ---- */
+const measureRay = new THREE.Raycaster();
+function pickNearestCorner(clientX, clientY) {
+  if (!model) return null;
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
+  measureRay.setFromCamera(ndc, camera);
+  const hits = measureRay.intersectObject(model, true);
+  const hit = hits.find((h) => isPickVisible(h.object));
+  if (!hit || !hit.object.isMesh) return null;
+  const mesh = hit.object;
+  const locals = meshCorners(mesh);
+  if (!locals.length) return null;
+  let best = null, bestD = MEASURE_TOL_PX;
+  for (const lc of locals) {
+    const wc = lc.clone().applyMatrix4(mesh.matrixWorld);
+    const sp = wc.clone().project(camera);
+    const sx = r.left + (sp.x * 0.5 + 0.5) * r.width;
+    const sy = r.top + (-sp.y * 0.5 + 0.5) * r.height;
+    const d = Math.hypot(clientX - sx, clientY - sy);
+    if (d < bestD) { bestD = d; best = wc; }
+  }
+  return best;
+}
+
+/* ---- Visuals ---- */
+function makeMeasureDot(color, size) {
+  const g = new THREE.SphereGeometry(size, 12, 12);
+  const m = new THREE.MeshBasicMaterial({ color, depthTest: false });
+  const dot = new THREE.Mesh(g, m);
+  dot.renderOrder = 10;
+  return dot;
+}
+function measureEnsureVisuals() {
+  const sz = measureDotSize();
+  if (!measureGlow) {
+    measureGlow = makeMeasureDot(0xffd166, sz * 1.4);
+    measureGlow.visible = false;
+    measureLayer.add(measureGlow);
+  }
+  if (!measureP1Dot) {
+    measureP1Dot = makeMeasureDot(0x7cc4ff, sz * 1.1);
+    measureP1Dot.visible = false;
+    measureLayer.add(measureP1Dot);
+  }
+}
+function clearHoverGlow() { if (measureGlow) measureGlow.visible = false; measureLabelEl.hidden = true; }
+
+function commitMeasurement(p1, p2) {
+  const mm = p1.distanceTo(p2);
+  const v = new THREE.Vector3().subVectors(p2, p1);
+  // Elevation = angle from the horizontal (XY) plane; azimuth = bearing in the XY plane.
+  const elevation = (mm > 1e-9) ? THREE.MathUtils.radToDeg(Math.asin(v.y / mm)) : 0;
+  const azimuth = THREE.MathUtils.radToDeg(Math.atan2(v.z, v.x));
+  const sz = measureDotSize();
+  const pts = [p1.clone(), p2.clone()];
+  const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+  const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false }));
+  line.renderOrder = 10;
+  measureLayer.add(line);
+  measureLayer.add(placeDot(p1, sz * 0.9));
+  measureLayer.add(placeDot(p2, sz * 0.9));
+  measureList.push({ p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth });
+  renderMeasureList();
+  measureP1 = null;
+  measureP1Dot.visible = false;
+  updateMeasureStatus();
+  xferToast('Measured ' + formatMm(mm));
+}
+function placeDot(world, size) {
+  const d = makeMeasureDot(0xffd166, size);
+  d.position.copy(world);
+  return d;
+}
+
+/* ---- Measurement list UI ---- */
+function fmtCoord(p) {   // show a point in mm
+  return `(${fmtNum(p[0])}, ${fmtNum(p[1])}, ${fmtNum(p[2])})`;
+}
+function fmtNum(v) {
+  const mm = v * 1000;
+  const s = (mm >= 100 ? mm.toFixed(0) : mm >= 10 ? mm.toFixed(1) : mm.toFixed(2));
+  return s;
+}
+function fmtAngle(deg) {
+  const d = ((deg % 360) + 360) % 360;
+  return d.toFixed(1) + '°';
+}
+function renderMeasureList() {
+  if (!measureListEl) return;
+  measureListEl.innerHTML = '';
+  measureList.forEach((m, i) => {
+    const item = document.createElement('div');
+    item.className = 'ml-item';
+    const head = document.createElement('div');
+    head.className = 'ml-row';
+    const info = document.createElement('span');
+    info.className = 'ml-mm';
+    info.textContent = `${formatMm(m.mm)} · ${fmtAngle(m.elevation)} el`;
+    const del = document.createElement('button');
+    del.className = 'ml-del';
+    del.textContent = '✕';
+    del.title = 'Remove measurement ' + (i + 1);
+    del.addEventListener('click', () => removeMeasurement(i));
+    head.append(info, del);
+    const pts = document.createElement('div');
+    pts.className = 'ml-pts';
+    pts.innerHTML = `P1 ${fmtCoord(m.p1)}<br>P2 ${fmtCoord(m.p2)}<br>∠ az ${fmtAngle(m.azimuth)}`;
+    item.append(head, pts);
+    measureListEl.appendChild(item);
+  });
+  if (!measureList.length) measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+}
+function removeMeasurement(i) {
+  measureList.splice(i, 1);
+  rebuildMeasureLayer();
+  renderMeasureList();
+}
+function measureClear() {
+  measureList = [];
+  measureP1 = null;
+  clearHoverGlow();
+  rebuildMeasureLayer();
+  if (measureListEl) measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+}
+function rebuildMeasureLayer() {
+  if (measureLayer) scene.remove(measureLayer);
+  measureLayer = new THREE.Group();
+  scene.add(measureLayer);
+  measureGlow = null;
+  measureP1Dot = null;
+  measureEnsureVisuals();
+  const sz = measureDotSize();
+  measureList.forEach((m) => {
+    const p1 = new THREE.Vector3(...m.p1), p2 = new THREE.Vector3(...m.p2);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([p1, p2]),
+      new THREE.LineBasicMaterial({ color: 0xffd166, depthTest: false }));
+    line.renderOrder = 10;
+    measureLayer.add(line);
+    measureLayer.add(placeDot(p1, sz * 0.9));
+    measureLayer.add(placeDot(p2, sz * 0.9));
+  });
+  updateMeasureStatus();
+}
+
+/* ---- Interaction ---- */
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!measureOn) return;
+  const c = pickNearestCorner(e.clientX, e.clientY);
+  if (!c) { clearHoverGlow(); return; }
+  measureGlow.position.copy(c);
+  measureGlow.visible = true;
+  if (measureP1) {
+    const mm = formatMm(measureP1.distanceTo(c));
+    measureLabelEl.textContent = mm;
+    const sp = c.clone().project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    measureLabelEl.style.left = (r.left + (sp.x * 0.5 + 0.5) * r.width) + 'px';
+    measureLabelEl.style.top = (r.top + (-sp.y * 0.5 + 0.5) * r.height) + 'px';
+    measureLabelEl.hidden = false;
+  }
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && measureOn && measureP1) {
+    measureP1 = null;
+    if (measureP1Dot) measureP1Dot.visible = false;
+    clearHoverGlow();
+    updateMeasureStatus();
+  }
+});
+measureClearBtn.addEventListener('click', measureClear);
 
 /* ============================ Resize + loop ============================ */
 function resize() {
@@ -1970,6 +2286,35 @@ window.__viewer = {
   },
   get moveAxis() { return moveAxis; },
   get gizmoVisible() { return moveGizmo.visible; },
+  get measureOn() { return measureOn; },
+  get measure() {
+    return {
+      on: measureOn,
+      p1: measureP1 ? [measureP1.x, measureP1.y, measureP1.z] : null,
+      glowVisible: !!(measureGlow && measureGlow.visible),
+      glowPos: measureGlow && measureGlow.visible ? [measureGlow.position.x, measureGlow.position.y, measureGlow.position.z] : null,
+      count: measureList.length,
+      list: measureList.map((m) => ({ mm: m.mm, elevation: m.elevation, azimuth: m.azimuth, p1: m.p1, p2: m.p2 })),
+      status: measureStatusEl ? measureStatusEl.textContent : '',
+      labelVisible: !measureLabelEl.hidden,
+      layerChildren: measureLayer ? measureLayer.children.length : 0,
+    };
+  },
+  measureToggle: (on) => { measureOnChk.checked = !!on; measureOnChk.dispatchEvent(new Event('change')); return measureOn; },
+  measureSnap: (clientX, clientY) => { const c = pickNearestCorner(clientX, clientY); return c ? [c.x, c.y, c.z] : null; },
+  measureClick: (clientX, clientY) => {
+    const c = pickNearestCorner(clientX, clientY);
+    if (!c) return false;
+    if (!measureP1) { measureP1 = c.clone(); if (measureP1Dot) { measureP1Dot.position.copy(c); measureP1Dot.visible = true; } updateMeasureStatus(); return 'p1'; }
+    commitMeasurement(measureP1, c); return 'p2';
+  },
+  measureClear: () => { measureClear(); return true; },
+  projectWorld: (x, y, z) => {
+    const v = new THREE.Vector3(x, y, z).project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.left + (v.x * 0.5 + 0.5) * r.width, y: r.top + (-v.y * 0.5 + 0.5) * r.height };
+  },
+  viewportRect: () => { const r = renderer.domElement.getBoundingClientRect(); return { left: r.left, top: r.top, width: r.width, height: r.height }; },
   get selectedPart() { return selectedPartKey; },
   partWorldPos: (key) => {
     const root = model && model.children[0];

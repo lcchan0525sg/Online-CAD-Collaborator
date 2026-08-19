@@ -161,6 +161,12 @@ body {
 .kick-btn:hover { color: #e5484d; border-color: #e5484d; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
 
+/* label text spans must not be shrunk to the 34px slider-value width */
+.row.toggle .tlabel span { width: auto; text-align: left; white-space: nowrap; }
+.row .move-axis, .row .measure-status, .row .move-axis.armed, .row .measure-status.active {
+  width: auto; text-align: left; white-space: nowrap; margin-left: 4px;
+}
+
 /* ---------- Part move ---------- */
 .move-axis {
   font-size: 11px;
@@ -174,6 +180,56 @@ body {
 .move-axis.armed.x { color: #ff7b72; border-color: #ff7b72; }
 .move-axis.armed.y { color: #7ee2a8; border-color: #7ee2a8; }
 .move-axis.armed.z { color: #7cc4ff; border-color: #7cc4ff; }
+.measure-status {
+  font-size: 11px;
+  font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.measure-status.active { color: #ffd166; border-color: #ffd166; }
+#measure-label {
+  position: absolute;
+  z-index: 20;
+  transform: translate(12px, -50%);
+  padding: 2px 7px;
+  font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+  font-size: 12px;
+  color: #ffd166;
+  background: rgba(10, 12, 17, 0.8);
+  border: 1px solid #ffd166;
+  border-radius: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+#measure-list .ml-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--line);
+}
+#measure-list .ml-item { padding: 3px 0; border-bottom: 1px solid var(--line); }
+#measure-list .ml-item:last-child { border-bottom: none; }
+#measure-list .ml-item .ml-row { border-bottom: none; padding: 0; }
+#measure-list .ml-pts {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: "SFMono-Regular", ui-monospace, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  margin-top: 1px;
+  line-height: 1.5;
+}
+#measure-list .ml-row:last-child { border-bottom: none; }
+#measure-list .ml-mm { color: #ffd166; font-family: "SFMono-Regular", ui-monospace, Consolas, monospace; }
+#measure-list .ml-del {
+  background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1;
+}
+#measure-list .ml-del:hover { color: #ff7b72; }
 #session-controls .actions,
 #join-code { grid-column: span 1; }
 #join-code {

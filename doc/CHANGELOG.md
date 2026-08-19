@@ -259,20 +259,52 @@ to disk.
 
 ---
 
-## [Unreleased]
+## [v0.57] — 2026-08-19
 
-Add work-in-progress items here, newest at the top. Example:
-
-```markdown
-## [v0.57] — YYYY-MM-DD
+> **Baseline:** v0.56 (tag `v0.56`). Release on top of the current working tree.
 
 ### Added
-- ...
+
+- **Measure tool (2-point, corner snap)** — a Measure toggle (mutually exclusive
+  with Move). With it armed, the cursor glow-snaps to a part's corner vertices;
+  click a first corner, then a second, and a dimension line with a live mm
+  readout is committed and added to a list.
+  - **Corner snapping** — corners are detected from the mesh's sharp crease
+    edges (dihedral angle), so it works on closed solids (boxes) as well as open
+    faces, and skips mid-edge / mid-face tessellation vertices. The cursor
+    snaps within a ~12px screen tolerance; a hover glow shows exactly which
+    corner will be picked, and the distance updates live.
+  - **2-point flow** — click 1 places a blue marker and the status reads "click
+    the second corner"; click 2 commits an amber dimension line + end dots, a
+    "measured … mm" toast, and a row in the measurements list (each row has a
+    per-entry ✕ to delete). **Esc** cancels the in-progress first point.
+  - **Clear** button removes all measurements. Measurements are listed with
+    tabular-nums and remain in the scene. Each list entry shows the point 1 and
+    point 2 positions (mm), the length, and the elevation + azimuth angles of
+    the measured segment.
+- **Mutual exclusion** — turning on Measure turns off Move, and vice-versa.
 
 ### Fixed
-- ...
+
+- **Layout** — the "Move part"/"Measure" toggle labels and their `off`/`on`
+  chips no longer overlap. The generic `.row span` rule (34px slider-value
+  width) was leaking onto the toggle labels and status chips; the label text
+  and the chips now use `width:auto`, left-aligned, `nowrap`.
+- **Status text** — the Measure status chip now reads simply `off`/`on`
+  instead of instructional "click a corner to start" prompts.
 
 ### Technical
-- (note any protocol/architecture/build changes here)
-```
+
+- Corner detection: per mesh (cached, stored in local coords, transformed by
+  `mesh.matrixWorld` on snap) it builds an edge→triangle map, marks crease edges
+  (boundary edges, or edges whose adjacent face normals differ by >~35°), and
+  keeps vertices with ≥2 non-collinear incident crease-edge directions. The
+  snap is a screen-space nearest-corner search within a 12px tolerance. Committed
+  measurements live in a scene-level `measureLayer` group (amber `Line` + dot
+  `Mesh`es); the hover glow and first-point marker are also in it. mm readout =
+  world distance × 1000 (scene normalized mm→m). Measurements are **local-only**
+  in this release (not synced to session members) — sync is a future candidate.
+  Debug hooks (`window.__viewer.measure*`) are provided for headless
+  verification. The tool lives in `src/main.js`; markup in `src/index.html`.
+
 
