@@ -259,6 +259,29 @@ to disk.
 
 ---
 
+## [v0.68] — 2026-08-19
+
+> **Baseline:** v0.67 (tag `v0.67`). Release on top of the current working tree.
+
+### Added
+
+- **Chat opens by default when entering a session.** Creating or joining a
+  session now shows the chat window immediately, so members can talk right away.
+  It can still be closed (✕) and reopened via the **Chat** button.
+
+### Changed
+
+- **Chat transcript download verified.** The ⬇ button in the chat header saves
+  the conversation as `chat-<session-code>-<date>.txt` (already present since
+  v0.63); this release adds a debug hook and confirms the generated filename and
+  transcript content are correct (each line `HH:MM  name: message`, with a
+  generated-at header).
+
+### Technical
+
+- `showSessionUI(active, …)` now sets `chatWindowEl.hidden = false` when entering
+  a session. `window.__viewer.userName` debug hook added. Lives in `src/main.js`.
+
 ## [v0.67] — 2026-08-19
 
 > **Baseline:** v0.66 (tag `v0.66`). Release on top of the current working tree.

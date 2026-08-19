@@ -1148,6 +1148,10 @@ function showSessionUI(active, code) {
   if (!sessionControlsEl || !sessionActiveEl) return;
   sessionControlsEl.hidden = active;
   sessionActiveEl.hidden = !active;
+  // The chat window opens by default when entering a session (create or join),
+  // so members can talk immediately. It can be closed and reopened via the Chat
+  // button / ✕.
+  if (active && chatWindowEl) chatWindowEl.hidden = false;
   if (active) {
     sessionCodeEl.textContent = code;
     sessionCodeEl.title = 'click to copy';
@@ -2940,6 +2944,7 @@ window.__viewer = {
   },
   chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
   chatDownload: () => downloadChat(),
+  get userName() { return userName; },
   chatTranscript: () => {
     if (!chatHistory.length) return '';
     return chatHistory.map((m) => (m.system ? `[system] ${m.text}` : `${fmtTime(m.ts)}  ${m.name}: ${m.text}`)).join('\n');
