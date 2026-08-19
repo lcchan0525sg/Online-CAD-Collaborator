@@ -259,6 +259,28 @@ to disk.
 
 ---
 
+## [v0.63] — 2026-08-19
+
+> **Baseline:** v0.62 (tag `v0.62`). Release on top of the current working tree.
+
+### Added
+
+- **Download chat transcript** — a **⬇** button in the chat window header saves
+  the full conversation to a `.txt` file (`chat-<session-code>-<date>.txt`). Each
+  line is `HH:MM  name: message`; a header records when it was generated. Uses the
+  current chat history (whatever the viewer has loaded, including late-joiner
+  replay), so it's a client-side export — no server change needed.
+
+### Fixed
+
+- _(none for this release)_
+
+### Technical
+
+- `downloadChat()` builds a `Blob` from `chatHistory`, creates a temporary
+  download anchor with `download = chat-<code>-<date>.txt`, clicks it, and revokes
+  the object URL. Lives in `src/main.js`; the button is in `src/index.html`.
+
 ## [v0.62] — 2026-08-19
 
 > **Baseline:** v0.61 (tag `v0.61`). Release on top of the current working tree.

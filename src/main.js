@@ -1073,6 +1073,26 @@ btnChatEl?.addEventListener('click', () => {
 });
 btnChatCloseEl?.addEventListener('click', () => { if (chatWindowEl) chatWindowEl.hidden = true; });
 chatFormEl?.addEventListener('submit', (e) => { e.preventDefault(); sendChat(); });
+// Download the chat transcript as a .txt file.
+const btnChatDownloadEl = document.getElementById('btn-chat-download');
+function downloadChat() {
+  if (!chatHistory.length) { xferToast('No chat messages to download'); return; }
+  const head = `CAD Viewer session chat transcript\nGenerated ${new Date().toLocaleString()}\n${'='.repeat(48)}\n\n`;
+  const body = chatHistory
+    .map((m) => (m.system ? `[system] ${m.text}` : `${fmtTime(m.ts)}  ${m.name}: ${m.text}`))
+    .join('\n');
+  const blob = new Blob([head + body], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const code = (session && session.code) ? session.code : 'chat';
+  a.href = url;
+  a.download = `chat-${code}-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+  xferToast(`Chat transcript saved (${chatHistory.length} messages)`);
+}
+btnChatDownloadEl?.addEventListener('click', downloadChat);
 // Received a message relayed by the server (from another member).
 function applyRemoteChat(msg) {
   appendChatMsg({ id: msg.id, name: msg.name, text: msg.text, ts: msg.ts, self: false });
@@ -2844,6 +2864,11 @@ window.__viewer = {
   transKeys: () => [...transparentParts],
   get transCount() { return transparentParts.size; },
   chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
+  chatDownload: () => downloadChat(),
+  chatTranscript: () => {
+    if (!chatHistory.length) return '';
+    return chatHistory.map((m) => (m.system ? `[system] ${m.text}` : `${fmtTime(m.ts)}  ${m.name}: ${m.text}`)).join('\n');
+  },
   get chatHistory() { return chatHistory.map((m) => ({ name: m.name, text: m.text, ts: m.ts, self: !!m.self, system: !!m.system })); },
   chatOpen: () => { if (chatWindowEl) chatWindowEl.hidden = false; return !chatWindowEl.hidden; },
   get explode() {
