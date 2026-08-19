@@ -183,16 +183,23 @@ def convert():
             elif name == 'callout':
                 out.append(f'<div class="callout">{render_paragraph(joined)}</div>')
             elif name == 'features':
-                # each non-empty line is one feature: "Title|text" or "Title — text"
+                # Each card is a paragraph: consecutive non-blank lines joined
+                # with a space; a blank line starts the next card. This keeps a
+                # wrapped paragraph intact instead of splitting it per line.
                 cards = []
-                for ln in body:
-                    ln = ln.strip()
-                    if not ln: continue
-                    m = re.match(r'^\*\*(.+?)\*\*\s*[—\-:]\s*(.+)$', ln, re.S)
+                for chunk in re.split(r'\n\s*\n', joined):
+                    chunk = ' '.join(l.strip() for l in chunk.split('\n') if l.strip()).strip()
+                    if not chunk: continue
+                    # Title is the FIRST bold run at the start; the rest (minus a
+                    # leading "—"/":") is the body. Anchoring avoids backtracking
+                    # into a bold token later in the sentence.
+                    m = re.match(r'^\*\*(.+?)\*\*(?:\s*[—\-:]\s*|\s+)(.*)$', chunk, re.S)
                     if m:
-                        cards.append(f'<div class="feature"><strong><span class="ico">▸</span>{render_paragraph(m.group(1))}</strong>{render_paragraph(m.group(2))}</div>')
+                        title = render_paragraph(m.group(1))
+                        body = re.sub(r'^\s*[—\-:]\s*', '', m.group(2))
+                        cards.append(f'<div class="feature"><strong><span class="ico">▸</span>{title}</strong>{render_paragraph(body)}</div>')
                     else:
-                        cards.append(f'<div class="feature">{render_paragraph(ln)}</div>')
+                        cards.append(f'<div class="feature">{render_paragraph(chunk)}</div>')
                 out.append('<div class="features">' + ''.join(cards) + '</div>')
             # else: unrecognised -> emit the body as paragraphs
             else:
