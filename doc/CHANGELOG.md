@@ -259,6 +259,27 @@ to disk.
 
 ---
 
+## [v0.64] — 2026-08-19
+
+> **Baseline:** v0.63 (tag `v0.63`). Release on top of the current working tree.
+
+### Added / Changed
+
+- **Transparent menu shows the current state** — the right-click part menu item
+  now reflects the part's transparency: it reads **"Make transparent"** when the
+  part is opaque and **"Make opaque"** when it's transparent, so you can toggle it
+  back to normal colour from the same menu. The label updates live based on the
+  part's state.
+
+### Fixed
+
+- _(none for this release)_
+
+### Technical
+
+- `showPartMenu()` now sets the menu item's text from `partTransparent(key)`
+  before showing the menu. Lives in `src/main.js`.
+
 ## [v0.63] — 2026-08-19
 
 > **Baseline:** v0.62 (tag `v0.62`). Release on top of the current working tree.

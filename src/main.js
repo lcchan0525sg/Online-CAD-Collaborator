@@ -254,6 +254,9 @@ let partMenuHideTimer = null;
 function showPartMenu(x, y, key) {
   if (!partMenuEl) return;
   partMenuKey = key;
+  // Reflect the part's current transparency in the menu item label.
+  const transEl = document.getElementById('part-menu-trans');
+  if (transEl) transEl.textContent = partTransparent(key) ? 'Make opaque' : 'Make transparent';
   partMenuEl.style.left = `${x}px`;
   partMenuEl.style.top = `${y}px`;
   partMenuEl.hidden = false;
@@ -2863,6 +2866,7 @@ window.__viewer = {
   transSet: (key, on) => { setPartTransparent(key, !!on); return partTransparent(key); },
   transKeys: () => [...transparentParts],
   get transCount() { return transparentParts.size; },
+  openPartMenu: (key) => { showPartMenu(50, 50, key); return document.getElementById('part-menu-trans').textContent; },
   chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
   chatDownload: () => downloadChat(),
   chatTranscript: () => {
