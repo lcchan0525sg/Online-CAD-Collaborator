@@ -109,6 +109,15 @@ function buildFrom(src, version, zipName) {
   copyFileSync(join(T, 'build', 'three.core.js'), join(APP, 'node_modules', 'three', 'build', 'three.core.js'));
   copyFileSync(join(T, 'examples', 'jsm', 'controls', 'OrbitControls.js'), join(APP, 'node_modules', 'three', 'examples', 'jsm', 'controls', 'OrbitControls.js'));
   copyFileSync(join(T, 'examples', 'jsm', 'loaders', 'GLTFLoader.js'), join(APP, 'node_modules', 'three', 'examples', 'jsm', 'loaders', 'GLTFLoader.js'));
+  // Draco loader + decoder (for KHR_draco_mesh_compression GLBs) — DRACOLoader.js
+  // plus the wasm/js decoder it fetches at runtime from the libs/draco/ dir.
+  copyFileSync(join(T, 'examples', 'jsm', 'loaders', 'DRACOLoader.js'), join(APP, 'node_modules', 'three', 'examples', 'jsm', 'loaders', 'DRACOLoader.js'));
+  const dracoSrc = join(T, 'examples', 'jsm', 'libs', 'draco');
+  const dracoDst = join(APP, 'node_modules', 'three', 'examples', 'jsm', 'libs', 'draco');
+  mkdirSync(dracoDst, { recursive: true });
+  for (const f of ['draco_decoder.js', 'draco_decoder.wasm', 'draco_wasm_wrapper.js']) {
+    copyFileSync(join(dracoSrc, f), join(dracoDst, f));
+  }
   copyFileSync(join(T, 'examples', 'jsm', 'utils', 'BufferGeometryUtils.js'), join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils', 'BufferGeometryUtils.js'));
   copyFileSync(join(T, 'examples', 'jsm', 'utils', 'SkeletonUtils.js'), join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils', 'SkeletonUtils.js'));
 

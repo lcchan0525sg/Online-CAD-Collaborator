@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 import { GridHelper } from 'three';
 
 /* ============================ Scene ============================ */
@@ -656,7 +657,12 @@ function refreshAnimUI() {
 }
 
 let lastGltf = null;
+// Draco decoder for KHR_draco_mesh_compression GLBs (produced by convert-cad
+// and the main app's own converter). Same libs dir in dev and the portable zip.
+const dracoLoader = new DRACOLoader();
+dracoLoader.setDecoderPath('./node_modules/three/examples/jsm/libs/draco/');
 const loader = new GLTFLoader();
+loader.setDRACOLoader(dracoLoader);
 function loadUrl(url) {
   const gen = nextLoadGen();
   loader.load(url, (gltf) => { if (isCurrentGen(gen)) loadFromGltf(gltf); },
