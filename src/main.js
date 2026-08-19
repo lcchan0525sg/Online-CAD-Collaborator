@@ -189,27 +189,7 @@ function buildPartsTree(root) {
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.checked = child.visible;
-        cb.addEventListener('change', () => {
-          // Cascading toggle: turning a (sub-)assembly on/off applies to its
-          // whole subtree. three.js only respects a node's OWN visible flag —
-          // a child that stayed off while the parent was off would stay blank
-          // after the parent comes back on.
-          const ops = [];
-          for (const r of allPartRows) {
-            if (r.key === key || r.key.startsWith(key + '.')) {
-              const node = nodeAtPath(root, r.key.split('.').map(Number));
-              if (!node) continue;
-              node.visible = cb.checked;
-              const entry = partRows.get(r.key);
-              if (entry) {
-                entry.cb.checked = cb.checked;
-                entry.row.classList.toggle('off', !cb.checked);
-              }
-              ops.push({ path: r.key.split('.').map(Number), visible: cb.checked });
-            }
-          }
-          broadcastParts(ops);
-        });
+        cb.addEventListener('change', () => setPartVisible(key, cb.checked));
         const span = document.createElement('span');
         span.className = 'partname';
         span.textContent = child.name || `Part ${count}`;
@@ -263,6 +243,8 @@ function renderCollapseState() {
 /* ---- Right-click context menu: "Show me only" ---- */
 const partMenuEl = document.getElementById('part-menu');
 const partMenuOnlyEl = document.getElementById('part-menu-only');
+const partMenuHideEl = document.getElementById('part-menu-hide');
+const partMenuMoveEl = document.getElementById('part-menu-move');
 let partMenuKey = null;
 let partMenuHideTimer = null;
 function showPartMenu(x, y, key) {
@@ -276,6 +258,28 @@ function showPartMenu(x, y, key) {
 function hidePartMenu() {
   if (partMenuEl) partMenuEl.hidden = true;
   partMenuKey = null;
+}
+
+// Show/hide a part (and its whole subtree) — used by the tree checkboxes and
+// the part context menu. Broadcasts the change to the session.
+function setPartVisible(key, visible) {
+  if (!model || !key) return;
+  const root = model.children[0];
+  const ops = [];
+  for (const r of allPartRows) {
+    if (r.key === key || r.key.startsWith(key + '.')) {
+      const node = nodeAtPath(root, r.key.split('.').map(Number));
+      if (!node) continue;
+      node.visible = visible;
+      const entry = partRows.get(r.key);
+      if (entry) {
+        entry.cb.checked = visible;
+        entry.row.classList.toggle('off', !visible);
+      }
+      ops.push({ path: r.key.split('.').map(Number), visible });
+    }
+  }
+  broadcastParts(ops);
 }
 
 // Hide every part that is NOT the selected part (or one of its children).
@@ -308,6 +312,25 @@ partMenuOnlyEl?.addEventListener('click', () => {
   const key = partMenuKey;   // capture BEFORE hidePartMenu() nulls it
   hidePartMenu();
   if (key) showOnlyPart(key);
+});
+
+// "Hide part" — turn off this part (and its subtree); keep selection for now.
+partMenuHideEl?.addEventListener('click', () => {
+  const key = partMenuKey;
+  hidePartMenu();
+  if (key) setPartVisible(key, false);
+});
+
+// "Move part" — select this part, arm Move, and show the axis gizmo so the
+// user can click an arrow to choose the movement direction.
+partMenuMoveEl?.addEventListener('click', () => {
+  const key = partMenuKey;
+  hidePartMenu();
+  if (!key) return;
+  if (selectedPartKey !== key) selectPart(key, true);
+  moveOnChk.checked = true;
+  setMoveAxis(null);        // no axis chosen yet — wait for a gizmo-arrow click
+  xferToast('Click an axis arrow to set the move direction');
 });
 
 /* ---- Part selection highlight ---- */
@@ -1731,11 +1754,40 @@ function pickPartKey(e) {
   }
   return null;
 }
+// If the click landed on a gizmo arrow, return its axis ('x'|'y'|'z'|null).
+// Uses screen-space distance to each arrow's projected line segment, which is
+// far more forgiving than raycasting the thin arrow geometry.
+function pickGizmoAxis(e) {
+  if (!moveGizmo.visible || !moveOnChk?.checked) return null;
+  const r = renderer.domElement.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  const toScreen = (v) => {
+    const p = v.clone().project(camera);
+    return { x: (p.x*0.5+0.5)*r.width, y: (-p.y*0.5+0.5)*r.height };
+  };
+  const origin = toScreen(moveGizmoArrows.x.getWorldPosition(new THREE.Vector3()));
+  let best = null, bestD = 24;   // 24px pick tolerance
+  ['x','y','z'].forEach((ax) => {
+    const tip = toScreen(moveGizmoArrows[ax].cone.getWorldPosition(new THREE.Vector3()));
+    // distance from click to segment origin->tip
+    const dx = tip.x-origin.x, dy = tip.y-origin.y;
+    const len2 = dx*dx+dy*dy;
+    let t = len2 ? ((px-origin.x)*dx+(py-origin.y)*dy)/len2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const cx = origin.x+t*dx, cy = origin.y+t*dy;
+    const d = Math.hypot(px-cx, py-cy);
+    if (d < bestD) { bestD = d; best = ax; }
+  });
+  return best;
+}
 renderer.domElement.addEventListener('pointerup', (e) => {
   if (e.button !== 0 || !pickDown) return;
   const moved = Math.hypot(e.clientX - pickDown.x, e.clientY - pickDown.y);
   pickDown = null;
   if (moved > 5) return;                 // orbit / move drag, not a click
+  // First, a click on a gizmo arrow sets the move axis (from "Move part" menu).
+  const axis = pickGizmoAxis(e);
+  if (axis) { setMoveAxis(axis); return; }
   const key = pickPartKey(e);
   if (key) selectPart(key);              // select, or toggle off if already selected
   else clearPartSelection();             // clicked empty space -> deselect
@@ -1775,6 +1827,7 @@ function makeArrow(axis) {
   a.cone.material.depthTest = false;
   a.line.material.transparent = true;
   a.cone.material.transparent = true;
+  a.userData = { axis };
   a.visible = false;
   moveGizmo.add(a);
   return a;
@@ -1895,4 +1948,30 @@ window.__viewer = {
   get currentModelNote() { return currentModel ? currentModel.note : null; },
   // Force-clear the "sending" overlay for a test (bypasses the 30s guard).
   forceSendDone: () => { pendingSend.clear(); if (sendGuard) clearTimeout(sendGuard); xferDone('Model sent to guest(s)', 'control restored'); },
+  // Debug: gizmo arrow world->screen positions (page coords; for headless tests).
+  gizmoArrows: () => {
+    const r = renderer.domElement.getBoundingClientRect();
+    const to = (p) => ({ x: r.left + (p.x*0.5+0.5)*r.width, y: r.top + (-p.y*0.5+0.5)*r.height });
+    const out = {};
+    ['x','y','z'].forEach((ax) => {
+      const a = moveGizmoArrows[ax];
+      if (!a) return;
+      // Cone sits at the arrow tip — project it (users click the arrowhead).
+      const v = a.cone.getWorldPosition(new THREE.Vector3()).clone().project(camera);
+      out[ax] = { ...to(v), visible: a.visible };
+    });
+    return out;
+  },
+  get moveAxis() { return moveAxis; },
+  get gizmoVisible() { return moveGizmo.visible; },
+  get selectedPart() { return selectedPartKey; },
+  partWorldPos: (key) => {
+    const root = model && model.children[0];
+    if (!root || !key) return null;
+    const n = nodeAtPath(root, key.split('.').map(Number));
+    if (!n) return null;
+    const v = n.getWorldPosition(new THREE.Vector3()).clone().project(camera);
+    const r = renderer.domElement.getBoundingClientRect();
+    return { x: r.left + (v.x*0.5+0.5)*r.width, y: r.top + (-v.y*0.5+0.5)*r.height };
+  },
 };

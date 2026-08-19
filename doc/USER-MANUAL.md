@@ -8,15 +8,16 @@
 2. [Starting the app](#2-starting-the-app)
 3. [Opening a model](#3-opening-a-model)
 4. [The Assembly panel](#4-the-assembly-panel--parts-and-visibility)
-5. [Navigating the viewport](#5-navigating-the-viewport)
-6. [Lighting & animation](#6-lighting--animation)
-7. [Collaborative sessions (host)](#7-collaborative-sessions-host)
-8. [Joining a session (guest)](#8-joining-a-session-guest)
-9. [Leaving a session](#9-leaving-a-session)
-10. [Opening a STEP / IGES / OBJ file](#10-opening-a-step--iges--obj-file)
-11. [Standalone CAD converter (convert-cad)](#11-standalone-cad-converter-convert-cad)
-12. [Troubleshooting](#12-troubleshooting)
-13. [Sharing with external parties](#13-sharing-with-external-parties)
+5. [Moving a part](#5-moving-a-part)
+6. [Navigating the viewport](#6-navigating-the-viewport)
+7. [Lighting & animation](#7-lighting--animation)
+8. [Collaborative sessions (host)](#8-collaborative-sessions-host)
+9. [Joining a session (guest)](#9-joining-a-session-guest)
+10. [Leaving a session](#10-leaving-a-session)
+11. [Opening a STEP / IGES / OBJ file](#11-opening-a-step--iges--obj-file)
+12. [Standalone CAD converter (convert-cad)](#12-standalone-cad-converter-convert-cad)
+13. [Troubleshooting](#13-troubleshooting)
+14. [Sharing with external parties](#14-sharing-with-external-parties)
 
 ---
 
@@ -219,35 +220,62 @@ Clicking a part directly in the 3D viewport highlights it the same way:
 
 ![A part clicked in the 3D viewport, highlighted blue](manual-shots/14-part-selected-3d.png)
 
-### "Show me only" (right-click)
+### Right-click menu (Hide / Move / Show me only)
 
 Right-click a part — either its name in the tree, or the part directly in the
-viewport — and choose **Show me only** to hide everything except that part and
-its children. Ancestors stay visible so the isolated part still renders.
+viewport — to open a menu with three actions:
+
+| Action | What it does |
+|---|---|
+| **Hide part** | Turns that part (and its subtree) off in the viewport |
+| **Move part** | Selects the part and arms the axis gizmo so you can move it (see §5) |
+| **Show me only** | Hides everything except that part and its children; ancestors stay visible so the isolated part still renders |
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
 
-### Move a part (X / Y / Z + drag)
+---
 
-With a part highlighted, tick **Move part**, press **X**, **Y** or **Z** to choose
-an axis, then **left-drag** in the viewport to slide that part along the axis.
-The highlighted **part moves by itself** — its siblings stay put. An X/Y/Z axis
-gizmo (red/green/blue) appears at the part so you can see the move directions;
-the chosen axis glows brighter. The gizmo stays about **1/8 of the screen** at
-any zoom level — zoom in and it shrinks to keep that size. **Undo** steps back
-through your last part movements (up to 200), and **Reset** returns all parts to
-their original positions and clears the move history. Moves are shared with the
-other viewers in the session.
+## 5. Moving a part
+
+A part can be moved along the X, Y or Z axis using the axis gizmo, so you can
+reposition a component of an assembly.
+
+### Start a move
+
+1. **Select the part** — click its name in the tree, or click it directly in
+   the 3D viewport.
+2. **Right-click** it and choose **Move part**. The X/Y/Z axis gizmo appears at
+   the part.
+3. **Click the gizmo arrow** for the direction you want to move (X = red,
+   Y = green, Z = blue). That arrow glows to show it is armed.
+
+### Drag to move
+
+With an axis chosen, **left-drag** in the viewport to slide the part along that
+axis. The selected **part moves by itself** — its siblings stay put. (You can
+also pick an axis from the sidebar's **Move part** checkbox + **X / Y / Z**
+keys, or click a different gizmo arrow to change direction mid-move.)
+
+### The gizmo
+
+The X/Y/Z arrows (red/green/blue) stay about **1/8 of the screen** at any zoom
+level — zoom in and they shrink to keep that size. The armed arrow glows
+brighter than the others.
+
+### Undo & reset
+
+- **Undo** steps back through your last part movements (up to 200).
+- **Reset** returns all parts to their original positions and clears the move
+  history.
 
 ![A part moved along the X axis, with the axis gizmo visible](manual-shots/15-part-move.png)
 
-**In a session (see §7), all of this syncs to every member** — show/hide,
-expand/collapse, the selection highlight, and part moves are mirrored live in
-both directions.
+**In a session, part moves sync to every member** — move a part and the others
+watch it move live, and can move it back.
 
 ---
 
-## 5. Navigating the viewport
+## 6. Navigating the viewport
 
 | Action | Effect |
 |---|---|
@@ -261,7 +289,7 @@ both directions.
 
 ---
 
-## 6. Lighting & animation
+## 7. Lighting & animation
 
 ### Lighting
 
@@ -289,11 +317,11 @@ If the GLB you load contains **keyframe animation** (e.g. from Blender or a game
 
 ### Session sync
 
-In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §8).
+In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §9).
 
 ---
 
-## 7. Collaborative sessions (host)
+## 8. Collaborative sessions (host)
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
@@ -324,7 +352,7 @@ session" shows whether the server is reachable (green = up, red = down).
 
 ---
 
-## 8. Joining a session (guest)
+## 9. Joining a session (guest)
 
 On another computer (same network):
 
@@ -355,7 +383,7 @@ appears — same view, same parts, same visibility as the host.
 
 ---
 
-## 9. Leaving a session
+## 10. Leaving a session
 
 Click **Leave session** to leave. What happens depends on your role:
 
@@ -370,7 +398,7 @@ The session itself stays alive on the server for the remaining members.
 
 ---
 
-## 10. Opening a STEP / IGES / OBJ file
+## 11. Opening a STEP / IGES / OBJ file
 
 STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
@@ -395,7 +423,7 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 11. Standalone CAD converter (convert-cad)
+## 12. Standalone CAD converter (convert-cad)
 
 Besides the viewer, the distribution includes a **separate, standalone CAD
 converter** — **`convert-cad`** (v0.1) — that turns STEP / IGES / OBJ files into
@@ -447,7 +475,7 @@ It's the same "one compact file over the network" idea, applied offline.
 
 ---
 
-## 12. Troubleshooting
+## 13. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -460,7 +488,7 @@ It's the same "one compact file over the network" idea, applied offline.
 
 ---
 
-## 13. Sharing with external parties
+## 14. Sharing with external parties
 
 By default the viewer is meant for the **local network (LAN)**. To let someone
 outside your network view a session, you have two main options.
