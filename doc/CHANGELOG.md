@@ -259,6 +259,44 @@ to disk.
 
 ---
 
+## [v0.60] — 2026-08-19
+
+> **Baseline:** v0.59 (tag `v0.59`). Release on top of the current working tree.
+
+### Added
+
+- **Explode direction option** — the Explode control now has a **Dir** selector:
+  **Radial** (spread outward from the assembly centre) or an explicit **X / Y / Z**
+  axis (parts on the + side move +, on the − side move −). Syncs across the
+  session.
+- **Explode level option** — the Explode control now has a **Level** selector:
+  **All parts** (every leaf part separates, so you see the actual components) or
+  **Top sub-assembly** (each top-level sub-assembly moves as a rigid unit).
+
+### Fixed
+
+- **Explode moved the whole assembly instead of separating parts.** The tool
+  previously exploded only `root.children` — for the GearBox that's a single
+  top-level wrapper node ("GearBox", 3029 meshes) containing all 45 real parts,
+  so the whole model slid as one unit. It now collects parts with the **same rule
+  the assembly tree uses** (`isPartNode`), so it explodes the 45 actual parts.
+- **Explode no longer re-derives directions from the spread positions.** The
+  remote/debug apply path recomputed each part's direction from its *current*
+  (already-spread) position, so collapsing to 0 couldn't reverse — parts ended up
+  displaced. Directions are now only recomputed when the direction/level actually
+  change (collapse first, then re-derive, then re-apply); otherwise the stored
+  directions are reused so the delta path reverses cleanly.
+
+### Technical
+
+- `collectExplodeNodes()` mirrors `buildPartsTree`'s `isPartNode` rule to gather
+  every part row, then selects **leaf parts** (rows that aren't an ancestor of any
+  other row) for "parts" level, or **depth-0 rows** for "sub" level. Each target's
+  direction is computed in its **own parent's** local frame (via
+  `parent.worldToLocal`) so `node.position` can be offset directly regardless of
+  nesting depth. The `explode` session message now carries `{ amount, dir, level }`;
+  the server stores the whole object and replays it to late joiners.
+
 ## [v0.59] — 2026-08-19
 
 > **Baseline:** v0.58 (tag `v0.58`). Release on top of the current working tree.

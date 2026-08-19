@@ -599,7 +599,11 @@ function loadFromGltf(gltf) {
   flushPendingParts();
   if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
   if (typeof computeExplodeDirs === 'function') computeExplodeDirs();
-  if (typeof explodeAmount !== 'undefined' && explodeAmount) resetExplode();
+  // Re-apply any stored explode amount on the fresh model (move from rest by the
+  // full amount, not a zero delta).
+  if (typeof explodeAmount !== 'undefined' && explodeAmount) {
+    const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(a);
+  }
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
 }
 
@@ -1086,7 +1090,7 @@ function onSessionMsg(msg) {
       applyRemoteMeasureSync(msg.measures);
       break;
     case 'explode':
-      applyRemoteExplode(msg.amount);
+      applyRemoteExplode(msg);
       break;
     case 'anim':
       applyRemoteAnim(msg.s);
@@ -2356,21 +2360,32 @@ renderer.domElement.addEventListener('pointerleave', hidePartHover);
 // a pointermove here just re-hides if we drift off a part. Safe to clear.
 
 /* ============================ Exploded view ============================ */
-// A slider spreads the top-level sub-assemblies/parts radially outward from the
-// assembly centre, so the structure reads at a glance. Non-destructive: explode
-// only adds a per-part offset on top of the part's resting position (which may
-// itself have been moved), and collapsing to 0 returns every part exactly to
-// where it was. State syncs across a session like light/anim.
+// A slider spreads the assembly's parts/sub-assemblies outward so the structure
+// reads at a glance. Non-destructive: explode only adds a per-part offset on top
+// of the part's resting position (which may itself have been moved), and
+// collapsing to 0 returns every part exactly to where it was. State syncs across
+// a session like light/anim.
+// - Direction: radial (from the assembly centre) or an explicit X/Y/Z axis.
+// - Level: "parts" explodes every leaf part (the actual components) so you see
+//   them separate; "sub" explodes the top-level sub-assemblies as rigid units.
+// Parts are collected with the SAME rule the assembly tree uses (isPartNode), so
+// "which nodes are parts" matches what the user sees in the tree — this is what
+// fixes the earlier bug where a single top-level wrapper node ("GearBox")
+// swallowed the whole model.
 const explodeSliderEl = document.getElementById('explode-slider');
 const explodeValEl = document.getElementById('explode-val');
+const explodeDirEl = document.getElementById('explode-dir');
+const explodeLevelEl = document.getElementById('explode-level');
 let explodeAmount = 0;          // 0..1
 let explodeScale = 1;           // world distance at 100% (model-size fraction)
-let explodeDirs = new Map();    // pathKey -> local unit direction per top-level part
+let explodeTargets = [];        // [{ node, parent, dirLocal }] parts to spread
+let explodeDir = 'radial';      // 'radial' | 'x' | 'y' | 'z'
+let explodeLevel = 'parts';     // 'parts' | 'sub'
 let applyingRemoteExplode = false;
 
-function broadcastExplode(amount) {
+function broadcastExplode() {
   if (!session?.connected || applyingRemoteExplode) return;
-  try { session.ws.send(JSON.stringify({ t: 'explode', amount })); } catch {}
+  try { session.ws.send(JSON.stringify({ t: 'explode', amount: explodeAmount, dir: explodeDir, level: explodeLevel })); } catch {}
 }
 // Set the slider UI to an amount without re-broadcasting (remote or init).
 function setExplodeUi(amount) {
@@ -2378,62 +2393,137 @@ function setExplodeUi(amount) {
   if (explodeSliderEl) explodeSliderEl.value = Math.round(explodeAmount * 100);
   if (explodeValEl) explodeValEl.textContent = Math.round(explodeAmount * 100) + '%';
 }
-// Compute each top-level part's local-space radial explosion direction from the
-// assembly centre. Top-level = nodes under the scene root with a name (the depth-0
-// rows of the tree): a sub-assembly moves as a unit, its internals stay together.
-function computeExplodeDirs() {
-  explodeDirs.clear();
-  if (!model) return;
+// Collect the part nodes to explode, using the tree's isPartNode rule.
+function collectExplodeNodes() {
+  if (!model) return [];
   const root = model.children[0];
-  const parts = (root.children || []).filter((c) => c.name);
-  if (!parts.length) return;
+  const isPartNode = (child, obj) => !!child.name && (obj === root || !child.isMesh);
+  const rows = [];   // { node, path, depth }
+  const walk = (obj, depth, path) => {
+    obj.children.forEach((child, i) => {
+      const p = [...path, i];
+      const isPart = isPartNode(child, obj);
+      if (isPart) rows.push({ node: child, path: p, depth });
+      if (child.children?.length) walk(child, depth + (isPart ? 1 : 0), p);
+    });
+  };
+  walk(root, 0, []);
+  if (!rows.length) return [];
+  // Leaf parts = rows that are not an ancestor of any other row.
+  const isAncestorOf = (a, b) => a !== b && b.path.length > a.path.length
+    && a.path.every((v, i) => b.path[i] === v);
+  const leaves = rows.filter((r) => !rows.some((o) => isAncestorOf(r, o)));
+  if (explodeLevel === 'sub') return rows.filter((r) => r.depth === 0);
+  return leaves;
+}
+// Compute each target's local-space unit direction in its PARENT's frame.
+function computeExplodeDirs() {
+  explodeTargets = [];
+  if (!model) return;
+  const nodes = collectExplodeNodes();
+  if (!nodes.length) return;
   const box = new THREE.Box3().setFromObject(model);
   const centre = box.getCenter(new THREE.Vector3());
   explodeScale = box.getSize(new THREE.Vector3()).length() * 0.5 || 1;
-  parts.forEach((part, i) => {
-    const pbox = new THREE.Box3().setFromObject(part);
+  const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
+    : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
+    : explodeDir === 'z' ? new THREE.Vector3(0, 0, 1) : null;
+  const _d = new THREE.Vector3();
+  for (const { node, path } of nodes) {
+    const parent = node.parent || model.children[0];
+    const pbox = new THREE.Box3().setFromObject(node);
     const pc = pbox.getCenter(new THREE.Vector3());
-    const dWorld = pc.clone().sub(centre);
-    if (dWorld.lengthSq() < 1e-12) dWorld.set(0, 1, 0);   // centred part -> up
-    dWorld.normalize();
-    // Convert the world unit direction to the part's parent (root) local frame so
-    // node.position (root-local) can be offset directly.
-    const wA = root.worldToLocal(pc.clone());
-    const wB = root.worldToLocal(pc.clone().add(dWorld));
-    explodeDirs.set(String(i), wB.sub(wA).normalize());
-  });
+    let dirWorld;
+    if (axisWorld) {
+      // Signed along the axis: parts on the + side go +, on the - side go -.
+      const s = _d.copy(pc).sub(centre).dot(axisWorld);
+      dirWorld = axisWorld.clone().multiplyScalar(s >= 0 ? 1 : -1);
+    } else {
+      dirWorld = pc.clone().sub(centre);
+      if (dirWorld.lengthSq() < 1e-12) dirWorld.set(0, 1, 0);   // centred -> up
+      dirWorld.normalize();
+    }
+    // Convert the world direction to the part's parent local frame so
+    // node.position (parent-local) can be offset directly.
+    const wA = parent.worldToLocal(pc.clone());
+    const wB = parent.worldToLocal(pc.clone().add(dirWorld));
+    const dirLocal = wB.sub(wA).normalize();
+    explodeTargets.push({ node, parent, dirLocal, path });
+  }
 }
-// Move each top-level part outward by delta = dir * (amount - prevAmount) * scale.
+// Move each target outward by delta = dir * (amount - prevAmount) * scale.
 function applyExplodeAmount(newAmount) {
-  if (!model || !explodeDirs.size) { setExplodeUi(newAmount); return; }
+  if (!model || !explodeTargets.length) { setExplodeUi(newAmount); return; }
   const prev = explodeAmount;
   const delta = (newAmount - prev) * explodeScale;
-  const root = model.children[0];
-  const visited = new Set();
-  root.children.forEach((part, i) => {
-    const key = String(i);
-    const dir = explodeDirs.get(key);
-    if (!dir || visited.has(part.uuid)) return;
-    visited.add(part.uuid);
-    part.position.addScaledVector(dir, delta);
-    part.updateMatrixWorld(true);
-  });
+  const seen = new Set();
+  for (const { node, dirLocal } of explodeTargets) {
+    if (seen.has(node.uuid)) continue;
+    seen.add(node.uuid);
+    node.position.addScaledVector(dirLocal, delta);
+    node.updateMatrixWorld(true);
+  }
   setExplodeUi(newAmount);
-  broadcastExplode(explodeAmount);
+  broadcastExplode();
 }
 function resetExplode() {
-  // Return every top-level part to its resting position (delta to 0).
-  if (model && explodeDirs.size) applyExplodeAmount(0);
+  // Return every target to its resting position (delta to 0).
+  if (model && explodeTargets.length) applyExplodeAmount(0);
   else setExplodeUi(0);
 }
 explodeSliderEl.addEventListener('input', () => {
   applyExplodeAmount(Number(explodeSliderEl.value) / 100);
 });
-// Apply a remote explode change (no echo).
-function applyRemoteExplode(amount) {
+// Changing direction/level recomputes the spread directions from the current
+// resting positions, then re-applies the same amount.
+explodeDirEl.addEventListener('change', () => { explodeDir = explodeDirEl.value; recomputeExplode(); });
+explodeLevelEl.addEventListener('change', () => { explodeLevel = explodeLevelEl.value; recomputeExplode(); });
+function recomputeExplode() {
+  const amt = explodeAmount;
+  if (model && explodeTargets.length) applyExplodeAmount(0);   // collapse first
+  computeExplodeDirs();
+  applyExplodeAmount(amt);                                     // re-apply
+  broadcastExplode();
+}
+// Apply a remote explode change (no echo). Direction/level only recompute the
+// spread directions when they actually change; otherwise the same stored
+// directions are reused so the delta path is reversible (collapse-to-0 restores
+// every part exactly).
+function applyRemoteExplode(msg) {
   applyingRemoteExplode = true;
-  try { applyExplodeAmount(Math.max(0, Math.min(1, Number(amount) || 0))); }
-  finally { applyingRemoteExplode = false; }
+  try {
+    const dirChanged = typeof msg.dir === 'string' && msg.dir !== explodeDir;
+    const levelChanged = typeof msg.level === 'string' && msg.level !== explodeLevel;
+    if (dirChanged) { explodeDir = msg.dir; if (explodeDirEl) explodeDirEl.value = msg.dir; }
+    if (levelChanged) { explodeLevel = msg.level; if (explodeLevelEl) explodeLevelEl.value = msg.level; }
+    const amount = Math.max(0, Math.min(1, Number(msg.amount) || 0));
+    if (dirChanged || levelChanged) {
+      if (model && explodeTargets.length && explodeAmount) applyExplodeAmount(0);  // collapse on stored dirs
+      computeExplodeDirs();
+      if (amount) { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(amount); }
+      else setExplodeUi(0);
+    } else {
+      applyExplodeAmount(amount);
+    }
+  } finally { applyingRemoteExplode = false; }
+}
+// Programmatic set (debug hook + dir/level recompute). Same rule: only recompute
+// directions when dir/level changed.
+function explodeSet(amount, dir, level) {
+  const dirChanged = typeof dir === 'string' && dir !== explodeDir;
+  const levelChanged = typeof level === 'string' && level !== explodeLevel;
+  if (dirChanged) { explodeDir = dir; if (explodeDirEl) explodeDirEl.value = dir; }
+  if (levelChanged) { explodeLevel = level; if (explodeLevelEl) explodeLevelEl.value = level; }
+  amount = Math.max(0, Math.min(1, Number(amount) || 0));
+  if (dirChanged || levelChanged) {
+    if (model && explodeTargets.length && explodeAmount) applyExplodeAmount(0);
+    computeExplodeDirs();
+    if (amount) { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(amount); }
+    else setExplodeUi(0);
+  } else {
+    applyExplodeAmount(amount);
+  }
+  return explodeAmount;
 }
 
 /* ============================ Resize + loop ============================ */
@@ -2569,9 +2659,9 @@ window.__viewer = {
   measureClear: () => { measureClear(); return true; },
   measureIds: () => measureList.map((m) => m.id),
   get explode() {
-    return { amount: explodeAmount, scale: explodeScale, parts: explodeDirs.size };
+    return { amount: explodeAmount, scale: explodeScale, targets: explodeTargets.length, dir: explodeDir, level: explodeLevel };
   },
-  explodeSet: (amount) => { explodeSliderEl.value = Math.round(amount * 100); applyExplodeAmount(amount); return explodeAmount; },
+  explodeSet: (amount, dir, level) => explodeSet(amount, dir, level),
   projectWorld: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();

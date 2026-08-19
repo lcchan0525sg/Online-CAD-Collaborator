@@ -359,7 +359,7 @@ wss.on('connection', (ws, req, url) => {
   if (session.anim) send(ws, { t: 'anim', s: session.anim });
   // Late joiner: replay the committed measurements + explode state.
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
-  if (session.explode) send(ws, { t: 'explode', amount: session.explode });
+  if (session.explode) send(ws, { t: 'explode', amount: session.explode.amount, dir: session.explode.dir, level: session.explode.level });
   // Let everyone else know a new member arrived (host uses this to offer its
   // current model to the newcomer — see the 'peer-join' handler client-side).
   broadcast(session, { t: 'peer-join', id, name, isHost }, id);
@@ -419,9 +419,14 @@ wss.on('connection', (ws, req, url) => {
       session.measures = [];
       broadcast(session, { t: 'measure-clear' }, id);
     } else if (msg.t === 'explode' && typeof msg.amount === 'number') {
-      // Explode state: store (for late joiners) and relay to the others.
-      session.explode = Math.max(0, Math.min(1, msg.amount));
-      broadcast(session, { t: 'explode', amount: session.explode }, id);
+      // Explode state (amount + direction + level): store for late joiners and
+      // relay to the other members.
+      session.explode = {
+        amount: Math.max(0, Math.min(1, msg.amount)),
+        dir: typeof msg.dir === 'string' ? msg.dir : 'radial',
+        level: typeof msg.level === 'string' ? msg.level : 'parts',
+      };
+      broadcast(session, { t: 'explode', amount: session.explode.amount, dir: session.explode.dir, level: session.explode.level }, id);
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {
       // Host kicks a viewer out of the session. Only the host may kick, and the
       // host can't kick itself. Close the target's socket; onGone removes them
