@@ -259,6 +259,46 @@ to disk.
 
 ---
 
+## [v0.67] — 2026-08-19
+
+> **Baseline:** v0.66 (tag `v0.66`). Release on top of the current working tree.
+
+### Fixed
+
+- **Selection highlight and part transparency no longer interfere — rewritten to
+  be derived from state instead of accumulated material clones.** The repeated
+  bugs ("clicking a transparent part restores its colour", "turning a second part
+  transparent off leaves both stuck in the highlight colour") all came from one
+  root cause: transparency and the selection highlight each swapped `mesh.material`
+  for cloned materials and kept their own bookkeeping, so the two systems fought
+  over `mesh.material` and leaked state into each other in certain orderings.
+  This version removes that fragility entirely:
+  - Each mesh's **pristine base material is captured once at load** (`meshBase`)
+    and **never mutated**.
+  - Transparency is stored as a **Set of part keys** (`transparentParts`); the
+    selected part is stored as a single **key** (`selectedPartKey`).
+  - **Every** material is **derived fresh from the base** by `applyAllMaterials()`
+    on each change: `base → (if transparent) opacity clone → (if selected) emissive
+    clone`. Because each recompute starts from the pristine base, transparency and
+    selection can never leak into each other, and the ordering of
+    select / make-transparent / deselect / make-opaque is irrelevant.
+  - Result: toggling two parts transparent and turning them off one at a time
+    always returns both to their original colour with the highlight cleared, in
+    any order. Selection and transparency compose correctly on shared materials
+    too (each mesh clones from its own base).
+
+### Technical
+
+- New state + derivation in `src/main.js`: `meshBase` / `meshPartKey` maps,
+  `captureMeshBases(root)` (called on model load after the tree is built, records
+  each mesh's pristine material and its deepest part row — including the flat
+  single-part case where the mesh itself is the row), `applyAllMaterials()` /
+  `applyMeshMaterial()`, `partIsTransparent()` / `partIsSelected()`. Removed the
+  old `selectedMaterialCopies` and `transparentMaterialCopies` clone-accumulation
+  maps. `setPartTransparent` and `selectPart`/`clearPartSelection` now only mutate
+  state and call `applyAllMaterials()`. Session sync and late-joiner replay of
+  transparency are preserved unchanged.
+
 ## [v0.66] — 2026-08-19
 
 > **Baseline:** v0.65 (tag `v0.65`). Release on top of the current working tree.

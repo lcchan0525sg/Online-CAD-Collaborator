@@ -340,120 +340,97 @@ partMenuMoveEl?.addEventListener('click', () => {
   xferToast('Click an axis arrow to set the move direction');
 });
 
-/* ---- Part transparency (context-menu toggle) ---- */
-// Right-click a part → "Make transparent" (or "Make opaque"). Clones the part's
-// per-mesh materials and sets transparent/opacity, storing the originals so the
-// toggle is reversible. State syncs across the session like visibility. Meshes
-// under one part often share materials, so clones are needed (mutating the shared
-// material would tint every part using it) — same rule as the selection highlight.
+/* ---- Part appearance: transparency + selection (derived from state) ---- */
+// Design: we DON'T accumulate material clones. We store stable state —
+//   * meshBase:   each mesh's pristine material(s) captured at load (never mutated)
+//   * transparentParts: Set of part pathKeys currently transparent
+//   * selectedPartKey:  the selected part pathKey (or null)
+// and DERIVE every mesh's material fresh from its base on each change:
+//   base -> (if transparent) opacity clone -> (if selected) emissive clone.
+// Because every recompute starts from the pristine base, transparency and
+// selection can never fight or leak into each other, and the ordering of
+// select/transparent/deselect operations is irrelevant.
 const partMenuTransEl = document.getElementById('part-menu-trans');
 const TRANSPARENT_OPACITY = 0.25;
 let transparentParts = new Set();        // pathKey -> currently transparent
-let transparentMaterialCopies = new Map(); // pathKey -> [{ mesh, original }]
-let applyingRemoteTrans = false;
+const meshBase = new Map();              // mesh -> pristine Material[] at load
+const meshPartKey = new Map();           // mesh -> deepest part pathKey it belongs to
+const HIGHLIGHT_COLOR = 0x2f7dff;
+const HIGHLIGHT_INTENSITY = 0.55;
 
-function clearTransparency() {
-  for (const [, copies] of transparentMaterialCopies) {
-    for (const { mesh, original } of copies) mesh.material = original;
+// After the tree is built, snapshot every mesh's pristine material and record
+// which part row it belongs to (deepest named ancestor). Called on model load.
+function captureMeshBases(root) {
+  meshBase.clear();
+  meshPartKey.clear();
+  const keyFor = (node) => {
+    const path = [];
+    let c = node;
+    while (c && c !== root) { path.unshift(c.parent.children.indexOf(c)); c = c.parent; }
+    return path.join('.');
+  };
+  root.traverse((o) => {
+    if (!o.isMesh || !o.material) return;
+    meshBase.set(o, Array.isArray(o.material) ? o.material.slice() : [o.material]);
+    // deepest named part ancestor (matches the tree's part rows) — check the
+    // mesh itself first (flat single-part GLB: the mesh IS the row), then walk
+    // up and take the FIRST (deepest) match.
+    let partKey = '';
+    if (partRows.has(keyFor(o))) partKey = keyFor(o);
+    if (!partKey) {
+      let n = o.parent;
+      while (n && n !== root) {
+        if (partRows.has(keyFor(n))) { partKey = keyFor(n); break; }
+        n = n.parent;
+      }
+    }
+    meshPartKey.set(o, partKey);
+  });
+}
+// Is this part (or an ancestor of it) transparent?
+function partIsTransparent(key) {
+  if (!key) return false;
+  if (transparentParts.has(key)) return true;
+  const seg = key.split('.');
+  for (let i = seg.length - 1; i > 0; i--) {
+    if (transparentParts.has(seg.slice(0, i).join('.'))) return true;
   }
-  transparentMaterialCopies.clear();
-  transparentParts.clear();
+  return false;
 }
-// Late joiner snapshot: apply transparency to every listed key.
-function applyRemoteTransSync(keys) {
-  if (!Array.isArray(keys)) return;
-  if (!model) { pendingRemoteTransKeys = keys; return; }
-  applyingRemoteTrans = true;
-  try {
-    clearTransparency();
-    for (const k of keys) setPartTransparent(k, true);
-  } finally { applyingRemoteTrans = false; }
+// Is this part (or a descendant) selected?
+function partIsSelected(key) {
+  return !!selectedPartKey && (key === selectedPartKey || key.startsWith(selectedPartKey + '.'));
 }
-let pendingRemoteTransKeys = [];
-function flushPendingTrans() {
-  if (!pendingRemoteTransKeys.length || !model) return;
-  const keys = pendingRemoteTransKeys;
-  pendingRemoteTransKeys = [];
-  applyRemoteTransSync(keys);
+// Recompute a single mesh's material from its pristine base + current state.
+function applyMeshMaterial(o) {
+  const base = meshBase.get(o);
+  if (!base) return;
+  const key = meshPartKey.get(o) || '';
+  const trans = partIsTransparent(key);
+  const sel = partIsSelected(key);
+  let mats = base.map((m) => m.clone());   // always clone from the pristine base
+  if (trans) mats.forEach((m) => {
+    m.transparent = true; m.opacity = TRANSPARENT_OPACITY; m.depthWrite = false; m.needsUpdate = true;
+  });
+  if (sel) mats.forEach((m) => {
+    m.emissive = (m.emissive ? m.emissive.clone() : new THREE.Color()).set(HIGHLIGHT_COLOR);
+    m.emissiveIntensity = HIGHLIGHT_INTENSITY;
+  });
+  o.material = mats.length === 1 ? mats[0] : mats;
+}
+// Recompute every mesh's material. Call after any state change.
+function applyAllMaterials() {
+  if (!model) return;
+  const root = model.children[0];
+  root.traverse((o) => { if (o.isMesh) applyMeshMaterial(o); });
 }
 function partTransparent(key) { return transparentParts.has(key); }
-function isDescendantOf(aKey, bKey) {   // is aKey == bKey or under bKey?
-  return aKey === bKey || aKey.startsWith(bKey + '.');
-}
+
 function setPartTransparent(key, transparent) {
   if (!model || !key) return;
-  const root = model.children[0];
   if (transparent) transparentParts.add(key);
   else transparentParts.delete(key);
-  // Restore any material copies for this part/subtree first, then re-apply from
-  // the current state so toggling a parent updates all its children consistently.
-  for (const [k, copies] of transparentMaterialCopies) {
-    if (!isDescendantOf(k, key)) continue;
-    for (const { mesh, original } of copies) mesh.material = original;
-    transparentMaterialCopies.delete(k);
-  }
-  // Apply transparency to every part row that is the key or under it.
-  for (const r of allPartRows) {
-    if (!isDescendantOf(r.key, key)) continue;
-    const target = transparentParts.has(r.key);
-    const node = nodeAtPath(root, r.key.split('.').map(Number));
-    if (!node) continue;
-    const copies = [];
-    node.traverse((o) => {
-      if (!o.isMesh || !o.material) return;
-      // Clone from the mesh's BASE material, not the selection-highlight clone,
-      // so transparency is applied to the true colour (and the highlight is
-      // re-applied on top below). For a selected mesh the base is the selection's
-      // stored original; otherwise it's the current material.
-      const selIdx = selectedMaterialCopies.findIndex((sc) => sc.mesh === o);
-      const base = selIdx >= 0 ? selectedMaterialCopies[selIdx].original : o.material;
-      if (target) {
-        // Make transparent: swap in an opacity clone (keep the base's original
-        // stored in the selection, so deselect restores the transparent base).
-        const src = Array.isArray(base) ? base : [base];
-        const orig = Array.isArray(base) ? [...base] : base;
-        const clones = src.map((m) => {
-          const c = m.clone();
-          c.transparent = true;
-          c.opacity = TRANSPARENT_OPACITY;
-          c.depthWrite = false;
-          c.needsUpdate = true;
-          return c;
-        });
-        copies.push({ mesh: o, original: orig });
-        o.material = Array.isArray(base) ? clones : clones[0];
-        if (selIdx >= 0) {
-          // Store CLONES of the transparent material as the selection's original,
-          // not a reference to the objects we then highlight — otherwise deselect
-          // restores the highlighted version and the highlight never clears.
-          selectedMaterialCopies[selIdx].original = Array.isArray(base) ? clones.map((c) => c.clone()) : clones[0].clone();
-          // Keep the selection highlight on top of the transparent clone.
-          const mats = Array.isArray(o.material) ? o.material : [o.material];
-          mats.forEach((c) => {
-            c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
-            c.emissiveIntensity = 0.55;
-          });
-        }
-      } else {
-        // Make opaque: the restore pass already put the base back; just re-apply
-        // the selection highlight on top if this mesh is still selected, and
-        // point its stored original at the (now opaque) restored material so
-        // deselect keeps it opaque.
-        if (selIdx >= 0) {
-          // Clone the restored material so the stored "original" isn't the same
-          // object we then highlight (mutating it would taint the base too).
-          const restored = Array.isArray(o.material) ? o.material.map((m) => m.clone()) : o.material.clone();
-          selectedMaterialCopies[selIdx].original = restored;
-          const mats = Array.isArray(o.material) ? o.material : [o.material];
-          mats.forEach((c) => {
-            c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
-            c.emissiveIntensity = 0.55;
-          });
-        }
-      }
-    });
-    if (target) transparentMaterialCopies.set(r.key, copies);
-  }
+  applyAllMaterials();
   broadcastTransparent(key, transparent);
 }
 function broadcastTransparent(key, transparent) {
@@ -466,6 +443,29 @@ function applyRemoteTransparent(key, transparent) {
   applyingRemoteTrans = true;
   try { setPartTransparent(key, transparent); } finally { applyingRemoteTrans = false; }
 }
+let applyingRemoteTrans = false;
+function clearTransparency() {
+  transparentParts.clear();
+  if (model) applyAllMaterials();
+}
+// Late joiner snapshot: apply transparency to every listed key.
+function applyRemoteTransSync(keys) {
+  if (!Array.isArray(keys)) return;
+  if (!model) { pendingRemoteTransKeys = keys; return; }
+  applyingRemoteTrans = true;
+  try {
+    transparentParts.clear();
+    for (const k of keys) transparentParts.add(k);
+    applyAllMaterials();
+  } finally { applyingRemoteTrans = false; }
+}
+let pendingRemoteTransKeys = [];
+function flushPendingTrans() {
+  if (!pendingRemoteTransKeys.length || !model) return;
+  const keys = pendingRemoteTransKeys;
+  pendingRemoteTransKeys = [];
+  applyRemoteTransSync(keys);
+}
 partMenuTransEl?.addEventListener('click', () => {
   const key = partMenuKey;
   hidePartMenu();
@@ -473,22 +473,18 @@ partMenuTransEl?.addEventListener('click', () => {
   setPartTransparent(key, !partTransparent(key));
 });
 /* ---- Part selection highlight ---- */
-// Clicking a part name highlights that part (and its children) in the viewport
-// via emissive on per-mesh material CLONES — GLB parts often share materials,
-// so mutating the shared material would tint every part that uses it.
+// Selection is stored as a single state (selectedPartKey). The actual highlight
+// is derived from the mesh's pristine base by applyAllMaterials(), so selection
+// and transparency compose cleanly (both are recomputed fresh from the base).
 let selectedPartKey = null;
-let selectedMaterialCopies = [];   // [{ mesh, original }]
 
 function clearPartSelection(silent) {
-  for (const { mesh, original } of selectedMaterialCopies) {
-    mesh.material = original;
-  }
-  selectedMaterialCopies = [];
-  window.__selKey = null;   // dev/debug hook for headless inspection
   if (selectedPartKey) {
     const prev = partRows.get(selectedPartKey);
     if (prev) prev.row.classList.remove('sel');
     selectedPartKey = null;
+    applyAllMaterials();
+    window.__selKey = null;   // dev/debug hook for headless inspection
     if (!silent) broadcastSel(null);
   }
 }
@@ -506,19 +502,7 @@ function selectPart(key, force) {
   window.__selKey = key;   // dev/debug hook for headless inspection
   const row = partRows.get(key);
   if (row) row.row.classList.add('sel');
-  // Highlight every mesh in this part's subtree.
-  node.traverse((o) => {
-    if (!o.isMesh || !o.material) return;
-    const mats = Array.isArray(o.material) ? o.material : [o.material];
-    const clones = mats.map((m) => {
-      const c = m.clone();
-      c.emissive = (c.emissive ? c.emissive.clone() : new THREE.Color()).set(0x2f7dff);
-      c.emissiveIntensity = 0.55;
-      return c;
-    });
-    selectedMaterialCopies.push({ mesh: o, original: o.material });
-    o.material = Array.isArray(o.material) ? clones : clones[0];
-  });
+  applyAllMaterials();
   if (!force) broadcastSel(key);
 }
 // Clicking elsewhere / scrolling dismisses the menu.
@@ -731,6 +715,7 @@ function loadFromGltf(gltf) {
   frameModel();
   showInfo(gltf, model, maxDim);
   buildPartsTree(root);
+  if (typeof captureMeshBases === 'function') captureMeshBases(root);
   if (typeof saveOriginalPositions === 'function') saveOriginalPositions();
   flushPendingParts();
   if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
@@ -2920,7 +2905,24 @@ window.__viewer = {
   openPartMenu: (key) => { showPartMenu(50, 50, key); return document.getElementById('part-menu-trans').textContent; },
   doSelect: (key) => { selectPart(key); return window.__selKey; },
   doDeselect: () => { clearPartSelection(); return window.__selKey; },
-  get __selLen() { return selectedMaterialCopies.length; },
+  get __selLen() { return selectedPartKey ? 1 : 0; },
+  get meshDbg() { return { base: meshBase.size, part: meshPartKey.size }; },
+  traceTrans: (key) => {
+    const root = model.children[0];
+    const node = nodeAtPath(root, key.split('.').map(Number));
+    if (!node) return { err: 'no node' };
+    let meshCount = 0, applied = 0, keys = [];
+    node.traverse((o) => {
+      if (!o.isMesh) return;
+      meshCount++;
+      keys.push(meshPartKey.get(o));
+      const base = meshBase.get(o);
+      const trans = partIsTransparent(meshPartKey.get(o) || '');
+      const sel = partIsSelected(meshPartKey.get(o) || '');
+      if (trans) applied++;
+    });
+    return { meshCount, applied, keys: [...new Set(keys)].slice(0, 5), transparentParts: [...transparentParts] };
+  },
   partScreen: (key) => {
     const root = model.children[0];
     const n = nodeAtPath(root, key.split('.').map(Number));
