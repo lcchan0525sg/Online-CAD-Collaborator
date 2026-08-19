@@ -300,8 +300,14 @@ appears — same view, same parts, same visibility as the host.
 
 ## 9. Leaving a session
 
-Click **Leave session** — you keep your local model and return to solo viewing.
-The session itself stays alive on the server for other members.
+Click **Leave session** to leave. What happens depends on your role:
+
+- **Host** — you keep your local model and return to solo viewing.
+- **Guest** — the shared model is **cleared from your view** when you leave on
+  your own (for security, nothing stays on your screen), and you return to the
+  empty viewer.
+
+The session itself stays alive on the server for the remaining members.
 
 ![After leaving the session](manual-shots/10-after-leave.png)
 

@@ -1495,6 +1495,9 @@ joinCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('btn-join-session').click();
 });
 document.getElementById('btn-leave-session').addEventListener('click', () => {
+  // A guest who leaves on their own has the shared model cleared from their
+  // view (the host keeps the model they opened locally).
+  const wasGuest = session && !session.isHost;
   if (session) { try { session.ws.close(); } catch {} session = null; }
   roster = []; renderRoster();
   setSessionStatus('not in a session');
@@ -1505,6 +1508,7 @@ document.getElementById('btn-leave-session').addEventListener('click', () => {
   currentModel = null;
   if (sendGuard) clearTimeout(sendGuard);
   xferAbort();
+  if (wasGuest && model) clearModel();
 });
 sessionCodeEl?.addEventListener('click', () => {
   navigator.clipboard?.writeText(sessionCodeEl.textContent).catch(() => {});
