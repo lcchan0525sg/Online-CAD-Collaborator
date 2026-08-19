@@ -120,20 +120,34 @@ async function handleConvert(req,res){
   if(!isPassthrough && !(ext in SUPPORTED))
     return sendErr(res,400,`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.glb/.gltf)`);
 
-  // Fast path: file is already GLB/GLTF — no Docker, return it straight for preview/download.
+  // Fast path: file is already GLB/GLTF — no Docker. Return it straight for
+  // preview/download, optionally Draco-compressing a GLB.
   if (isPassthrough) {
     const stem=basename(model.filename).replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9_.-]/g,'_')||'model';
     const fmt=PASSTHROUGH[ext];
     const dlName=stem+'.'+ext.slice(1);
+    let outBuf=model.body;
+    const log=[];
+    if (fmt==='glb' && compress==='draco') {
+      try {
+        const comp=await compressGlbBuffer(model.body);
+        outBuf=comp.buf;
+        log.push('draco '+comp.inBytes+'->'+comp.outBytes+' bytes in '+comp.ms+' ms');
+      } catch (e) {
+        log.push('draco compression failed, returning uncompressed: '+e.message);
+      }
+    } else if (fmt==='gltf' && compress!=='none') {
+      log.push('draco compression only applies to .glb output; skipping for .gltf');
+    }
     const headers={
       'Content-Type': fmt==='glb'?'model/gltf-binary':'model/gltf+json',
       'Content-Disposition':`attachment; filename="${dlName}"`,
-      'Content-Length':model.body.length,
-      'X-Convert-Log': Buffer.from('passthrough (no conversion)').toString('base64'),
+      'Content-Length':outBuf.length,
+      'X-Convert-Log': Buffer.from((log.length?log.join('\n'):'passthrough (no conversion)')).toString('base64'),
       'X-Passthrough':'1',
     };
     res.writeHead(200,headers);
-    return res.end(model.body);
+    return res.end(outBuf);
   }
 
   // pre-flight docker

@@ -275,8 +275,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     const isAlready = /\.(glb|gltf)$/i.test(model.name);
     // For already-GLB/GLTF files the output format is fixed; ignore the selector.
     const fmt = isAlready ? 'glb' : fmtSel.value;
-    // Draco only applies to converted GLB output; disable/ignore for passthrough or GLTF.
-    const wantCompress = (!isAlready && fmt === 'glb' && compressSel.value === 'draco');
+    // Draco applies to GLB output — converted CAD or a passthrough .glb (but not .gltf).
+    const wantCompress = (fmt === 'glb' && compressSel.value === 'draco');
     runBtn.disabled = true; dlBtn.disabled = true; latest = null;
     setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
     const fd = new FormData();
