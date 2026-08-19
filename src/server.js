@@ -186,17 +186,27 @@ const httpServer = http
     // ---- User manual (doc/) — served from repo root in dev, zip root in portable ----
     if (url.pathname.startsWith('/doc/')) {
       const rel = url.pathname.slice('/doc/'.length);
-      const docPath = join(ROOT, 'doc', rel);
-      const norm = normalize(docPath);
-      if (norm.startsWith(normalize(join(ROOT, 'doc'))) && (await stat(norm))?.isFile()) {
-        const data = await readFile(norm);
-        const cache = norm.endsWith('.html') || norm.endsWith('.js') || norm.endsWith('.css')
-          ? { 'cache-control': 'no-cache, no-store, must-revalidate' }
-          : {};
-        res.writeHead(200, { 'content-type': MIME[extname(norm)] || 'application/octet-stream', ...cache });
-        res.end(data);
-        return;
+      // doc/ is at repo root (src/ dev layout: ROOT) or next to server.js
+      // (portable flat zip: WEB). Try both, each against its own doc base.
+      const candidates = [join(WEB, 'doc', rel), join(ROOT, 'doc', rel)];
+      const bases = [normalize(join(WEB, 'doc')), normalize(join(ROOT, 'doc'))];
+      let served = false;
+      for (let k = 0; k < candidates.length; k++) {
+        const norm = normalize(candidates[k]);
+        if (!norm.startsWith(bases[k])) continue;
+        try {
+          if (!(await stat(norm)).isFile()) continue;
+          const data = await readFile(norm);
+          const cache = norm.endsWith('.html') || norm.endsWith('.js') || norm.endsWith('.css')
+            ? { 'cache-control': 'no-cache, no-store, must-revalidate' }
+            : {};
+          res.writeHead(200, { 'content-type': MIME[extname(norm)] || 'application/octet-stream', ...cache });
+          res.end(data);
+          served = true;
+          break;
+        } catch { /* try next candidate */ }
       }
+      if (served) return;
       res.writeHead(404).end('not found: ' + url.pathname);
       return;
     }
