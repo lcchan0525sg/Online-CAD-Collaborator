@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.54 · **URL:** http://localhost:8088/
+**Version:** v0.55 · **URL:** http://localhost:8088/
 
 CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
 (GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
@@ -93,6 +93,10 @@ highlight; click the same part again to clear it. The highlight uses per-mesh
 material copies, so other parts sharing the same source material are unaffected.
 
 ![A part selected in the tree, highlighted blue in the viewport](manual-shots/12-part-selected.png)
+
+Clicking a part directly in the 3D viewport highlights it the same way:
+
+![A part clicked in the 3D viewport, highlighted blue](manual-shots/14-part-selected-3d.png)
 
 ### "Show me only" (right-click)
 
@@ -270,4 +274,4 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-*CAD Viewer v0.54 — collaborative CAD viewing for the LAN.*
+*CAD Viewer v0.55 — collaborative CAD viewing for the LAN.*
