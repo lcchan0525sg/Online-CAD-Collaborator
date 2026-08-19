@@ -423,7 +423,10 @@ function setPartTransparent(key, transparent) {
         copies.push({ mesh: o, original: orig });
         o.material = Array.isArray(base) ? clones : clones[0];
         if (selIdx >= 0) {
-          selectedMaterialCopies[selIdx].original = Array.isArray(base) ? clones : clones[0];
+          // Store CLONES of the transparent material as the selection's original,
+          // not a reference to the objects we then highlight — otherwise deselect
+          // restores the highlighted version and the highlight never clears.
+          selectedMaterialCopies[selIdx].original = Array.isArray(base) ? clones.map((c) => c.clone()) : clones[0].clone();
           // Keep the selection highlight on top of the transparent clone.
           const mats = Array.isArray(o.material) ? o.material : [o.material];
           mats.forEach((c) => {
@@ -2917,6 +2920,7 @@ window.__viewer = {
   openPartMenu: (key) => { showPartMenu(50, 50, key); return document.getElementById('part-menu-trans').textContent; },
   doSelect: (key) => { selectPart(key); return window.__selKey; },
   doDeselect: () => { clearPartSelection(); return window.__selKey; },
+  get __selLen() { return selectedMaterialCopies.length; },
   partScreen: (key) => {
     const root = model.children[0];
     const n = nodeAtPath(root, key.split('.').map(Number));
@@ -2925,6 +2929,12 @@ window.__viewer = {
     const c = b.getCenter(new THREE.Vector3()).clone().project(camera);
     const r = renderer.domElement.getBoundingClientRect();
     return { x: r.left + (c.x * 0.5 + 0.5) * r.width, y: r.top + (-c.y * 0.5 + 0.5) * r.height };
+  },
+  sharedMats: (k1, k2) => {
+    const root = model.children[0];
+    const coll = (k) => { const s = new Set(); const n = nodeAtPath(root, k.split('.').map(Number)); if (n) n.traverse((o) => { if (o.isMesh && o.material) { const arr = Array.isArray(o.material) ? o.material : [o.material]; arr.forEach((m) => s.add(m.uuid)); } }); return s; };
+    const a = coll(k1), b = coll(k2);
+    return { p1: a.size, p2: b.size, shared: [...a].filter((u) => b.has(u)).length };
   },
   chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
   chatDownload: () => downloadChat(),

@@ -259,6 +259,35 @@ to disk.
 
 ---
 
+## [v0.66] — 2026-08-19
+
+> **Baseline:** v0.65 (tag `v0.65`). Release on top of the current working tree.
+
+### Fixed
+
+- **Turning a second part transparent off no longer leaves both parts stuck in
+  the selection-highlight colour.** Root cause was a reference-aliasing bug in
+  `setPartTransparent()`: when a *selected* part was made transparent, the
+  selection's stored `original` was assigned the **same** material-clone objects
+  that then received the blue highlight. So deselect (or toggling the next part
+  off) restored the already-highlighted clone, making every previously-transparent
+  part appear permanently highlighted. The stored `original` is now a `.clone()`
+  copy, so the highlight can never taint the material that deselect restores.
+  - Selection and transparency now compose correctly through any ordering:
+    select→transparent→deselect keeps it transparent; two transparent parts can
+    be turned off one at a time and both return to their original colour with the
+    highlight cleared.
+  - The per-part transparency `original` (`transparentMaterialCopies`) is also
+    cloned where needed so mutating a part's highlight never leaks into another
+    part's stored base.
+
+### Technical
+
+- In `setPartTransparent()`, the selected-mesh branch stores
+  `selectedMaterialCopies[selIdx].original = clones.map((c) => c.clone())` (and
+  the opaque-restore branch already cloned `restored`) instead of a reference to
+  the objects subsequently highlighted. Lives in `src/main.js`.
+
 ## [v0.65] — 2026-08-19
 
 > **Baseline:** v0.64 (tag `v0.64`). Release on top of the current working tree.
