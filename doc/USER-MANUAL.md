@@ -184,6 +184,8 @@ through your last part movements (up to 200), and **Reset** returns all parts to
 their original positions and clears the move history. Moves are shared with the
 other viewers in the session.
 
+![A part moved along the X axis, with the axis gizmo visible](manual-shots/15-part-move.png)
+
 **In a session (see §7), all of this syncs to every member** — show/hide,
 expand/collapse, the selection highlight, and part moves are mirrored live in
 both directions.
@@ -366,6 +368,8 @@ binary file; `.gltf` → text JSON + a companion `.bin`.
 4. Pick **.glb** or **.gltf**, click **Convert**.
 5. **Preview** the result in the built-in 3D viewer (drag = rotate, scroll =
    zoom, right-drag = pan), then **Download**.
+
+![The convert-cad drag-&-drop web UI, with a converted model previewed](manual-shots/16-convert-cad.png)
 
 ### Using the command line
 
