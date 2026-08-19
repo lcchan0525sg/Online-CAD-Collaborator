@@ -28,6 +28,28 @@ const CONVERTER = join(__dirname, 'convert-cad.py');
 
 const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.obj': 'OBJ' };
 
+// Host-side glTF geometry compression via gltf-pipeline (Draco). Runs after
+// the Docker conversion so the container image stays untouched.
+async function compressGlb(glbPath, method, opts = {}) {
+  const t0 = Date.now();
+  const mod = await import('gltf-pipeline');
+  const pkg = mod.default || mod;   // CJS interop: named exports live on .default
+  const fs = await import('node:fs');
+  const buf = fs.readFileSync(glbPath);
+  const options = {};
+  if (method === 'draco') {
+    options.dracoOptions = {
+      compressionLevel: opts.level || 7,
+      quantizePositionBits: opts.posBits || 14,
+      quantizeNormalBits: opts.normalBits || 10,
+    };
+  }
+  const result = await pkg.processGlb(buf, options);
+  const out = result.glb || result.gltf;
+  fs.writeFileSync(glbPath, out);
+  return { method, ms: Date.now() - t0, inBytes: buf.length, outBytes: out.length };
+}
+
 function usage() {
   console.log(
 `convert-cad — standalone STEP/IGES/OBJ -> GLB/GLTF converter (Docker/OpenCascade)
@@ -39,12 +61,14 @@ Options:
   -o, --out <path>    Output path (default: <input dir>/<stem>.<glb|gltf>)
   --mtl <path>        OBJ companion .mtl (auto-found next to the .obj if omitted)
   --container <img>   Docker image (default: chair-cq:local)
+  --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
+  --level <n>         Draco compression level 0-10 (default 7)
   --keep              Keep the temp work dir on failure (for debugging)
 
 Examples:
   node convert-cad.mjs model.step out.glb
   node convert-cad.mjs part.obj out.gltf --mtl part.mtl
-  node convert-cad.mjs asm.stp --out C:/out/asm.glb`);
+  node convert-cad.mjs asm.stp --out C:/out/asm.glb --compress draco`);
 }
 
 function die(msg) { console.error('convert-cad: ' + msg); process.exit(1); }
@@ -73,16 +97,20 @@ async function main() {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, mtl = null, container = 'chair-cq:local', keep = false;
+  let out = null, mtl = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
     else if (a === '--mtl') mtl = argv[++i];
     else if (a === '--container') container = argv[++i];
     else if (a === '--keep') keep = true;
+    else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
+    else if (a === '--level') level = parseInt(argv[++i], 10) || 7;
     else if (a.startsWith('--out=')) out = a.split('=')[1];
     else if (a.startsWith('--container=')) container = a.split('=')[1];
     else if (a.startsWith('--mtl=')) mtl = a.split('=')[1];
+    else if (a.startsWith('--compress=')) compress = a.split('=')[1].toLowerCase();
+    else if (a.startsWith('--level=')) level = parseInt(a.split('=')[1], 10) || 7;
     else pos.push(a);
   }
   if (pos.length < 1 || pos.length > 2) die('expected <input> and optional [out]');
@@ -169,10 +197,22 @@ async function main() {
     else if (keep) console.warn('note: no model.bin companion found');
   }
 
+  // Optional host-side geometry compression (GLB only; GLTF uses a .bin
+  // companion that would need a matching re-encode — left for later).
+  let comp = null;
+  if (compress !== 'none' && wantExt === '.glb') {
+    if (compress !== 'draco') die(`unsupported --compress '${compress}' (only 'draco' is supported)`);
+    console.log('convert-cad: compressing GLB with Draco...');
+    comp = await compressGlb(outArg, 'draco', { level });
+  } else if (compress !== 'none' && wantExt === '.gltf') {
+    console.warn('convert-cad: --compress only applies to .glb output; skipping for .gltf');
+  }
+
   if (!keep) rmSync(work, { recursive: true, force: true });
 
   const size = statSync(outArg).size;
   console.log(`convert-cad: done -> ${outArg} (${size} bytes)`);
+  if (comp) console.log(`convert-cad: draco ${comp.inBytes} -> ${comp.outBytes} bytes in ${comp.ms} ms`);
   if (wantExt === '.gltf') {
     const binOut = outArg.slice(0, -'.gltf'.length) + '.bin';
     console.log(`convert-cad: companion .bin -> ${binOut} (${statSync(binOut).size} bytes)`);

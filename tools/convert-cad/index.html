@@ -86,6 +86,12 @@
           <option value="gltf">.gltf (+ .bin)</option>
         </select>
       </label>
+      <label title="Draco-compress the GLB geometry (smaller file, browser decodes on load)">Compress
+        <select id="compress">
+          <option value="none">none</option>
+          <option value="draco">Draco</option>
+        </select>
+      </label>
       <button class="run" id="run" disabled>Convert</button>
       <button class="dl" id="dl" disabled>Download</button>
     </div>
@@ -106,12 +112,14 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
 (() => {
   const drop = document.getElementById('drop');
   const file = document.getElementById('file');
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
+  const compressSel = document.getElementById('compress');
   const runBtn = document.getElementById('run');
   const dlBtn = document.getElementById('dl');
   const status = document.getElementById('status');
@@ -239,7 +247,10 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     });
     viewer.mesh = null;
     pbar.textContent = name + ' — loading…';
+    const draco = new DRACOLoader();
+    draco.setDecoderPath('./three/libs/draco/');   // served by the convert server
     const loader = new GLTFLoader();
+    loader.setDRACOLoader(draco);
     blob.arrayBuffer().then(buf => new Promise((res,rej)=>{
       loader.parse(buf, '', res, e=>rej(new Error(e.message||'parse failed')));
     })).then(gltf => {
@@ -264,12 +275,15 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     const isAlready = /\.(glb|gltf)$/i.test(model.name);
     // For already-GLB/GLTF files the output format is fixed; ignore the selector.
     const fmt = isAlready ? 'glb' : fmtSel.value;
+    // Draco only applies to converted GLB output; disable/ignore for passthrough or GLTF.
+    const wantCompress = (!isAlready && fmt === 'glb' && compressSel.value === 'draco');
     runBtn.disabled = true; dlBtn.disabled = true; latest = null;
     setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
     const fd = new FormData();
     fd.append('model', model.file, model.name);
     if (mtl) fd.append('mtl', mtl.file, mtl.name);
     fd.append('fmt', fmt);
+    if (wantCompress) fd.append('compress', 'draco');
     try {
       const res = await fetch('/convert', { method:'POST', body:fd });
       const ct = res.headers.get('content-type')||'';

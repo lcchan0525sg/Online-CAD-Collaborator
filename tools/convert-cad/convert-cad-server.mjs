@@ -85,6 +85,19 @@ function parseMultipart(buf, boundary){
   return parts;
 }
 
+// Host-side glTF geometry compression (Draco) via gltf-pipeline. Runs after
+// Docker conversion so the container image stays untouched. GLB only.
+async function compressGlbBuffer(glbBuf, level = 7) {
+  const t0 = Date.now();
+  const mod = await import('gltf-pipeline');
+  const pkg = mod.default || mod;
+  const result = await pkg.processGlb(glbBuf, {
+    dracoOptions: { compressionLevel: level, quantizePositionBits: 14, quantizeNormalBits: 10 },
+  });
+  const out = result.glb || result.gltf;
+  return { buf: out, ms: Date.now() - t0, inBytes: glbBuf.length, outBytes: out.length };
+}
+
 async function handleConvert(req,res){
   const ctype=req.headers['content-type']||'';
   const bm=/boundary=(.+)$/.exec(ctype);
@@ -99,6 +112,7 @@ async function handleConvert(req,res){
   const model=parts.find(p=>p.name==='model'&&p.body.length>0);
   const mtl=parts.find(p=>p.name==='mtl'&&p.body.length>0);
   const fmt=(parts.find(p=>p.name==='fmt')||{}).body?.toString().trim()==='gltf'?'gltf':'glb';
+  const compress=(parts.find(p=>p.name==='compress')||{}).body?.toString().trim().toLowerCase()||'none';
   if(!model)return sendErr(res,400,'no model file uploaded');
 
   const ext=extname(model.filename).toLowerCase();
@@ -149,6 +163,7 @@ async function handleConvert(req,res){
     // For .gltf, embed the sibling .bin as a data-URI so the output is self-contained
     // (valid for the preview and for a single-file download). The .glb is already binary.
     let fileBuf=fileBuf0;
+    let compNote='';
     if(fmt==='gltf'){
       const binPath=join(work,'model.bin');
       if(existsSync(binPath)){
@@ -157,6 +172,13 @@ async function handleConvert(req,res){
         if(gltf.buffers&&gltf.buffers[0])gltf.buffers[0].uri='data:application/octet-stream;base64,'+b64;
         fileBuf=Buffer.from(JSON.stringify(gltf));
       }
+    } else if (compress==='draco') {
+      const comp=await compressGlbBuffer(fileBuf0);
+      fileBuf=comp.buf;
+      compNote=`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`;
+      log.push(compNote);
+    } else if (compress!=='none') {
+      return sendErr(res,400,`unsupported compress '${compress}' (only 'draco' is supported)`);
     }
     const dlName=stem+'.'+fmt;
     const headers={
@@ -187,10 +209,14 @@ const server=createServer(async(req,res)=>{
       res.end(readFileSync(INDEX));
     } else if(url.pathname==='/favicon.ico'){
       res.writeHead(204); res.end();
-    } else if(url.pathname.startsWith('/three/') && /\.js$/.test(url.pathname)){
+    } else if(url.pathname.startsWith('/three/')){
       const f=threeFileFor(url.pathname);
       if(!existsSync(f))return sendErr(res,404,'three.js module not found (run npm install in the repo root)');
-      res.writeHead(200,{'Content-Type':'text/javascript','Cache-Control':'public, max-age=86400'});
+      const mime = url.pathname.endsWith('.wasm') ? 'application/wasm'
+        : url.pathname.endsWith('.js') ? 'text/javascript'
+        : url.pathname.endsWith('.json') ? 'application/json'
+        : 'application/octet-stream';
+      res.writeHead(200,{'Content-Type':mime,'Cache-Control':'public, max-age=86400'});
       res.end(readFileSync(f));
     } else if(url.pathname==='/convert'&&req.method==='POST'){
       await handleConvert(req,res);

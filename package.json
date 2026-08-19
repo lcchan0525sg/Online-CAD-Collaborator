@@ -11,5 +11,8 @@
   "dependencies": {
     "three": "^0.185.1",
     "ws": "^8.21.3"
+  },
+  "devDependencies": {
+    "gltf-pipeline": "^4.3.1"
   }
 }
