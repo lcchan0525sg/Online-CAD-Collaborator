@@ -311,7 +311,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     const loader = new GLTFLoader();
     loader.setDRACOLoader(draco);
     blob.arrayBuffer().then(buf => new Promise((res,rej)=>{
-      loader.parse(buf, '', res, e=>rej(new Error(e.message||'parse failed')));
+      loader.parse(buf, '', res, e=>rej(e));
     })).then(gltf => {
       viewer.mesh = gltf.scene;
       // glTF is Y-up but CAD source files are Z-up (STEP/IGES) or arbitrary (OBJ).
@@ -324,7 +324,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
       pbar.textContent = name + ' — loaded';
     }).catch(err => {
       pbar.textContent = name + ' — preview error';
-      setStatus(['Preview failed: '+err.message], 'err');
+      setStatus(['Preview failed: '+ (err && (err.stack || err.message))], 'err');
     });
   }
 

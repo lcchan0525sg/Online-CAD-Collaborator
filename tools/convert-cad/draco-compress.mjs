@@ -120,10 +120,16 @@ export async function compressGlb(glb, opts = {}) {
     }
   }
 
-  // Step 2: which original bufferViews are still referenced?
+  // Step 2: which original bufferViews are still referenced? An accessor scan
+  // alone misses bufferViews referenced directly (not via accessors) — most
+  // importantly `image.bufferView` for textures, plus any other object that
+  // points at a bufferView by index. Collect those too.
   const keptBv = new Set();
   for (const acc of accessors) {
     if (acc.bufferView !== undefined) keptBv.add(acc.bufferView);
+  }
+  for (const img of (gltf.images || [])) {
+    if (img && img.bufferView !== undefined) keptBv.add(img.bufferView);
   }
 
   // Step 3: build kept bytes + new bufferViews. Old index -> new index.
@@ -161,6 +167,14 @@ export async function compressGlb(glb, opts = {}) {
     if (acc.bufferView !== undefined) {
       const ni = remap.get(acc.bufferView);
       if (ni !== undefined) acc.bufferView = ni;
+    }
+  }
+  // Remap images' bufferView too (textures reference the BIN via image.bufferView,
+  // which is NOT an accessor — without this they point at stale indices).
+  for (const img of (gltf.images || [])) {
+    if (img && img.bufferView !== undefined) {
+      const ni = remap.get(img.bufferView);
+      if (ni !== undefined) img.bufferView = ni;
     }
   }
 
