@@ -269,6 +269,8 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'tree', key:'i.j', collapsed:bool }        (assembly-tree expand/collapse)
  *     { t:'sel',  key:'i.j'|null }                   (part selection highlight)
  *     { t:'move', path:[i,j,...], pos:[x,y,z] }      (part move)
+ *     { t:'trans', key:'i.j', transparent:bool }     (part transparency toggle)
+ *     { t:'chat', text }                             (session chat message)
  *     { t:'measure-add', id, p1:[x,y,z], p2:[x,y,z] } (committed measurement)
  *     { t:'measure-del', id }                        (remove one measurement)
  *     { t:'measure-clear' }                          (remove all measurements)
@@ -285,6 +287,10 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'sel', key|null }                           (part selection sync)
  *     { t:'cam',    from, pos:[x,y,z], target:[x,y,z] }    (someone moved camera)
  *     { t:'move', path, pos }                              (part move sync)
+ *     { t:'trans', key, transparent }                      (transparency sync)
+ *     { t:'trans-sync', keys:[...] }                       (late-joiner transparency)
+ *     { t:'chat', id, name, text, ts }                     (chat message)
+ *     { t:'chat-sync', history:[...] }                     (late-joiner chat history)
  *     { t:'measure-add', id, p1, p2 }                      (new measurement)
  *     { t:'measure-del', id }                              (removed measurement)
  *     { t:'measure-clear' }                                (all measurements cleared)
@@ -334,7 +340,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0 };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, chat: [] };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -360,6 +366,11 @@ wss.on('connection', (ws, req, url) => {
   // Late joiner: replay the committed measurements + explode state.
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
   if (session.explode) send(ws, { t: 'explode', amount: session.explode.amount, dir: session.explode.dir, level: session.explode.level });
+  // Late joiner: replay part transparency state (key -> transparent).
+  const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
+  if (transKeys.length) send(ws, { t: 'trans-sync', keys: transKeys });
+  // Late joiner: replay the chat history.
+  if (session.chat && session.chat.length) send(ws, { t: 'chat-sync', history: session.chat });
   // Let everyone else know a new member arrived (host uses this to offer its
   // current model to the newcomer — see the 'peer-join' handler client-side).
   broadcast(session, { t: 'peer-join', id, name, isHost }, id);
@@ -404,6 +415,21 @@ wss.on('connection', (ws, req, url) => {
       // Part move: relay the new position to the other members so everyone sees
       // the same part placement. No stored state needed (host Reset re-broadcasts).
       broadcast(session, { t: 'move', path: msg.path, pos: msg.pos }, id);
+    } else if (msg.t === 'trans' && typeof msg.key === 'string') {
+      // Part transparency: store (for late joiners) and relay to the others.
+      session.trans = session.trans || {};
+      session.trans[msg.key] = !!msg.transparent;
+      broadcast(session, { t: 'trans', key: msg.key, transparent: !!msg.transparent }, id);
+    } else if (msg.t === 'chat' && typeof msg.text === 'string') {
+      // Session chat: stamp sender + time, store history, and relay to the other
+      // members (not back to the sender, who already shows it locally).
+      const member = session.members.get(id);
+      const text = msg.text.trim().slice(0, 500);
+      if (!text) return;
+      const chatMsg = { id: id + ':' + (session.chat.length), name: member?.name || 'viewer', text, ts: Date.now() };
+      session.chat.push(chatMsg);
+      if (session.chat.length > 200) session.chat.shift();
+      broadcast(session, { t: 'chat', ...chatMsg }, id);
     } else if (msg.t === 'measure-add' && typeof msg.id === 'string'
       && Array.isArray(msg.p1) && Array.isArray(msg.p2)) {
       // Committed measurement: store (for late joiners) and relay to the others.

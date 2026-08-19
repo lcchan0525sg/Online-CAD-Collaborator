@@ -259,6 +259,44 @@ to disk.
 
 ---
 
+## [v0.62] — 2026-08-19
+
+> **Baseline:** v0.61 (tag `v0.61`). Release on top of the current working tree.
+
+### Added
+
+- **Part transparency** — right-click a part and choose **Make transparent** (or
+  **Make opaque**). The part (and its subtree) renders at 25% opacity, cloning its
+  per-mesh materials so shared materials on other parts are untouched. Toggling a
+  parent updates all its descendants. **Syncs across the session** like
+  visibility/move: whoever toggles it, everyone follows, and late joiners get the
+  current transparent state.
+- **Session chat** — a **Chat** button (in the session panel) opens a chat window
+  in the viewport. Members can send messages that appear to everyone in real time.
+  - Each message shows the sender's name, text, and local time; your own messages
+    are highlighted.
+  - **History is preserved** — the server stores the chat log (capped at 200) and
+    replays it to **late joiners**, so a new member sees the conversation so far,
+    not just messages sent after they joined.
+
+### Fixed
+
+- _(none for this release)_
+
+### Technical
+
+- **Protocol:** client→server `trans { key, transparent }` and `chat { text }`;
+  server→client relays plus `trans-sync { keys }` and `chat-sync { history }`
+  late-joiner snapshots. The server stores `session.trans` (key→bool) and
+  `session.chat` (id, name, text, ts; capped 200), replaying both on join.
+- **Transparency:** clones each part mesh's material(s), sets `transparent:true`,
+  `opacity:0.25`, `depthWrite:false`, and stores `{ mesh, original }` copies so
+  the toggle is reversible (same clone rule as the selection highlight, because
+  GLB parts share materials). `clearTransparency()` restores all on model clear.
+  Late-joiner transparency is queued in `pendingRemoteTransKeys` and flushed on
+  model load (mirrors parts/measure). Lives in `src/main.js`; server in
+  `src/server.js`.
+
 ## [v0.61] — 2026-08-19
 
 > **Baseline:** v0.60 (tag `v0.60`). Release on top of the current working tree.

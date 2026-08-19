@@ -97,6 +97,7 @@ function orientModel(root) {
 
 function clearModel() {
   if (!model) return;
+  if (typeof clearTransparency === 'function') clearTransparency();
   if (typeof measureClear === 'function') measureClear();
   if (typeof resetExplode === 'function') resetExplode();
   if (typeof setMoveAxis === 'function') setMoveAxis(null);
@@ -336,6 +337,100 @@ partMenuMoveEl?.addEventListener('click', () => {
   xferToast('Click an axis arrow to set the move direction');
 });
 
+/* ---- Part transparency (context-menu toggle) ---- */
+// Right-click a part → "Make transparent" (or "Make opaque"). Clones the part's
+// per-mesh materials and sets transparent/opacity, storing the originals so the
+// toggle is reversible. State syncs across the session like visibility. Meshes
+// under one part often share materials, so clones are needed (mutating the shared
+// material would tint every part using it) — same rule as the selection highlight.
+const partMenuTransEl = document.getElementById('part-menu-trans');
+const TRANSPARENT_OPACITY = 0.25;
+let transparentParts = new Set();        // pathKey -> currently transparent
+let transparentMaterialCopies = new Map(); // pathKey -> [{ mesh, original }]
+let applyingRemoteTrans = false;
+
+function clearTransparency() {
+  for (const [, copies] of transparentMaterialCopies) {
+    for (const { mesh, original } of copies) mesh.material = original;
+  }
+  transparentMaterialCopies.clear();
+  transparentParts.clear();
+}
+// Late joiner snapshot: apply transparency to every listed key.
+function applyRemoteTransSync(keys) {
+  if (!Array.isArray(keys)) return;
+  if (!model) { pendingRemoteTransKeys = keys; return; }
+  applyingRemoteTrans = true;
+  try {
+    clearTransparency();
+    for (const k of keys) setPartTransparent(k, true);
+  } finally { applyingRemoteTrans = false; }
+}
+let pendingRemoteTransKeys = [];
+function flushPendingTrans() {
+  if (!pendingRemoteTransKeys.length || !model) return;
+  const keys = pendingRemoteTransKeys;
+  pendingRemoteTransKeys = [];
+  applyRemoteTransSync(keys);
+}
+function partTransparent(key) { return transparentParts.has(key); }
+function isDescendantOf(aKey, bKey) {   // is aKey == bKey or under bKey?
+  return aKey === bKey || aKey.startsWith(bKey + '.');
+}
+function setPartTransparent(key, transparent) {
+  if (!model || !key) return;
+  const root = model.children[0];
+  if (transparent) transparentParts.add(key);
+  else transparentParts.delete(key);
+  // Restore any material copies for this part/subtree first, then re-apply from
+  // the current state so toggling a parent updates all its children consistently.
+  for (const [k, copies] of transparentMaterialCopies) {
+    if (!isDescendantOf(k, key)) continue;
+    for (const { mesh, original } of copies) mesh.material = original;
+    transparentMaterialCopies.delete(k);
+  }
+  // Apply transparency to every part row that is the key or under it.
+  for (const r of allPartRows) {
+    if (!isDescendantOf(r.key, key)) continue;
+    const target = transparentParts.has(r.key);
+    const node = nodeAtPath(root, r.key.split('.').map(Number));
+    if (!node) continue;
+    const copies = [];
+    node.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      const orig = Array.isArray(o.material) ? [...o.material] : o.material;
+      const clones = mats.map((m) => {
+        const c = m.clone();
+        c.transparent = true;
+        c.opacity = TRANSPARENT_OPACITY;
+        c.depthWrite = false;
+        c.needsUpdate = true;
+        return c;
+      });
+      copies.push({ mesh: o, original: orig });
+      o.material = Array.isArray(o.material) ? clones : clones[0];
+    });
+    if (target) transparentMaterialCopies.set(r.key, copies);
+  }
+  broadcastTransparent(key, transparent);
+}
+function broadcastTransparent(key, transparent) {
+  if (!session?.connected || applyingRemoteTrans) return;
+  try { session.ws.send(JSON.stringify({ t: 'trans', key, transparent })); } catch {}
+}
+// Apply a remote transparency change (no echo). Uses the same path rule so a
+// parent toggle cascades to descendants on every viewer.
+function applyRemoteTransparent(key, transparent) {
+  applyingRemoteTrans = true;
+  try { setPartTransparent(key, transparent); } finally { applyingRemoteTrans = false; }
+}
+partMenuTransEl?.addEventListener('click', () => {
+  const key = partMenuKey;
+  hidePartMenu();
+  if (!key) return;
+  setPartTransparent(key, !partTransparent(key));
+});
 /* ---- Part selection highlight ---- */
 // Clicking a part name highlights that part (and its children) in the viewport
 // via emissive on per-mesh material CLONES — GLB parts often share materials,
@@ -598,6 +693,7 @@ function loadFromGltf(gltf) {
   if (typeof saveOriginalPositions === 'function') saveOriginalPositions();
   flushPendingParts();
   if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
+  if (typeof flushPendingTrans === 'function') flushPendingTrans();
   if (typeof computeExplodeDirs === 'function') computeExplodeDirs();
   // Re-apply any stored explode amount on the fresh model (move from rest by the
   // full amount, not a zero delta).
@@ -932,6 +1028,76 @@ function renderRoster() {
   });
 }
 
+/* ---- Session chat ---- */
+const chatWindowEl = document.getElementById('chat-window');
+const chatMessagesEl = document.getElementById('chat-messages');
+const chatFormEl = document.getElementById('chat-form');
+const chatInputEl = document.getElementById('chat-input');
+const btnChatEl = document.getElementById('btn-chat');
+const btnChatCloseEl = document.getElementById('btn-chat-close');
+const CHAT_HISTORY_MAX = 200;
+let chatHistory = [];                 // [{ id, name, text, ts, self }]
+let chatSeq = 0;
+
+function fmtTime(ts) {
+  const d = new Date(ts);
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+function appendChatMsg(msg) {
+  chatHistory.push(msg);
+  if (chatHistory.length > CHAT_HISTORY_MAX) chatHistory.shift();
+  if (!chatMessagesEl) return;
+  const row = document.createElement('div');
+  if (msg.system) {
+    row.className = 'chat-sys';
+    row.textContent = msg.text;
+  } else {
+    row.className = 'chat-msg' + (msg.self ? ' own' : '');
+    row.innerHTML = `<span class="cm-name">${esc(msg.name)}:</span> <span class="cm-text">${esc(msg.text)}</span><span class="cm-time">${fmtTime(msg.ts)}</span>`;
+  }
+  chatMessagesEl.appendChild(row);
+  chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+}
+function sendChat() {
+  const text = (chatInputEl.value || '').trim();
+  if (!text) return;
+  chatInputEl.value = '';
+  if (!session?.connected) { appendChatMsg({ id: 'sys', system: true, text: 'Not connected to a session.' }); return; }
+  // Show your own message locally (the server relays only to the other members).
+  appendChatMsg({ id: 'self:' + (++chatSeq), name: userName, text, ts: Date.now(), self: true });
+  try { session.ws.send(JSON.stringify({ t: 'chat', text })); } catch {}
+}
+btnChatEl?.addEventListener('click', () => {
+  if (chatWindowEl) chatWindowEl.hidden = false;
+  if (chatInputEl) chatInputEl.focus();
+});
+btnChatCloseEl?.addEventListener('click', () => { if (chatWindowEl) chatWindowEl.hidden = true; });
+chatFormEl?.addEventListener('submit', (e) => { e.preventDefault(); sendChat(); });
+// Received a message relayed by the server (from another member).
+function applyRemoteChat(msg) {
+  appendChatMsg({ id: msg.id, name: msg.name, text: msg.text, ts: msg.ts, self: false });
+}
+// Late joiner snapshot: replace the whole history.
+function applyRemoteChatSync(history) {
+  if (!Array.isArray(history)) return;
+  chatHistory = history.map((m) => ({ id: m.id, name: m.name, text: m.text, ts: m.ts, self: false }));
+  if (chatMessagesEl) {
+    chatMessagesEl.innerHTML = '';
+    for (const m of chatHistory) {
+      const row = document.createElement('div');
+      row.className = 'chat-msg';
+      row.innerHTML = `<span class="cm-name">${esc(m.name)}:</span> <span class="cm-text">${esc(m.text)}</span><span class="cm-time">${fmtTime(m.ts)}</span>`;
+      chatMessagesEl.appendChild(row);
+    }
+    chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+  }
+}
+// When leaving/entering a session, clear the local chat panel.
+function resetChat() {
+  chatHistory = [];
+  if (chatMessagesEl) chatMessagesEl.innerHTML = '';
+}
+
 function showSessionUI(active, code) {
   if (!sessionControlsEl || !sessionActiveEl) return;
   sessionControlsEl.hidden = active;
@@ -1076,6 +1242,18 @@ function onSessionMsg(msg) {
       break;
     case 'move':
       applyRemoteMove(msg);
+      break;
+    case 'trans':
+      applyRemoteTransparent(msg.key, msg.transparent);
+      break;
+    case 'trans-sync':
+      applyRemoteTransSync(msg.keys);
+      break;
+    case 'chat':
+      applyRemoteChat(msg);
+      break;
+    case 'chat-sync':
+      applyRemoteChatSync(msg.history);
       break;
     case 'measure-add':
       applyRemoteMeasureAdd(msg);
@@ -1562,6 +1740,7 @@ document.getElementById('btn-leave-session').addEventListener('click', () => {
   if (sendGuard) clearTimeout(sendGuard);
   xferAbort();
   if (wasGuest && model) clearModel();
+  if (typeof resetChat === 'function') { resetChat(); if (chatWindowEl) chatWindowEl.hidden = true; }
 });
 sessionCodeEl?.addEventListener('click', () => {
   navigator.clipboard?.writeText(sessionCodeEl.textContent).catch(() => {});
@@ -2661,6 +2840,12 @@ window.__viewer = {
   },
   measureClear: () => { measureClear(); return true; },
   measureIds: () => measureList.map((m) => m.id),
+  transSet: (key, on) => { setPartTransparent(key, !!on); return partTransparent(key); },
+  transKeys: () => [...transparentParts],
+  get transCount() { return transparentParts.size; },
+  chatSend: (text) => { chatInputEl.value = text; sendChat(); return true; },
+  get chatHistory() { return chatHistory.map((m) => ({ name: m.name, text: m.text, ts: m.ts, self: !!m.self, system: !!m.system })); },
+  chatOpen: () => { if (chatWindowEl) chatWindowEl.hidden = false; return !chatWindowEl.hidden; },
   get explode() {
     return { amount: explodeAmount, scale: explodeScale, targets: explodeTargets.length, dir: explodeDir, level: explodeLevel };
   },
