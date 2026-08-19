@@ -227,12 +227,33 @@ to disk.
 
 ---
 
+## [v0.56] — in progress
+
+> **Baseline:** v0.55 (tag `v0.55`). Branch from the current working tree; bump
+> the version label in `src/index.html` to **v0.56** when cutting the release.
+> Features land here as they are agreed and implemented. See the "Release
+> process" section below for how to cut a release.
+
+### Added
+
+- _(awaiting input — feature list to be filled as agreed.)_
+
+### Fixed
+
+- _(none yet)_
+
+### Technical
+
+- _(record protocol / architecture / component-version changes here)_
+
+---
+
 ## [Unreleased]
 
-Add new versions here (newest at the top). Example:
+Add work-in-progress items here, newest at the top. Example:
 
 ```markdown
-## [v0.56] — YYYY-MM-DD
+## [v0.57] — YYYY-MM-DD
 
 ### Added
 - ...
