@@ -119,6 +119,29 @@ Browser (Three.js)  ──HTTP──►  Node server (src/server.js)
 | Docker | `docker run --rm` per conversion | Container from `Dockerfile` |
 | Tests / verify | headless Chrome CDP | in-repo `_*.cjs` probes |
 
+## 2.1 Software component versions
+
+> Record the exact versions in use at this release so upgrades are tracked and
+> reproducible. Update when a dependency is bumped.
+
+| Component | Version | Where pinned |
+|---|---|---|
+| Node.js (runtime) | **22.23.2** | dev machine / `node.exe` bundled in the zip |
+| Three.js | **0.185.1** | `package.json` (`^0.185.1`) |
+| ws | **8.21.3** | `package.json` (`^8.21.3`) |
+| OpenCascade (OCCT) | **7.9.x** (OCP core **7.9.3.1**) | `chair-cq:local` image (pythonocc-core) |
+| pythonocc-core (OCP) | **7.9.3.1** | `chair-cq:local` image |
+| CadQuery | **2.8.0** | `chair-cq:local` image (`pip install cadquery`) |
+| Python (in container) | **3.11.16** | `Dockerfile` (`python:3.11-slim`) |
+| Docker | any modern Docker Desktop / engine | required for STEP/IGES/OBJ conversion |
+| Headless Chrome | any recent stable | used by in-repo CDP verification probes |
+| GLB/GLTF format | glTF 2.0 (binary `.glb`) | written by `RWGltf_CafWriter` |
+
+**How to record:** after any dependency bump, update the version here and note
+it in the release's changelog entry (`### Technical`). The exact pinned values
+are authoritative in `package.json`, `Dockerfile`, and the committed image; this
+table is a fast reference.
+
 ## 3. File layout
 
 ```
