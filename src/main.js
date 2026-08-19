@@ -2828,6 +2828,9 @@ explodeSliderEl.addEventListener('input', () => {
 });
 explodeGapEl.addEventListener('change', () => {
   explodeMode = 'gap'; if (explodeModeEl) explodeModeEl.value = 'gap'; showExplodeModeUi();
+  // Read the typed mm value into state before recomputing — otherwise the
+  // change is ignored because recompute reads the stale global.
+  explodeGap = Math.max(0, Number(explodeGapEl.value) || 0);
   recomputeExplodeGap();
 });
 explodeModeEl.addEventListener('change', () => {

@@ -259,6 +259,25 @@ to disk.
 
 ---
 
+## [v0.71] — 2026-08-20
+
+> **Baseline:** v0.70 (tag `v0.70`). Release on top of the current working tree.
+
+### Fixed
+
+- **Editing the mm-gap value after exploding no longer does nothing.** The
+  explode gap `<input>` `change` handler called `recomputeExplodeGap()`, which
+  re-applied the **stale global `explodeGap`** (the value from the last apply)
+  instead of the number the user had just typed into the field. The handler now
+  reads the input's value into `explodeGap` first, so typing a new mm value
+  actually re-lays-out the explode.
+
+### Technical
+
+- `src/main.js`: `explodeGapEl` `change` handler now sets
+  `explodeGap = Math.max(0, Number(explodeGapEl.value) || 0)` before calling
+  `recomputeExplodeGap()`.
+
 ## [v0.70] — 2026-08-20
 
 > **Baseline:** v0.69 (tag `v0.69`). Release on top of the current working tree.
