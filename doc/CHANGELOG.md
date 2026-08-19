@@ -227,24 +227,35 @@ to disk.
 
 ---
 
-## [v0.56] — in progress
+## [v0.56] — 2026-08-19
 
-> **Baseline:** v0.55 (tag `v0.55`). Branch from the current working tree; bump
-> the version label in `src/index.html` to **v0.56** when cutting the release.
-> Features land here as they are agreed and implemented. See the "Release
-> process" section below for how to cut a release.
+> **Baseline:** v0.55 (tag `v0.55`). Release on top of the current working tree.
 
 ### Added
 
-- _(awaiting input — feature list to be filled as agreed.)_
+- **Part context menu** — right-click a part (its name in the Assembly tree, or
+  the part itself in the 3D viewport) to open a menu with:
+  - **Hide part** — turn that part (and its subtree) off in the viewport.
+  - **Move part** — select the part and arm the axis gizmo.
+  - **Show me only** — hide everything except that part and its children;
+    ancestors stay visible so the isolated part still renders.
+- **Move a part** — reposition any part along X, Y or Z using the axis gizmo
+  (red/green/blue arrows, ~1/8 screen at any zoom; the armed arrow glows).
+  Pick an axis by clicking a gizmo arrow, then left-drag in the viewport to
+  slide the part along it — siblings stay put. Undo (up to 200 steps) and
+  Reset are provided.
+- **Live sync of part moves** — in a session, a part move is mirrored to every
+  member in real time.
 
 ### Fixed
 
-- _(none yet)_
+- _(none for this release)_
 
 ### Technical
 
-- _(record protocol / architecture / component-version changes here)_
+- Part moves sync via the existing per-message sync protocol; each move is an
+  undoable, resetable operation. The right-click menu and gizmo live in
+  `src/main.js`; the menu markup is in `src/index.html`.
 
 ---
 
