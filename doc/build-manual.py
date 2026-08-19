@@ -85,6 +85,15 @@ def render_paragraph(text):
     return s
 
 
+def slugify(text):
+    """GitHub-style heading anchor: lowercase, strip non-alphanumeric (keep
+    letters/digits/hyphens), spaces -> hyphens. Matches the TOC anchors."""
+    s = text.lower()
+    s = re.sub(r'[^a-z0-9 -]', '', s)
+    s = s.replace(' ', '-')
+    return s
+
+
 def convert():
     text = open(MD, encoding='utf-8').read()
     lines = text.split('\n')
@@ -103,11 +112,11 @@ def convert():
             i += 1
             continue
         if raw.startswith('### '):
-            out.append(f'<h3>{render_paragraph(raw[4:])}</h3>')
+            out.append(f'<h3 id="{slugify(raw[4:])}">{render_paragraph(raw[4:])}</h3>')
         elif raw.startswith('## '):
-            out.append(f'<h2>{render_paragraph(raw[3:])}</h2>')
+            out.append(f'<h2 id="{slugify(raw[3:])}">{render_paragraph(raw[3:])}</h2>')
         elif raw.startswith('# '):
-            out.append(f'<h1>{render_paragraph(raw[2:])}</h1>')
+            out.append(f'<h1 id="{slugify(raw[2:])}">{render_paragraph(raw[2:])}</h1>')
         elif raw.strip() == '---':
             out.append('<hr>')
         elif raw.startswith('> '):

@@ -2,15 +2,81 @@
 
 **Version:** v0.55 · **URL:** http://localhost:8088/
 
-CAD Viewer is a real-time collaborative browser app for viewing CAD geometry
-(GLBs from SolidEdge, FreeCAD, Fusion 360, OpenCascade…, plus STEP, IGES and
-OBJ files converted on the server). Create a session, share a model, and
-everyone on your LAN follows your camera and part visibility live — or just
-use it as a plain local viewer.
+## Table of Contents
+
+1. [Welcome — why CAD Viewer?](#1-welcome--why-cad-viewer)
+2. [Starting the app](#2-starting-the-app)
+3. [Opening a model](#3-opening-a-model)
+4. [The Assembly panel](#4-the-assembly-panel--parts-and-visibility)
+5. [Navigating the viewport](#5-navigating-the-viewport)
+6. [Lighting & animation](#6-lighting--animation)
+7. [Collaborative sessions (host)](#7-collaborative-sessions-host)
+8. [Joining a session (guest)](#8-joining-a-session-guest)
+9. [Leaving a session](#9-leaving-a-session)
+10. [Opening a STEP / IGES / OBJ file](#10-opening-a-step--iges--obj-file)
+11. [Standalone CAD converter (convert-cad)](#11-standalone-cad-converter-convert-cad)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Sharing with external parties](#13-sharing-with-external-parties)
 
 ---
 
-## 1. Starting the app
+## 1. Welcome — why CAD Viewer?
+
+CAD Viewer is a real-time collaborative browser app for viewing CAD geometry.
+It turns a multi-megabyte CAD file into a live, shared 3D scene that anyone on
+your network can open with nothing more than a web browser — no CAD software,
+no licences, no installs.
+
+### Application features
+
+- **Both host and guest can interact with the model.** This is not a one-way
+  broadcast. Anyone in a session can orbit, zoom and pan, show or hide parts,
+  highlight a part, and even move parts along X/Y/Z — and every action is
+  mirrored live to everyone else, in both directions.
+- **Live sync.** Camera, part visibility, selection, and the lighting and
+  animation settings are shared between all members in real time. Late joiners
+  automatically receive the current model and view state.
+- **No install for guests.** A guest needs only a browser — open a link, and
+  the shared model appears. Nothing to download, nothing to set up, no CAD
+  licence required.
+- **Nothing is stored on the guest.** The model is **streamed to the guest's
+  computer memory (RAM) only** and rendered in the browser. **No file is ever
+  written** to the guest's disk — close the tab and the model is gone. This is
+  ideal when geometry is sensitive or under NDA.
+- **Efficient sharing.** STEP, IGES and OBJ files are converted to **GLB/GLTF**
+  — a lightweight, web-native format — on the server, so one compact file moves
+  fast across the network instead of a bulky CAD bundle.
+- **Cross-platform.** Works in any modern browser on Windows, macOS, Linux, and
+  tablets — anything with a browser.
+- **Fidelity preserved.** Part names, colours and materials survive the
+  conversion, so reviewers see the design the way it was authored.
+
+### What it helps with
+
+**Online calibration of engineering design.** CAD Viewer lets a reviewer,
+colleague or client inspect a model *as it is being shown*. Because everyone
+shares the same live view and can interact with it, the design-review /
+calibration loop collapses from email-and-export cycles into one shared session
+— questions are answered immediately, on the actual geometry, by pointing and
+looking together.
+
+### Use cases
+
+- **Design review / sign-off** across offices or the shop floor — review the
+  model together instead of exchanging exports.
+- **Remote inspection** of a part or assembly before manufacturing.
+- **Live collaboration during a design change** — everyone watches the part
+  move as it happens.
+- **Quick client demo** without installing CAD on the client's machine.
+- **Discuss with vendors and subcontractors** — share the live model with a
+  supplier or subcontractor to align on geometry, fit and tolerances before
+  fabrication, so both sides are looking at the same thing.
+- **Cross-site calibration** — compare a real part against the shared model
+  live, from a different location.
+
+---
+
+## 2. Starting the app
 
 **Portable zip (Windows, no installs):**
 
@@ -43,7 +109,7 @@ need to know it.
 
 ---
 
-## 2. Opening a model
+## 3. Opening a model
 
 1. Click **Open model…** in the left sidebar.
 2. Choose a `.glb`, `.gltf`, `.step`, `.stp`, `.igs`, `.iges` or `.obj` file from your computer.
@@ -57,12 +123,12 @@ seconds).
 The sidebar shows you:
 
 - **Info** — generator, mesh/triangle counts, dimensions and units
-- **Assembly** — the part tree (see §3)
+- **Assembly** — the part tree (see §4)
 - **Materials** — swatches of every colour in the model
 
 ---
 
-## 3. The Assembly panel — parts and visibility
+## 4. The Assembly panel — parts and visibility
 
 Every part of the model appears in the **Assembly** tree. The tree opens
 expanded to **level 2** (the top assembly plus its direct children); deeper
@@ -118,13 +184,13 @@ through your last part movements (up to 200), and **Reset** returns all parts to
 their original positions and clears the move history. Moves are shared with the
 other viewers in the session.
 
-**In a session (see §5), all of this syncs to every member** — show/hide,
-expand/collapse, and the selection highlight are mirrored live in both
-directions.
+**In a session (see §7), all of this syncs to every member** — show/hide,
+expand/collapse, the selection highlight, and part moves are mirrored live in
+both directions.
 
 ---
 
-## 4. Navigating the viewport
+## 5. Navigating the viewport
 
 | Action | Effect |
 |---|---|
@@ -138,7 +204,7 @@ directions.
 
 ---
 
-## 5. Lighting & animation
+## 6. Lighting & animation
 
 ### Lighting
 
@@ -166,11 +232,11 @@ If the GLB you load contains **keyframe animation** (e.g. from Blender or a game
 
 ### Session sync
 
-In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §6).
+In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse and selection sync as well (see §8).
 
 ---
 
-## 6. Collaborative sessions (host)
+## 7. Collaborative sessions (host)
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
@@ -201,7 +267,7 @@ session" shows whether the server is reachable (green = up, red = down).
 
 ---
 
-## 7. Joining a session (guest)
+## 8. Joining a session (guest)
 
 On another computer (same network):
 
@@ -217,6 +283,7 @@ appears — same view, same parts, same visibility as the host.
 
 - **Camera** — whoever orbits/zooms/pans, everyone follows (both directions)
 - **Part visibility** — show/hide any part and it changes for all members
+- **Part moves** — moving a part updates it for everyone
 - **The model itself** — late joiners automatically receive the current model
   and visibility state
 - **Expand/collapse & selection** — the assembly-tree view and part highlight
@@ -225,9 +292,13 @@ appears — same view, same parts, same visibility as the host.
 ![Part hidden on the host](manual-shots/08-part-toggle.png)
 ![The same part hidden on the guest — synced](manual-shots/09-guest-part-sync.png)
 
+> **Security — nothing is stored on the guest.** The model is **streamed to the
+> guest's memory only** and rendered in the browser. **No file is written to
+> the guest's disk**; closing the tab discards it.
+
 ---
 
-## 8. Leaving a session
+## 9. Leaving a session
 
 Click **Leave session** — you keep your local model and return to solo viewing.
 The session itself stays alive on the server for other members.
@@ -236,7 +307,7 @@ The session itself stays alive on the server for other members.
 
 ---
 
-## 9. Opening a STEP / IGES / OBJ file
+## 10. Opening a STEP / IGES / OBJ file
 
 STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
@@ -261,7 +332,57 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 10. Troubleshooting
+## 11. Standalone CAD converter (convert-cad)
+
+Besides the viewer, the distribution includes a **separate, standalone CAD
+converter** — **`convert-cad`** (v0.1) — that turns STEP / IGES / OBJ files into
+GLB / GLTF **without** the viewer. It is independent of the viewer's own
+converters, so using it can never disturb them.
+
+### What it converts
+
+| Input | Notes |
+|---|---|
+| `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
+| `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` |
+| `.obj` | Mesh; part names from `o`/`g` lines; colours from a sibling `.mtl` |
+
+Output format is chosen by the **output file extension**: `.glb` → a single
+binary file; `.gltf` → text JSON + a companion `.bin`.
+
+### Using the drag-&-drop web UI (recommended)
+
+1. Launch the web UI: double-click **`convert-cad-web.bat`** (Windows), or run
+   `node convert-cad-server.mjs` from the `tools/convert-cad/` folder.
+2. Open **http://localhost:8787/** in a browser.
+3. **Drag & drop** a CAD file onto the page (drop an OBJ together with its
+   `.mtl` in one drag for colours).
+4. Pick **.glb** or **.gltf**, click **Convert**.
+5. **Preview** the result in the built-in 3D viewer (drag = rotate, scroll =
+   zoom, right-drag = pan), then **Download**.
+
+### Using the command line
+
+```bash
+node convert-cad.mjs input.step output.glb      # or .gltf
+```
+
+### Requirements
+
+The converter runs the OpenCascade kernel inside the **`chair-cq:local`**
+Docker image — the same one the viewer uses. Docker Desktop must be running and
+the image built (`install-docker-opencascade.bat`, or `docker build -t
+chair-cq:local .`). **Node.js** is needed for the launcher.
+
+### How it helps sharing
+
+Convert a CAD file to GLB/GLTF once, then hand the lightweight file to someone
+who opens it directly in the viewer — they never need Docker or the converter.
+It's the same "one compact file over the network" idea, applied offline.
+
+---
+
+## 12. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -271,6 +392,43 @@ conversion error while GLB/GLTF continues to work normally.
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |
+
+---
+
+## 13. Sharing with external parties
+
+By default the viewer is meant for the **local network (LAN)**. To let someone
+outside your network view a session, you have two main options.
+
+### Option 1 — Port forwarding on the router
+
+1. Find the server PC's **LAN IP** (e.g. `192.168.x.x`).
+2. In your router's admin page, set up a **port forward**: forward the app's
+   port (default **8088**) to that LAN IP and port.
+3. Share **`http://<your-public-IP>:8088`** with the external party.
+
+> **Notes.** The public IP can change (use a dynamic-DNS service if needed).
+> Opening a port exposes the server to the internet — use this only for trusted
+> people, keep it temporary, and close the forward when you're done. For real
+> deployments, prefer HTTPS (e.g. a reverse proxy like Caddy/Nginx with TLS).
+
+### Option 2 — Deploy on a public / virtual server
+
+1. Provision a small **virtual server** (VPS/cloud instance) with a public IP
+   or domain.
+2. Copy the distribution and run the server there (`node src/server.js`), or
+   package it into the same Docker image.
+3. Share the server's URL with the external party.
+
+This is the best option for **always-on** external access (client demos,
+vendors/subcontractors joining anytime) because it doesn't depend on a home
+router or a machine that must stay on.
+
+> **Security reminder.** Whatever route you use, anyone who has the link can
+> view the shared model. The viewer streams the model to the guest's memory and
+> writes nothing to disk, but for sensitive or NDA geometry, still share links
+> only with people who are meant to see the model, and consider a private
+> network / VPN (e.g. Tailscale, WireGuard) for the most controlled access.
 
 ---
 
