@@ -110,6 +110,8 @@ async function handleConvert(req,res){
   const fmt=(parts.find(p=>p.name==='fmt')||{}).body?.toString().trim()==='gltf'?'gltf':'glb';
   const compress=(parts.find(p=>p.name==='compress')||{}).body?.toString().trim().toLowerCase()||'none';
   const converter=(parts.find(p=>p.name==='converter')||{}).body?.toString().trim().toLowerCase()||'occt';
+  const holeSizeRaw=(parts.find(p=>p.name==='holesize')||{}).body?.toString().trim()||'1';
+  const holeSize=Number(holeSizeRaw); // NaN -> NaN, obj2glb treats non-positive as off
   if(!model)return sendErr(res,400,'no model file uploaded');
 
   const ext=extname(model.filename).toLowerCase();
@@ -193,7 +195,7 @@ async function handleConvert(req,res){
       const outPath = join(work, 'model.glb');
       writeFileSync(inPath, model.body);
       if (mtl) writeFileSync(join(work, 'model.mtl'), mtl.body);
-      execFileSync(process.execPath, [join(__dirname, 'obj2glb.mjs'), inPath, outPath, '--stem', stem],
+      execFileSync(process.execPath, [join(__dirname, 'obj2glb.mjs'), inPath, outPath, '--stem', stem, '--hole-size', String(holeSize)],
         { stdio: ['ignore', 'ignore', 'pipe'] });
       let fileBuf = readFileSync(outPath);
       const log = ['OBJ -> GLB (host-side JS, no Docker)'];

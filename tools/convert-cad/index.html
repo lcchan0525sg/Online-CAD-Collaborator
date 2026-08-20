@@ -108,6 +108,9 @@
           <option value="js">JS</option>
         </select>
       </label>
+      <label title="Max hole radius (mm) the JS converter closes. Tessellation cracks smaller than this get patched; bigger openings are left open (double-sided). 0 disables.">Hole mm
+        <input id="holesize" type="number" min="0" step="0.5" value="1" style="width:64px">
+      </label>
       <button class="run" id="run" disabled>Convert</button>
       <button class="dl" id="dl" disabled>Download</button>
     </div>
@@ -357,6 +360,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     fd.append('fmt', fmt);
     // OBJ converter choice (OCCT vs host-side JS) — only meaningful for .obj.
     if (/\.obj$/i.test(model.name)) fd.append('converter', objconvSel.value);
+    const hs = document.getElementById('holesize')?.value;
+    if (/\.obj$/i.test(model.name) && objconvSel.value === 'js' && hs !== undefined) fd.append('holesize', hs);
     if (wantCompress) fd.append('compress', 'draco');
     try {
       const res = await fetch('/convert', { method:'POST', body:fd });

@@ -82,5 +82,17 @@ const v = fixed[0].vol;
 if (v > 0) console.log(`inside-out cube: volume ${v.toFixed(4)} -> REORIENTED OUTWARD OK`);
 else { console.error(`inside-out cube: volume ${v.toFixed(4)} -> STILL INSIDE-OUT FAIL`); failures++; }
 
+// Hole-fill test: drop one face of cube.obj -> open cube. The fill pass must
+// close the loop (no boundary edges left) while staying outward.
+const holeSrc = src.split('\n').filter((l) => !/^f\s/.test(l)).join('\n') + '\n'
+  + src.split('\n').filter((l) => /^f\s/.test(l)).slice(0, -1).join('\n') + '\n';
+const holeIn = resolve(scratch, 'cube-hole.obj');
+const holeOut = resolve(scratch, 'cube-hole.glb');
+writeFileSync(holeIn, holeSrc);
+execSync(`node "${CONVERTER}" "${holeIn}" "${holeOut}" --stem cube-hole --hole-size 2`, { stdio: 'inherit' });
+const hole = glbMeshes(readFileSync(holeOut))[0];
+if (hole.boundary === 0 && hole.vol > 0) console.log(`hole cube: volume ${hole.vol.toFixed(4)}, boundaryEdges 0 -> CLOSED + OUTWARD OK`);
+else { console.error(`hole cube: volume ${hole.vol.toFixed(4)}, boundaryEdges ${hole.boundary} -> NOT CLOSED FAIL`); failures++; }
+
 rmSync(scratch, { recursive: true, force: true });
 process.exit(failures ? 1 : 0);

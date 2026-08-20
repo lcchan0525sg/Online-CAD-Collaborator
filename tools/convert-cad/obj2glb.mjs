@@ -173,8 +173,142 @@ function orientConsistently(idx, pos) {
   return { flippedBodies };
 }
 
+// ---- hole filling (VTK/trimesh pattern) -------------------------------------
+// Small tessellation cracks around holes leave boundary loops (edges owned by
+// exactly one triangle). Close the ones whose bounding radius is within
+// `maxRadius` by ear-clipping the loop (existing vertices only — no new
+// points), then orient the patch to match the neighbouring surface. Big
+// openings (real holes in the part) are left alone — a lid over them would be
+// wrong — and remain doubleSided-rendered.
+function triangulateLoop(loop, pos) {
+  const n = loop.length;
+  if (n < 3) return null;
+  const p = (i) => pos[loop[i]];
+  // Newell normal -> dominant projection axis
+  let nx = 0, ny = 0, nz = 0;
+  for (let i = 0; i < n; i++) {
+    const a = p(i), b = p((i + 1) % n);
+    nx += (a[1] - b[1]) * (a[2] + b[2]);
+    ny += (a[2] - b[2]) * (a[0] + b[0]);
+    nz += (a[0] - b[0]) * (a[1] + b[1]);
+  }
+  const ax = Math.abs(nx), ay = Math.abs(ny), az = Math.abs(nz);
+  const axis = ax >= ay && ax >= az ? 0 : ay >= az ? 1 : 2;
+  const P = (v) => (axis === 0 ? [v[1], v[2]] : axis === 1 ? [v[2], v[0]] : [v[0], v[1]]);
+  const pts = loop.map((vi) => P(pos[vi]));
+  let area2 = 0;
+  for (let i = 0; i < n; i++) area2 += pts[i][0] * pts[(i + 1) % n][1] - pts[i][1] * pts[(i + 1) % n][0];
+  if (Math.abs(area2) < 1e-12) return null;               // degenerate (collinear)
+  const ccw = area2 > 0;
+  const inTri = (q, a, b, c) => {                          // barycentric sign test
+    const d1 = (b[0] - a[0]) * (q[1] - a[1]) - (b[1] - a[1]) * (q[0] - a[0]);
+    const d2 = (c[0] - b[0]) * (q[1] - b[1]) - (c[1] - b[1]) * (q[0] - b[0]);
+    const d3 = (a[0] - c[0]) * (q[1] - c[1]) - (a[1] - c[1]) * (q[0] - c[0]);
+    const neg = (d1 < 0) || (d2 < 0) || (d3 < 0);
+    const pos_ = (d1 > 0) || (d2 > 0) || (d3 > 0);
+    return !(neg && pos_);
+  };
+  const idx = Array.from({ length: n }, (_, i) => i);
+  const tris = [];
+  let guard = n * n * 2;
+  while (idx.length > 3) {
+    let clipped = false;
+    for (let i = 0; i < idx.length && !clipped; i++) {
+      const i0 = idx[(i + idx.length - 1) % idx.length];
+      const i1 = idx[i];
+      const i2 = idx[(i + 1) % idx.length];
+      const cross = (pts[i1][0] - pts[i0][0]) * (pts[i2][1] - pts[i1][1])
+        - (pts[i1][1] - pts[i0][1]) * (pts[i2][0] - pts[i1][0]);
+      if (ccw ? cross <= 0 : cross >= 0) continue;         // reflex vertex
+      let inside = false;
+      for (let j = 0; j < idx.length; j++) {
+        if (j === i0 || j === i1 || j === i2) continue;
+        if (inTri(pts[idx[j]], pts[i0], pts[i1], pts[i2])) { inside = true; break; }
+      }
+      if (inside) continue;
+      tris.push([i0, i1, i2]);
+      idx.splice(i, 1);
+      clipped = true;
+    }
+    if (!clipped || --guard < 0) return null;              // non-simple loop
+  }
+  tris.push([idx[0], idx[1], idx[2]]);
+  return tris;
+}
+
+// Close small boundary loops. Returns the number of holes filled.
+function fillHoles(indices, pos, maxRadius) {
+  if (!(maxRadius > 0)) return 0;
+  const triCount = indices.length / 3;
+  const edgeMap = new Map();                               // "u-v" -> [{ t, a, b }] (a->b directed as in triangle t)
+  for (let t = 0; t < triCount; t++) {
+    const a = indices[t*3], b = indices[t*3+1], c = indices[t*3+2];
+    for (const [u, v] of [[a,b],[b,c],[c,a]]) {
+      const key = u < v ? u + '-' + v : v + '-' + u;
+      if (!edgeMap.has(key)) edgeMap.set(key, []);
+      edgeMap.get(key).push({ t, a: u, b: v });
+    }
+  }
+  const next = new Map(), bndOwner = new Map();            // vertex->vertex, "a-b"->owner triangle
+  for (const [key, owners] of edgeMap) {
+    if (owners.length !== 1) continue;
+    next.set(owners[0].a, owners[0].b);
+    bndOwner.set(`${owners[0].a}-${owners[0].b}`, owners[0].t);
+  }
+  if (!next.size) return 0;
+  const visited = new Set();
+  let filled = 0;
+  for (const start of next.keys()) {
+    if (visited.has(start)) continue;
+    const loop = [];
+    let v = start;
+    while (!visited.has(v)) {
+      visited.add(v);
+      loop.push(v);
+      const n = next.get(v);
+      if (n === undefined) break;
+      v = n;
+      if (v === start) break;
+    }
+    if (loop.length < 3 || v !== start) continue;          // only closed loops
+    // bounding radius from centroid — skip big openings
+    let cx = 0, cy = 0, cz = 0;
+    for (const vi of loop) { cx += pos[vi][0]; cy += pos[vi][1]; cz += pos[vi][2]; }
+    cx /= loop.length; cy /= loop.length; cz /= loop.length;
+    let r = 0;
+    for (const vi of loop) r = Math.max(r, Math.hypot(pos[vi][0] - cx, pos[vi][1] - cy, pos[vi][2] - cz));
+    if (r > maxRadius) continue;
+    const tris = triangulateLoop(loop, pos);
+    if (!tris) continue;
+    // Orient the patch against the neighbouring surface (consistent after the
+    // flood-fill pass): flip the whole patch if its average normal opposes the
+    // average normal of the boundary-owning triangles.
+    let pnx = 0, pny = 0, pnz = 0, anx = 0, any = 0, anz = 0;
+    for (const [i0, i1, i2] of tris) {
+      const a = pos[loop[i0]], b = pos[loop[i1]], c = pos[loop[i2]];
+      const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+      const vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+      pnx += uy*vz - uz*vy; pny += uz*vx - ux*vz; pnz += ux*vy - uy*vx;
+    }
+    for (let i = 0; i < loop.length; i++) {
+      const t = bndOwner.get(`${loop[i]}-${loop[(i + 1) % loop.length]}`);
+      if (t === undefined) continue;
+      const a = pos[indices[t*3]], b = pos[indices[t*3+1]], c = pos[indices[t*3+2]];
+      const ux = b[0]-a[0], uy = b[1]-a[1], uz = b[2]-a[2];
+      const vx = c[0]-a[0], vy = c[1]-a[1], vz = c[2]-a[2];
+      anx += uy*vz - uz*vy; any += uz*vx - ux*vz; anz += ux*vy - uy*vx;
+    }
+    for (const [i0, i1, i2] of tris) {
+      if (pnx*anx + pny*any + pnz*anz < 0) indices.push(loop[i0], loop[i2], loop[i1]);
+      else indices.push(loop[i0], loop[i1], loop[i2]);
+    }
+    filled++;
+  }
+  return filled;
+}
+
 // ---- weld + build one indexed mesh ------------------------------------------
-function buildMesh(faces, V, VT, VN) {
+function buildMesh(faces, V, VT, VN, holeSize) {
   const pos = [], uv = [], nrm = [];
   const map = new Map();
   // Weld tolerance must exceed the OBJ exporter's float precision, not be a
@@ -209,6 +343,7 @@ function buildMesh(faces, V, VT, VN) {
   }
   if (!indices.length) return null;
   const { flippedBodies } = orientConsistently(indices, pos);   // consistent winding + outward orientation
+  const holesFilled = fillHoles(indices, pos, holeSize);        // close small tessellation cracks
   for (let i = 0; i < nrm.length; i++) if (!nrm[i]) {
     const acc = [0, 0, 0];
     for (let j = 0; j < indices.length; j += 3) {
@@ -232,7 +367,7 @@ function buildMesh(faces, V, VT, VN) {
   return {
     positions, normals, uvs,
     indices: pos.length <= 0xFFFF ? Uint16Array.from(indices) : Uint32Array.from(indices),
-    flippedBodies,
+    flippedBodies, holesFilled,
   };
 }
 
@@ -349,16 +484,18 @@ function buildMaterial(mtl, textured, textures) {
 // ---- main -------------------------------------------------------------------
 function main() {
   const argv = process.argv.slice(2);
-  const pos = []; let stem = null, mtlPath = null;
+  const pos = []; let stem = null, mtlPath = null, holeSize = 1.0;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--stem') stem = argv[++i];
     else if (a.startsWith('--stem=')) stem = a.slice(7);
     else if (a === '--mtl') mtlPath = argv[++i];
     else if (a.startsWith('--mtl=')) mtlPath = a.slice(6);
+    else if (a === '--hole-size') holeSize = parseFloat(argv[++i]);
+    else if (a.startsWith('--hole-size=')) holeSize = parseFloat(a.slice(12));
     else if (!a.startsWith('--')) pos.push(a);
   }
-  if (pos.length !== 2) die('usage: obj2glb.mjs <in.obj> <out.glb> [--mtl <file.mtl>] [--stem NAME]', 2);
+  if (pos.length !== 2) die('usage: obj2glb.mjs <in.obj> <out.glb> [--mtl <file.mtl>] [--stem NAME] [--hole-size MM]', 2);
   const [src, out] = pos;
   if (!existsSync(src)) die('input not found: ' + src);
   if (extname(out).toLowerCase() !== '.glb') die('OBJ output must be .glb');
@@ -397,7 +534,7 @@ function main() {
     if (!byPath.has(key)) byPath.set(key, { path: fg.path, name: fg.path[fg.path.length - 1], subMeshes: [] });
     const part = byPath.get(key);
     const mtl = mtls.get(fg.material) || { kd: [0.7, 0.7, 0.7], d: 1, mapKd: null };
-    const mesh = buildMesh(fg.faces, parsed.V, parsed.VT, parsed.VN);
+    const mesh = buildMesh(fg.faces, parsed.V, parsed.VT, parsed.VN, holeSize);
     if (mesh) part.subMeshes.push({ mesh, material: fg.material, mtl, textured: !!(mtl.mapKd && texByName.has(mtl.mapKd)) });
   }
   const parts = [...byPath.values()];
@@ -414,7 +551,11 @@ function main() {
   const tris = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.indices.length / 3, 0), 0);
   const verts = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.positions.length / 3, 0), 0);
   const reoriented = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.flippedBodies, 0), 0);
-  log(`OBJ -> GLB: ${parts.length} part(s), ${tris.toLocaleString()} triangles, ${verts.toLocaleString()} vertices, ${texOrder.length} texture(s)${reoriented ? `, ${reoriented} inside-out body(ies) reoriented` : ''}`);
+  const holes = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.holesFilled, 0), 0);
+  const extra = [];
+  if (reoriented) extra.push(`${reoriented} inside-out bod${reoriented > 1 ? 'ies' : 'y'} reoriented`);
+  if (holes) extra.push(`${holes} hole${holes > 1 ? 's' : ''} filled`);
+  log(`OBJ -> GLB: ${parts.length} part(s), ${tris.toLocaleString()} triangles, ${verts.toLocaleString()} vertices, ${texOrder.length} texture(s)${extra.length ? ' — ' + extra.join(', ') : ''}`);
   log(`bytes: ${glb.length}`);
   console.log('RESULT_OK');
   process.exit(0);
