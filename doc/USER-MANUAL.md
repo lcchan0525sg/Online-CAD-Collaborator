@@ -18,7 +18,7 @@
 12. [Joining a session (guest)](#12-joining-a-session-guest)
 13. [Session chat](#13-session-chat)
 14. [Leaving a session](#14-leaving-a-session)
-15. [Opening a STEP / IGES / OBJ file](#15-opening-a-step--iges--obj-file)
+15. [Opening a STEP / IGES / STL file](#15-opening-a-step--iges--stl-file)
 16. [Standalone CAD converter (convert-cad)](#16-standalone-cad-converter-convert-cad)
 17. [Troubleshooting](#17-troubleshooting)
 18. [Sharing with external parties](#18-sharing-with-external-parties)
@@ -74,7 +74,7 @@ shared model appears. Nothing to download, nothing to set up, no CAD licence.
 (RAM) only and rendered in the browser; no file is written to their disk. Close
 the tab and it's gone — ideal for sensitive geometry or NDA work.
 
-**Efficient sharing.** STEP, IGES and OBJ files are converted to **GLB/GLTF** —
+**Efficient sharing.** STEP, IGES and STL files are converted to **GLB/GLTF** —
 a lightweight, web-native format — on the server, so one compact file moves fast
 across the network instead of a bulky CAD bundle.
 
@@ -140,13 +140,13 @@ Precedence: command-line argument → `port.txt` → env `PORT` → default 8088
 The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
 
-> **STEP, IGES and OBJ files** (.step/.stp, .igs/.iges, .obj) additionally need
+> **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) additionally need
 > Docker + the `chair-cq:local` OpenCascade image. GLB/GLTF files work without
 > any of it.
 
 ### Installing the STEP converter (Docker + OpenCascade)
 
-To open **STEP / IGES / OBJ** files, the server needs a small converter built on
+To open **STEP / IGES / STL** files, the server needs a small converter built on
 the OpenCascade CAD kernel, which runs inside a **Docker** container. This is a
 **one-time** setup on the PC that runs the server — guests never need it.
 
@@ -168,7 +168,7 @@ folder as `start.bat`). It walks through everything:
    docker build -t chair-cq:local .
    ```
 
-That's it. Once the image exists, STEP / IGES / OBJ files convert normally. If
+That's it. Once the image exists, STEP / IGES / STL files convert normally. If
 you only ever open **GLB / GLTF** files, you can skip this entirely.
 
 ![Empty start — the viewport is blank until you open a model](manual-shots/01-empty-start.png)
@@ -178,9 +178,9 @@ you only ever open **GLB / GLTF** files, you can skip this entirely.
 ## 3. Opening a model
 
 1. Click **Open model…** in the left sidebar.
-2. Choose a `.glb`, `.gltf`, `.step`, `.stp`, `.igs`, `.iges` or `.obj` file from your computer.
+2. Choose a `.glb`, `.gltf`, `.step`, `.stp`, `.igs`, `.iges` or `.stl` file from your computer.
 
-GLB/GLTF loads instantly. STEP, IGES and OBJ files are converted to GLB by the
+GLB/GLTF loads instantly. STEP, IGES and STL files are converted to GLB by the
 OpenCascade kernel on the server (a blocking overlay shows progress — a few
 seconds).
 
@@ -403,7 +403,7 @@ Drag a slider and the model updates live. **Reset lighting** restores the defaul
 
 ### Animation
 
-If the GLB you load contains **keyframe animation** (e.g. from Blender or a game pipeline — CAD-converted STEP/IGES/OBJ files have none), an **Animation** section appears with:
+If the GLB you load contains **keyframe animation** (e.g. from Blender or a game pipeline — CAD-converted STEP/IGES/STL files have none), an **Animation** section appears with:
 
 | Control | What it does |
 |---|---|
@@ -526,23 +526,12 @@ The session itself stays alive on the server for the remaining members.
 
 ---
 
-## 15. Opening a STEP / IGES / OBJ file
+## 15. Opening a STEP / IGES / STL file
 
-STEP, IGES and OBJ conversion happens through the OpenCascade kernel (Docker).
+STEP, IGES and STL conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
 the GLB is loaded — with the original **colours and materials** preserved, and
 part names appearing in the Assembly tree.
-
-> **OBJ colours need the `.mtl` file too.** A Wavefront `.obj` stores colours in
-> a sibling `.mtl` (e.g. `Asm1.obj` + `asm1.mtl`). Select **both** files in the
-> Open dialog (Ctrl+click on Windows) so the materials are applied; opening
-> just the `.obj` still works, but parts get a neutral grey.
-
-> **OBJ part names.** Unlike STEP/IGES (which embed B-rep solid names), OBJ has
-> no mandatory part number. Part names come from the file's `o` (object) / `g`
-> (group) lines when the CAD tool writes them — e.g. SolidEdge's `Asm1.obj`
-> has none, so parts are named `Part1`, `Part2`. If an exporter writes `o Part2`
-> / `o Part3`, those names are used directly.
 
 ![STEP file being converted to GLB](manual-shots/11-step-converting.png)
 
@@ -554,7 +543,7 @@ conversion error while GLB/GLTF continues to work normally.
 ## 16. Standalone CAD converter (convert-cad)
 
 Besides the viewer, the distribution includes a **separate, standalone CAD
-converter** — **`convert-cad`** (v0.2) — that turns STEP / IGES / OBJ files into
+converter** — **`convert-cad`** (v0.2) — that turns STEP / IGES / STL files into
 GLB / GLTF **without** the viewer. It is independent of the viewer's own
 converters, so using it can never disturb them.
 
@@ -564,7 +553,7 @@ converters, so using it can never disturb them.
 |---|---|
 | `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
 | `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` |
-| `.obj` | Mesh; part names from `o`/`g` lines; colours from a sibling `.mtl` |
+| `.stl` | Mesh; converted host-side by the pure-JS writer (no Docker) |
 
 Output format is chosen by the **output file extension**: `.glb` → a single
 binary file; `.gltf` → text JSON + a companion `.bin`.
@@ -574,8 +563,7 @@ binary file; `.gltf` → text JSON + a companion `.bin`.
 1. Launch the web UI: double-click **`convert-cad-web.bat`** (Windows), or run
    `node convert-cad-server.mjs` from the `tools/convert-cad/` folder.
 2. Open **http://localhost:8787/** in a browser.
-3. **Drag & drop** a CAD file onto the page (drop an OBJ together with its
-   `.mtl` in one drag for colours).
+3. **Drag & drop** a CAD file onto the page (a STEP/IGES/STL file).
 4. Pick **.glb** or **.gltf**, click **Convert**.
 5. **Preview** the result in the built-in 3D viewer (drag = rotate, scroll =
    zoom, right-drag = pan), then **Download**.
@@ -608,8 +596,7 @@ It's the same "one compact file over the network" idea, applied offline.
 | Problem | Fix |
 |---|---|
 | Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 8088 isn't blocked by a firewall |
-| STEP/IGES/OBJ shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
-| OBJ parts are grey (no colours) | The `.obj` was opened without its `.mtl` — select both files together in the Open dialog |
+| STEP/IGES/STL shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |

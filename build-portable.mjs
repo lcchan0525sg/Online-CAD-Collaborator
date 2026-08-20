@@ -85,7 +85,7 @@ function buildFrom(src, version, zipName) {
   } else if (existsSync(join(convSrc, 'step2glb.py'))) {
     cpSync(convSrc, join(APP, 'converters'), { recursive: true });
   } else {
-    console.warn('WARNING: no converter found at', convSrc, '- zip will not convert STEP/IGES/OBJ');
+    console.warn('WARNING: no converter found at', convSrc, '- zip will not convert STEP/IGES/STL');
   }
   // One-click Docker + OpenCascade installer, and the Dockerfile it builds from
   const installBat = join(src, 'install-docker-opencascade.bat');

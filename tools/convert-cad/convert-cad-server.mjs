@@ -2,8 +2,8 @@
 // convert-cad-server — drag & drop web UI for the standalone CAD -> GLB/GLTF tool.
 //
 // Serves index.html on http://<host>:<port>/ and exposes POST /convert, which
-// accepts a multipart upload (a STEP/IGES/OBJ 'model' + optional OBJ 'mtl' +
-// 'fmt' = glb|gltf), runs the same Docker/OpenCascade converter the CLI uses,
+// accepts a multipart upload (a STEP/IGES/STL 'model' + 'fmt' = glb|gltf),
+// runs the same Docker/OpenCascade converter the CLI uses,
 // and streams the converted .glb (or .gltf+.bin) back to the browser for download.
 //
 // Usage:
@@ -36,7 +36,7 @@ function threeFileFor(urlPath){
   if (buildName === 'three.module.js' || buildName === 'three.core.js') return join(THREE_ROOT, 'build', buildName);
   return join(THREE_ROOT, 'examples', 'jsm', rel);
 }
-const SUPPORTED = { '.step':'STEP','.stp':'STEP','.igs':'IGES','.iges':'IGES','.obj':'OBJ','.stl':'STL' };
+const SUPPORTED = { '.step':'STEP','.stp':'STEP','.igs':'IGES','.iges':'IGES','.stl':'STL' };
 const PASSTHROUGH = { '.glb':'glb', '.gltf':'gltf' };   // already-converted: no Docker needed
 const MAX_BODY = 300 * 1024 * 1024; // 300 MB upload cap
 
@@ -106,18 +106,14 @@ async function handleConvert(req,res){
   let parts; try{ parts=parseMultipart(buf,bm[1]); }catch{ return sendErr(res,400,'bad multipart body'); }
 
   const model=parts.find(p=>p.name==='model'&&p.body.length>0);
-  const mtl=parts.find(p=>p.name==='mtl'&&p.body.length>0);
   const fmt=(parts.find(p=>p.name==='fmt')||{}).body?.toString().trim()==='gltf'?'gltf':'glb';
   const compress=(parts.find(p=>p.name==='compress')||{}).body?.toString().trim().toLowerCase()||'none';
-  const converter=(parts.find(p=>p.name==='converter')||{}).body?.toString().trim().toLowerCase()||'occt';
-  const holeSizeRaw=(parts.find(p=>p.name==='holesize')||{}).body?.toString().trim()||'1';
-  const holeSize=Number(holeSizeRaw); // NaN -> NaN, obj2glb treats non-positive as off
   if(!model)return sendErr(res,400,'no model file uploaded');
 
   const ext=extname(model.filename).toLowerCase();
   const isPassthrough = ext in PASSTHROUGH;
   if(!isPassthrough && !(ext in SUPPORTED))
-    return sendErr(res,400,`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.stl/.glb/.gltf)`);
+    return sendErr(res,400,`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.stl/.glb/.gltf)`);
 
   // Fast path: file is already GLB/GLTF — no Docker. Return it straight for
   // preview/download, optionally Draco-compressing a GLB.
@@ -184,41 +180,6 @@ async function handleConvert(req,res){
     }
   }
 
-  // OBJ via the host-side JS writer (converter=js) — kept ALONGSIDE the OCCT
-  // Docker path so you can A/B test before switching. Colors from the staged
-  // .mtl; textures require the image files (not uploaded via the web UI).
-  if (ext === '.obj' && converter === 'js') {
-    const stem = basename(model.filename).replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_.-]/g, '_') || 'model';
-    const work = mkdtempSync(join(tmpdir(), 'convert-cad-web-'));
-    try {
-      const inPath = join(work, 'model.obj');
-      const outPath = join(work, 'model.glb');
-      writeFileSync(inPath, model.body);
-      if (mtl) writeFileSync(join(work, 'model.mtl'), mtl.body);
-      execFileSync(process.execPath, [join(__dirname, 'obj2glb.mjs'), inPath, outPath, '--stem', stem, '--hole-size', String(holeSize)],
-        { stdio: ['ignore', 'ignore', 'pipe'] });
-      let fileBuf = readFileSync(outPath);
-      const log = ['OBJ -> GLB (host-side JS, no Docker)'];
-      if (compress === 'draco') {
-        try { const comp = await compressGlbBuffer(fileBuf); fileBuf = comp.buf; log.push(`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`); }
-        catch (e) { log.push('draco compression failed, returning uncompressed: ' + e.message); }
-      } else if (compress !== 'none') {
-        return sendErr(res, 400, `unsupported compress '${compress}' (only 'draco' is supported)`);
-      }
-      res.writeHead(200, {
-        'Content-Type': 'model/gltf-binary',
-        'Content-Disposition': `attachment; filename="${stem}.glb"`,
-        'Content-Length': fileBuf.length,
-        'X-Convert-Log': Buffer.from(log.join('\n')).toString('base64'),
-      });
-      return res.end(fileBuf);
-    } catch (e) {
-      return sendErr(res, 500, ((e.stderr || '').toString() || 'obj2glb failed').slice(-4000));
-    } finally {
-      rmSync(work, { recursive: true, force: true });
-    }
-  }
-
   // pre-flight docker
   try{ execFileSync('docker',['version','--format','{{.Server.Version}}'],{stdio:'ignore'}); }
   catch{ return sendErr(res,503,'Docker is not running. Start Docker Desktop first.'); }
@@ -227,7 +188,6 @@ async function handleConvert(req,res){
   try{
     const inName='model'+ext;
     writeFileSync(join(work,inName),model.body);
-    if(ext==='.obj'&&mtl)writeFileSync(join(work,'model.mtl'),mtl.body);
 
     const stem=basename(model.filename).replace(/\.[^.]+$/,'').replace(/[^A-Za-z0-9_.-]/g,'_')||'model';
     const outName='model.'+fmt;
@@ -311,6 +271,6 @@ const server=createServer(async(req,res)=>{
 
 server.listen(PORT,HOST,()=>{
   console.log(`convert-cad web UI running at http://localhost:${PORT}`);
-  console.log(`  drag & drop a STEP/IGES/OBJ (or OBJ+.mtl), pick GLB/GLTF, hit Convert, Download.`);
+  console.log(`  drag & drop a STEP/IGES/STL, pick GLB/GLTF, hit Convert, Download.`);
   console.log(`  (requires Docker + chair-cq:local image)`);
 });

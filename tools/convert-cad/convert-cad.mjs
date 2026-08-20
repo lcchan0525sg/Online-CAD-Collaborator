@@ -1,23 +1,21 @@
 #!/usr/bin/env node
 // convert-cad — host-side launcher for the standalone CAD -> GLB/GLTF tool.
 //
-// Stages the input (and a companion .mtl for OBJ) into a temp dir, mounts it
-// together with the converter into the `chair-cq:local` OpenCascade container,
-// runs convert-cad.py inside, copies the output back to where you asked, and
-// verifies it landed.
+// Stages the input into a temp dir, mounts it together with the converter
+// into the `chair-cq:local` OpenCascade container, runs convert-cad.py inside,
+// copies the output back to where you asked, and verifies it landed.
 //
 // Usage:
-//   node convert-cad.mjs <input.(step|stp|igs|iges|obj)> [out.glb|out.gltf] [opts]
+//   node convert-cad.mjs <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]
 //
 // Options:
 //   -o, --out <path>      Output path (default: input dir / <stem>.<glb|gltf>)
-//   --mtl <path>          OBJ companion .mtl (auto-found next to the .obj if omitted)
 //   --container <img>     Docker image (default: chair-cq:local)
 //   --keep                Keep the temp work dir on failure (for debugging)
 //
 // Output format is chosen by the output extension: .glb -> binary, .gltf -> text + .bin.
 import { execFileSync, execFile } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, copyFileSync,
+import { existsSync, mkdtempSync, readFileSync, copyFileSync,
          writeFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import { join, dirname, basename, extname, resolve, sep } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -26,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONVERTER = join(__dirname, 'convert-cad.py');
 
-const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.obj': 'OBJ', '.stl': 'STL' };
+const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.stl': 'STL' };
 
 // Host-side glTF geometry compression (Draco) via the self-contained draco3d
 // compressor (draco-compress.mjs). Runs after the Docker conversion so the
@@ -43,25 +41,21 @@ async function compressGlb(glbPath, method, opts = {}) {
 
 function usage() {
   console.log(
-`convert-cad — standalone STEP/IGES/OBJ -> GLB/GLTF converter (Docker/OpenCascade)
+`convert-cad — standalone STEP/IGES/STL -> GLB/GLTF converter (Docker/OpenCascade)
 
 Usage:
   node convert-cad.mjs <input> [out.glb|out.gltf] [opts]
 
 Options:
   -o, --out <path>    Output path (default: <input dir>/<stem>.<glb|gltf>)
-  --mtl <path>        OBJ companion .mtl (auto-found next to the .obj if omitted)
   --container <img>   Docker image (default: chair-cq:local)
   --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
   --level <n>         Draco compression level 0-10 (default 7)
-  --js                OBJ: use the host-side JS writer (obj2glb.mjs) instead of OCCT/Docker
   --keep              Keep the temp work dir on failure (for debugging)
 
 Examples:
   node convert-cad.mjs model.step out.glb
-  node convert-cad.mjs part.obj out.gltf --mtl part.mtl
-  node convert-cad.mjs asm.stp --out C:/out/asm.glb --compress draco
-  node convert-cad.mjs part.obj out.glb --js`);
+  node convert-cad.mjs asm.stp --out C:/out/asm.glb --compress draco`);
 }
 
 function die(msg) { console.error('convert-cad: ' + msg); process.exit(1); }
@@ -75,34 +69,21 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-function findMtl(obj) {
-  const base = obj.slice(0, obj.length - extname(obj).length);
-  const guess = base + '.mtl';
-  if (existsSync(guess)) return guess;
-  const dir = dirname(obj);
-  const low = basename(base).toLowerCase() + '.mtl';
-  for (const e of readdirSync(dir)) if (e.toLowerCase() === low) return join(dir, e);
-  return null;
-}
-
 async function main() {
   const argv = process.argv.slice(2);
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, mtl = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7, useJs = false;
+  let out = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
-    else if (a === '--mtl') mtl = argv[++i];
     else if (a === '--container') container = argv[++i];
     else if (a === '--keep') keep = true;
-    else if (a === '--js') useJs = true;
     else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
     else if (a === '--level') level = parseInt(argv[++i], 10) || 7;
     else if (a.startsWith('--out=')) out = a.split('=')[1];
     else if (a.startsWith('--container=')) container = a.split('=')[1];
-    else if (a.startsWith('--mtl=')) mtl = a.split('=')[1];
     else if (a.startsWith('--compress=')) compress = a.split('=')[1].toLowerCase();
     else if (a.startsWith('--level=')) level = parseInt(a.split('=')[1], 10) || 7;
     else pos.push(a);
@@ -112,27 +93,13 @@ async function main() {
   if (!existsSync(input)) die('input not found: ' + input);
   if (pos[1]) out = pos[1];   // positional output (also settable via -o/--out)
   const ext = extname(input).toLowerCase();
-  if (!(ext in SUPPORTED)) die(`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.stl)`);
+  if (!(ext in SUPPORTED)) die(`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.stl)`);
 
   const stem = basename(input).replace(/\.[^.]+$/, '');
   // Output extension decides GLB vs GLTF.
   const outArg = out ? resolve(out) : join(dirname(input), stem + '.glb');
   const wantExt = extname(outArg).toLowerCase();
   if (wantExt !== '.glb' && wantExt !== '.gltf') die(`output must end in .glb or .gltf, got '${wantExt}'`);
-
-  // OBJ via the host-side JS writer (--js) — kept ALONGSIDE the OCCT path so you
-  // can A/B test before switching. Writes straight to the output; no Docker.
-  if (ext === '.obj' && useJs) {
-    if (wantExt !== '.glb') die('OBJ (--js) output must be .glb');
-    console.log(`convert-cad: converting OBJ -> ${basename(outArg)} (GLB, host-side obj2glb.mjs)`);
-    const mtlFile = mtl ? resolve(mtl) : findMtl(input);
-    const args = [join(__dirname, 'obj2glb.mjs'), input, outArg, '--stem', stem];
-    if (mtlFile && existsSync(mtlFile)) args.push('--mtl', mtlFile);
-    try { execFileSync(process.execPath, args, { stdio: 'inherit' }); }
-    catch { die('obj2glb conversion failed'); }
-    console.log(`convert-cad: done -> ${outArg}`);
-    process.exit(0);
-  }
 
   // Pre-flight: docker + image.
   try {
@@ -150,23 +117,11 @@ async function main() {
   }
   void imgOk;
 
-  // Stage a temp work dir: model.<ext> + optional model.mtl + the converter.
+  // Stage a temp work dir: model.<ext> + the converter.
   const work = mkdtempSync(join(tmpdir(), 'convert-cad-'));
   const inName = 'model' + ext;
   const inPath = join(work, inName);
   copyFileSync(input, inPath);
-
-  if (ext === '.obj') {
-    const m = mtl ? resolve(mtl) : findMtl(input);
-    if (m && existsSync(m)) {
-      copyFileSync(m, join(work, 'model.mtl'));
-      console.log('convert-cad: staging companion .mtl -> model.mtl');
-    } else if (mtl) {
-      die('specified --mtl not found: ' + mtl);
-    } else {
-      console.warn('convert-cad: warning — no .mtl found next to the .obj; parts will be grey.');
-    }
-  }
 
   const stemSafe = stem.replace(/[^A-Za-z0-9_.-]/g, '_');
   const workOut = join(work, 'model' + wantExt);

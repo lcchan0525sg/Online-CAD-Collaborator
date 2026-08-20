@@ -35,7 +35,7 @@ mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recu
 // ---- tool files (into the zip root) ----
 for (const f of ['convert-cad.py', 'convert-cad.mjs', 'convert-cad.bat',
                  'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html',
-                 'draco-compress.mjs', 'stl2glb.mjs', 'obj2glb.mjs', 'README.md']) {
+                 'draco-compress.mjs', 'stl2glb.mjs', 'README.md']) {
   copyFileSync(join(TOOL, f), join(APP, f));
 }
 // The modular per-format converters package (step2glb.py dispatcher +
@@ -112,7 +112,7 @@ writeFileSync(join(APP, 'README.txt'), [
   '================================',
   `Version: v${versionArg}`,
   '',
-  'A standalone tool that converts STEP / IGES / OBJ CAD files into GLB or GLTF',
+  'A standalone tool that converts STEP / IGES / STL CAD files into GLB or GLTF',
   '(glTF) assets, with a drag & drop web UI and a live 3D preview.',
   '',
   'Run it:',
@@ -120,7 +120,7 @@ writeFileSync(join(APP, 'README.txt'), [
   '  macOS/Linux with node: ./start.sh [port]',
   '',
   'Then open http://localhost:8787/  (the launcher opens it for you).',
-  'Drop a .step/.stp/.igs/.iges/.obj file (add a companion .mtl for OBJ colours),',
+  'Drop a .step/.stp/.igs/.iges/.stl file,',
   'pick GLB or GLTF, hit Convert, then Download. After converting you get a live',
   '3D preview — drag to rotate, scroll to zoom, right-drag / two-finger to pan.',
   'Set Compress = Draco to shrink the GLB geometry (browser decodes it on load);',
@@ -129,7 +129,7 @@ writeFileSync(join(APP, 'README.txt'), [
   'The zip bundles node.exe, so NO installs are needed on Windows.',
   '',
   'Command line (same conversion engine):',
-  '  convert-cad.bat <input.(step|stp|igs|iges|obj)> [out.glb|out.gltf] [opts]',
+  '  convert-cad.bat <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]',
   '  --compress draco   compress the GLB geometry (host-side, self-contained)',
   '  See README.md for full options.',
   '',

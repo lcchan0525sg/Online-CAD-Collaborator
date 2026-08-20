@@ -77,13 +77,13 @@
 </head>
 <body>
   <h1>convert-cad — drag &amp; drop <span class="ver">v0.22</span></h1>
-  <div class="sub">STEP / IGES / OBJ / STL → GLB / GLTF · Docker (OpenCascade)</div>
+  <div class="sub">STEP / IGES / STL → GLB / GLTF · Docker (OpenCascade)</div>
 
   <div class="card">
     <div class="drop" id="drop">
       <div class="big">⬆️</div>
       <p><strong>Drop a CAD file here</strong> or click to browse</p>
-      <div class="fmt">.step · .stp · .igs · .iges · .obj · .stl &nbsp; (add a companion .mtl for OBJ colours)</div>
+      <div class="fmt">.step · .stp · .igs · .iges · .stl</div>
       <input class="file" id="file" type="file" multiple />
     </div>
 
@@ -102,19 +102,10 @@
           <option value="draco">Draco</option>
         </select>
       </label>
-      <label title="OBJ converter: OCCT (Docker) or the host-side JS writer (obj2glb)">OBJ
-        <select id="objconv">
-          <option value="occt">OCCT</option>
-          <option value="js">JS</option>
-        </select>
-      </label>
-      <label title="Max hole radius (mm) the JS converter closes. Tessellation cracks smaller than this get patched; bigger openings are left open (double-sided). 0 disables.">Hole mm
-        <input id="holesize" type="number" min="0" step="0.5" value="1" style="width:64px">
-      </label>
       <button class="run" id="run" disabled>Convert</button>
       <button class="dl" id="dl" disabled>Download</button>
     </div>
-    <div class="hint">Holding multiple files? Upload an OBJ together with its .mtl in one drag.</div>
+    <div class="hint">Converted GLBs stream back for preview and download.</div>
 
     <div class="status" id="status"></div>
 
@@ -144,7 +135,6 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
   const compressSel = document.getElementById('compress');
-  const objconvSel = document.getElementById('objconv');
   const statsEl = document.getElementById('stats');
   const statsGrid = document.getElementById('stats-grid');
 
@@ -196,9 +186,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const pbar = document.getElementById('pbar');
   const canvas = document.getElementById('viewer');
 
-  const FMT = /\.(step|stp|igs|iges|obj|stl|glb|gltf)$/i;
-  const MTL = /\.mtl$/i;
-  const files = [];        // {name, file, kind:'model'|'mtl'}
+  const FMT = /\.(step|stp|igs|iges|stl|glb|gltf)$/i;
+  const files = [];        // {name, file, kind:'model'}
   let latest = null;       // {name, blob} ready to download
   let viewer = null;
 
@@ -221,7 +210,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   }
   function addFiles(list) {
     for (const f of list) {
-      const kind = MTL.test(f.name) ? 'mtl' : (FMT.test(f.name) ? 'model' : null);
+      const kind = FMT.test(f.name) ? 'model' : null;
       if (!kind) { setStatus(['Ignored unsupported file: '+f.name]); continue; }
       if (!files.some(x=>x.name===f.name)) files.push({name:f.name, file:f, kind});
     }
@@ -237,7 +226,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   function initViewer() {
     if (viewer) return viewer;
     const scene = new THREE.Scene();
-    // Dark background so light-coloured CAD parts (e.g. light-grey OBJ/STL) are
+    // Dark background so light-coloured CAD parts (e.g. light-grey STL) are
     // visible — a near-white background made light models invisible.
     scene.background = new THREE.Color(0x1b1e24);
     // Fill lighting: hemisphere for soft ambient, key + rim for shape definition.
@@ -326,7 +315,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
       loader.parse(buf, '', res, e=>rej(e));
     })).then(gltf => {
       viewer.mesh = gltf.scene;
-      // glTF is Y-up but CAD source files are Z-up (STEP/IGES) or arbitrary (OBJ).
+      // glTF is Y-up but CAD source files are Z-up (STEP/IGES) or arbitrary (STL).
       // Rotate the whole model -90deg about X so CAD "up" (Z) points up in the
       // Y-up three.js scene — matching how the part sits in its native CAD program.
       // (Only for converted CAD inputs; passthrough GLB/GLTF are already Y-up.)
@@ -345,7 +334,6 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
 
   runBtn.onclick = async () => {
     const model = files.find(f=>f.kind==='model');
-    const mtl = files.find(f=>f.kind==='mtl');
     const isAlready = /\.(glb|gltf)$/i.test(model.name);
     // For already-GLB/GLTF files the output format is fixed; ignore the selector.
     const fmt = isAlready ? 'glb' : fmtSel.value;
@@ -356,12 +344,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
     const fd = new FormData();
     fd.append('model', model.file, model.name);
-    if (mtl) fd.append('mtl', mtl.file, mtl.name);
     fd.append('fmt', fmt);
-    // OBJ converter choice (OCCT vs host-side JS) — only meaningful for .obj.
-    if (/\.obj$/i.test(model.name)) fd.append('converter', objconvSel.value);
-    const hs = document.getElementById('holesize')?.value;
-    if (/\.obj$/i.test(model.name) && objconvSel.value === 'js' && hs !== undefined) fd.append('holesize', hs);
     if (wantCompress) fd.append('compress', 'draco');
     try {
       const res = await fetch('/convert', { method:'POST', body:fd });

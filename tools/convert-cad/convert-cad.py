@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Standalone CAD -> GLB/GLTF converter entry point (STEP / IGES / OBJ / STL).
+"""Standalone CAD -> GLB/GLTF converter entry point (STEP / IGES / STL).
 
 Thin wrapper over the modular `converters/` package. Kept so the standalone
 tool's web UI (convert-cad-server.mjs runs `python /tool/convert-cad.py`) and
@@ -10,7 +10,7 @@ convert_*.py modules + common.py) — the same layout the main viewer mounts at
 /converters, so this tool's converters/ folder migrates as-is.
 
 Usage (inside the container):
-  python convert-cad.py <in.(step|stp|igs|iges|obj|stl)> <out.glb|out.gltf> [--stem NAME]
+  python convert-cad.py <in.(step|stp|igs|iges|stl)> <out.glb|out.gltf> [--stem NAME]
 
 Exit codes:
   0 success (prints RESULT_OK)

@@ -1,6 +1,6 @@
-# convert-cad — standalone STEP / IGES / OBJ / STL → GLB / GLTF converter
+# convert-cad — standalone STEP / IGES / STL → GLB / GLTF converter
 
-**Version: v0.22** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.23** — a standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
@@ -17,8 +17,10 @@ wheels. It is **independent** of the web app — it does not import the
 |---|---|
 | `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
 | `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` (IGES usually has no names) |
-| `.obj` | Mesh; part names from `o`/`g` lines; colours from a sibling `.mtl` |
 | `.stl` | Mesh (already triangulated); converted **host-side** by `stl2glb.mjs` (pure JS, **no Docker**) as a single welded primitive — typically *smaller* than the source. The OCCT/B-rep path is avoided because it blows STL up ~10x (one glTF primitive per facet). |
+
+> OBJ is intentionally **not** supported: it is a mesh-only format without B-rep
+> semantics, so it cannot represent CAD assemblies/collaboration faithfully.
 
 ## STL is pure JS (no Docker)
 
@@ -61,16 +63,15 @@ node convert-cad-server.mjs          # or double-click convert-cad-web.bat
 # open http://localhost:8787
 ```
 
-Drag a STEP/IGES/OBJ onto the page (drop an OBJ together with its `.mtl` in
-one drag for colours), pick **.glb** or **.gltf**, hit **Convert**, then
-**Download**. After converting you get a live **3D preview** of the model —
+Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, hit **Convert**,
+then **Download**. After converting you get a live **3D preview** of the model —
 drag to rotate, scroll to zoom, right-drag / two-finger to pan. Options:
 `--port <n>` and `--host <ip>`.
 
 ### Command line
 
 ```
-node convert-cad.mjs <input.(step|stp|igs|iges|obj)> [out.glb|out.gltf] [opts]
+node convert-cad.mjs <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]
 ```
 
 Windows shortcut (same options):
@@ -84,7 +85,6 @@ convert-cad.bat <input> [out.glb|out.gltf] [opts]
 | Option | Meaning |
 |---|---|
 | `-o, --out <path>` | Output path (default: `<input dir>/<stem>.glb`) |
-| `--mtl <path>` | OBJ companion `.mtl` (auto-found next to the `.obj` if omitted) |
 | `--container <img>` | Docker image (default `chair-cq:local`) |
 | `--keep` | Keep the temp work dir on failure (debugging) |
 
@@ -97,18 +97,14 @@ node convert-cad.mjs Asm1.stp out.glb
 # IGES -> text GLTF (writes out.gltf + out.bin)
 node convert-cad.mjs Asm1.igs out.gltf
 
-# OBJ -> GLB, colours from a companion .mtl
-node convert-cad.mjs Asm1.obj out.glb --mtl asm1.mtl
-
-# OBJ -> GLTF, output to another folder
-node convert-cad.bat part.obj -o C:/exports/part.gltf --mtl part.mtl
+# STL -> binary GLB (host-side JS writer, no Docker)
+node convert-cad.mjs Eiffel_tower_sample.STL out.glb
 ```
 
 ## What it does
 
 1. **Pre-flights** — checks Docker is up and `chair-cq:local` exists.
-2. **Stages** the input into a temp dir as `model.<ext>` (plus `model.mtl` for
-   OBJ).
+2. **Stages** the input into a temp dir as `model.<ext>`.
 3. **Runs** `convert-cad.py` inside the container (mounted read-only) against
    the staged file.
 4. **Post-processes** — renames part nodes to clean `Part1..N` (only junk
@@ -134,12 +130,12 @@ node convert-cad.bat part.obj -o C:/exports/part.gltf --mtl part.mtl
 - `convert-cad-server.mjs` — Node HTTP server for the drag & drop web UI
 - `index.html` — the drag & drop page (upload → Convert → Download → 3D preview)
 - `convert-cad-web.bat` — Windows shortcut to launch the web UI
-- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.22.zip`)
+- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.23.zip`)
 
 ## Portable zip
 
 ```bash
-node build-convert-cad-portable.mjs v0.22   # -> dist/convert-cad-portable-v0.22.zip
+node build-convert-cad-portable.mjs v0.23   # -> dist/convert-cad-portable-v0.23.zip
 ```
 
 Bundles `node.exe`, the slimmed three.js modules, the CLI launcher, and the
@@ -150,6 +146,6 @@ still required at runtime for conversion (not bundled).
 ## Testing
 
 Sample files live in `cad-samples/` at the repo root (`Asm1.stp`, `Asm1.igs`,
-`Asm1.obj` + `asm1.mtl`, `cube.obj`, `abc-00000050.step`). Verified on those:
-STEP 904 tris / IGES 1096 tris / OBJ 5142 tris, with colours and part names
+`abc-00000050.step`, `Eiffel_tower_sample.STL`). Verified on those:
+STEP 904 tris / IGES 1096 tris, with colours and part names
 preserved in both GLB and GLTF output.

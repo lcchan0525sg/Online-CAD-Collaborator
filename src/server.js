@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile, writeFile, copyFile, unlink, rmdir, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, unlink, rmdir, mkdir, stat } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { extname, join, normalize, dirname } from 'node:path';
 import { tmpdir, networkInterfaces } from 'node:os';
@@ -52,7 +52,7 @@ if (!PORT) PORT = 8088;
 
 // STEP import runs the OpenCascade kernel (no Windows wheel) in Docker.
 // The converter is a FOLDER of per-format modules (converters/step2glb.py
-// dispatcher + convert_step.py / convert_iges.py / convert_obj.py +
+// dispatcher + convert_step.py / convert_iges.py / convert_stl.py +
 // common.py), so a new format never touches a finished one.
 //
 // Host path resolution: CQ_DIR env -> converters/ next to server.js
@@ -83,13 +83,12 @@ const CQ = resolveConverter();
 // FORMATS map). The server stores the upload under its REAL extension so the
 // dispatcher inside the container routes it to the right per-format module —
 // storing everything as model.step would force every upload through the STEP
-// reader (IGES/OBJ would fail with IFSelect_RetFail).
+// reader (IGES/STL would fail with IFSelect_RetFail).
 const CONVERT_EXT = {
   '.step': 'step',
   '.stp': 'step',
   '.igs': 'iges',
   '.iges': 'iges',
-  '.obj': 'obj',
   '.stl': 'stl',
 };
 function kindFromExt(name) { return CONVERT_EXT[(String(name).toLowerCase().match(/\.\w+$/) || [''])[0]]; }
@@ -97,7 +96,7 @@ function kindFromExt(name) { return CONVERT_EXT[(String(name).toLowerCase().matc
 function labelFromKind(kind) { return kind.toUpperCase() + ' → GLB'; }
 // Canonical extension per kind, used when the filename carries no convertible
 // extension (e.g. a client that sends x-kind but a bare filename).
-const KIND_EXT = { step: '.step', iges: '.igs', obj: '.obj', stl: '.stl' };
+const KIND_EXT = { step: '.step', iges: '.igs', stl: '.stl' };
 // Extension to store the upload under: the file's REAL extension when it's
 // convertible (that's what the container's dispatcher routes on), else the
 // canonical extension for the declared kind.
@@ -153,13 +152,9 @@ const httpServer = http
       res.end(JSON.stringify({ ips: addrs, lan: lan || addrs[0] || null, port: PORT }));
       return;
     }
-    // ---- API: STEP/IGES/OBJ conversion (standalone) ----
+    // ---- API: STEP/IGES/STL conversion (standalone) ----
     if (req.method === 'POST' && url.pathname === '/convert/step') {
       return handleStepUpload(req, res);
-    }
-    // ---- API: OBJ companion .mtl staging (uploaded with the .obj) ----
-    if (req.method === 'POST' && url.pathname === '/convert/mtl') {
-      return handleMtlUpload(req, res);
     }
     // ---- API: shared-session model (GET = fetch current, POST = upload) ----
     const m = url.pathname.match(/^\/sessions\/([A-Z0-9]{4,12})\/model$/);
@@ -492,7 +487,7 @@ wss.on('connection', (ws, req, url) => {
 
 /**
  * POST /sessions/:code/model — host uploads the shared model (raw GLB body,
- * or a STEP/IGES/OBJ body which is converted to GLB first). Stores the GLB in
+ * or a STEP/IGES/STL body which is converted to GLB first). Stores the GLB in
  * the session and tells all members to load it.
  */
 async function handleSessionModelUpload(req, res, session) {
@@ -508,10 +503,10 @@ async function handleSessionModelUpload(req, res, session) {
     const buf = Buffer.concat(chunks);
     const filename = (req.headers['x-filename'] || 'model').toString().slice(0, 120);
     // The client knows what it's sending (it may have already converted a
-    // STEP/IGES/OBJ to GLB locally and kept the original filename) — trust
+    // STEP/IGES/STL to GLB locally and kept the original filename) — trust
     // x-kind over a filename-extension guess.
     const declared = (req.headers['x-kind'] || '').toString().toLowerCase();
-    const declaredKnown = declared === 'glb' || declared === 'step' || declared === 'iges' || declared === 'obj' || declared === 'stl';
+    const declaredKnown = declared === 'glb' || declared === 'step' || declared === 'iges' || declared === 'stl';
     // Trust an explicit x-kind. Only fall back to a filename-extension guess
     // when the client did NOT declare a kind (older clients / direct uploads).
     let kind = declaredKnown ? declared : 'glb';
@@ -532,17 +527,6 @@ async function handleSessionModelUpload(req, res, session) {
       const outPath = join(tmp, 'model.glb');
       await mkdir(tmp, { recursive: true });
       await writeFile(inPath, buf);
-      // OBJ colours come from a companion .mtl (staged via /convert/mtl).
-      if (kind === 'obj' && (req.headers['x-mtl'] || '').toString()) {
-        const mtlId = (req.headers['x-mtl'] || '').toString().replace(/[^a-zA-Z0-9-]/g, '');
-        try {
-          await copyFile(join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl'), join(tmp, 'model.mtl'));
-          await unlink(join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl')).catch(() => {});
-          console.log(`[session ${session.code}] attached companion .mtl`);
-        } catch (e) {
-          console.warn('[session] mtl attach failed: ' + e.message);
-        }
-      }
       const args = [
         'run', '--rm',
         '--env', `CQ_STEM=${stemOf(filename) || 'model'}`,
@@ -592,46 +576,7 @@ async function handleSessionModelUpload(req, res, session) {
 }
 
 /**
- * POST /convert/mtl — stage an OBJ companion .mtl (raw body). Returns a short
- * id that the following /convert/step request passes in an x-mtl header; the
- * file is then copied next to the .obj so convert_obj.py can read the material
- * colours. Staged files are deleted after use and swept after 30 minutes.
- */
-const MTL_TTL_MS = 30 * 60 * 1000;
-async function handleMtlUpload(req, res) {
-  let chunks = [];
-  let size = 0;
-  try {
-    for await (const chunk of req) {
-      size += chunk.length;
-      if (size > 10 * 1024 * 1024) { res.writeHead(413).end('mtl too large (10 MB max)'); return; }
-      chunks.push(chunk);
-    }
-    if (!chunks.length) { res.writeHead(400).end('empty mtl'); return; }
-    const id = randomUUID();
-    await writeFile(join(tmpdir(), 'cadv-mtl-' + id + '.mtl'), Buffer.concat(chunks));
-    // Opportunistic sweep of stale stages (crash orphans).
-    try {
-      const { readdir, stat } = await import('node:fs/promises');
-      const now = Date.now();
-      for (const f of await readdir(tmpdir())) {
-        if (!f.startsWith('cadv-mtl-')) continue;
-        const p = join(tmpdir(), f);
-        try {
-          if (now - (await stat(p)).mtimeMs > MTL_TTL_MS) await unlink(p).catch(() => {});
-        } catch {}
-      }
-    } catch {}
-    res.writeHead(200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ ok: true, id }));
-  } catch (e) {
-    res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
-    res.end('mtl stage failed: ' + e.message);
-  }
-}
-
-/**
- * POST /convert/step — accepts a raw .step/.stp/.igs/.iges/.obj body (the
+ * POST /convert/step — accepts a raw .step/.stp/.igs/.iges/.stl body (the
  * client sends its filename via x-filename), converts it to GLB via the
  * OpenCascade kernel in Docker, and responds with the GLB bytes. The name is
  * legacy: it is the generic "convert CAD → GLB" endpoint.
@@ -663,21 +608,6 @@ async function handleStepUpload(req, res) {
     }
     await mkdir(tmp, { recursive: true });
     await writeFile(inPath, Buffer.concat(chunks));
-
-    // OBJ colours come from a companion .mtl: if the client staged one via
-    // /convert/mtl (x-mtl = stage id), copy it next to the model under the
-    // expected name so convert_obj.py's sibling lookup finds it.
-    if (kind === 'obj' && (req.headers['x-mtl'] || '').toString()) {
-      const mtlId = (req.headers['x-mtl'] || '').toString().replace(/[^a-zA-Z0-9-]/g, '');
-      try {
-        const staged = join(tmpdir(), 'cadv-mtl-' + mtlId + '.mtl');
-        await copyFile(staged, join(tmp, 'model.mtl'));
-        await unlink(staged).catch(() => {});
-        console.log('[convert] attached companion .mtl');
-      } catch (e) {
-        console.warn('[convert] mtl attach failed: ' + e.message);
-      }
-    }
 
     // STL is a pure mesh: convert HOST-SIDE with the direct JS writer (no
     // Docker). The OCCT/B-rep path emits one glTF primitive per facet -> ~10x

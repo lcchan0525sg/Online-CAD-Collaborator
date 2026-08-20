@@ -21,6 +21,20 @@ versioning follows `v0.x`.
 
 ---
 
+## [Unreleased]
+
+### Removed
+
+- **OBJ support removed** from both the main viewer and the standalone
+  `convert-cad` tool. OBJ is a mesh-only format without B-rep semantics, so it
+  cannot represent CAD assemblies/collaboration faithfully (tessellation gaps,
+  no guaranteed watertight bodies, no parametric history). Removed:
+  `obj2glb.mjs`, `verify-orientation.mjs`, `convert_obj.py` (both trees), the
+  OBJ/mtl branches in `server.js` (`/convert/mtl` staging endpoint, `x-mtl`
+  header handling), the OBJ converter selector + hole-fill knob in the
+  convert-cad web UI, and the CLI `--js`/`--mtl` flags. Supported inputs are
+  now STEP / IGES / STL (+ GLB/GLTF passthrough).
+
 ## [v0.55] — 2026-08-19
 
 **Initial public release.** v0.55 is the first tagged release and the baseline
@@ -156,14 +170,13 @@ install-docker-opencascade.bat   One-time Docker/OCCT setup for Windows
 tools/convert-cad/   Standalone converter tool (separate package)
 ```
 
-## 4. Conversion method (STEP / IGES / OBJ → GLB)
+## 4. Conversion method (STEP / IGES / STL → GLB)
 
 - Server receives an upload and writes it to a temp dir.
 - Runs **`docker run --rm`** with the file mounted as `/w/model<ext>`, invoking
   `/converters/step2glb.py` which uses **OpenCascade's `RWGltf_CafWriter`** to
   write `/w/model.glb`. The GLB is binary (not text glTF).
-- Preserves **assembly part names** (via XCAF) and **per-part colours**;
-  OBJ colours come from a sibling `.mtl` uploaded together.
+- Preserves **assembly part names** (via XCAF) and **per-part colours**.
 - The server **verifies the result** (`countGlbTriangles`): a 0-triangle GLB is
   rejected with a clear error instead of a silent blank view.
 - GLB/GLTF uploads bypass conversion (passthrough).

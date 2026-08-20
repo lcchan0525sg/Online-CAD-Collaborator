@@ -860,15 +860,13 @@ function loadFile(file, afterLoad) {
   return p;
 }
 
-// STEP / AP214 / IGES / OBJ import: the browser can't parse these B-rep/mesh
-// sources, so we POST the file to the server, which converts it to GLB via the
-// OpenCascade kernel in Docker (see /convert/step), then load the returned
-// GLB. The whole thing is behind the blocking overlay — the opening user
-// cannot operate until the conversion AND load have both completed. The
-// x-filename header lets the server keep the real extension so its dispatcher
-// routes to the right per-format converter. For OBJ, the user may also select
-// the companion .mtl — it is staged first (x-mtl) so part colours survive.
-async function importStep(file, mtlFile) {
+// STEP / IGES / STL import: the browser can't parse these B-rep/mesh sources,
+// so we POST the file to the server, which converts it to GLB (see
+// /convert/step), then load the returned GLB. The whole thing is behind the
+// blocking overlay — the opening user cannot operate until the conversion AND
+// load have both completed. The x-filename header lets the server keep the
+// real extension so its dispatcher routes to the right per-format converter.
+async function importStep(file) {
   const infoEl = document.getElementById('info');
   const gen = nextLoadGen();
   const inSession = !!(session && session.connected);
@@ -879,21 +877,10 @@ async function importStep(file, mtlFile) {
     : `converting ${file.name} to GLB…\n(OpenCascade kernel · Docker — allow a few seconds)`;
   const t0 = performance.now();
   try {
-    // OBJ: stage the companion .mtl (if picked) so the converter can apply
-    // its material colours.
-    let mtlId = '';
-    if (mtlFile) {
-      try {
-        const mres = await fetch('/convert/mtl', { method: 'POST', body: mtlFile });
-        if (mres.ok) mtlId = ((await mres.json()) || {}).id || '';
-      } catch { mtlId = ''; }
-      if (!mtlId) infoEl.textContent = `${file.name}: .mtl staging failed — colours may be lost\n` + infoEl.textContent;
-    }
     const headers = {
       'content-type': file.type || 'application/octet-stream',
       'x-filename': file.name,
     };
-    if (mtlId) headers['x-mtl'] = mtlId;
     const res = await fetch('/convert/step', {
       method: 'POST',
       body: file,
@@ -913,8 +900,9 @@ async function importStep(file, mtlFile) {
     loader.parse(buf.buffer, '', (gltf) => {
       if (!isCurrentGen(gen)) return;
       // loadFromGltf builds the parts tree, info and frames the camera. If it
-      // throws (e.g. a very large OBJ with thousands of primitive meshes), we
-      // must still clear the blocking overlay — otherwise it hangs forever.
+      // throws (e.g. a very large conversion with thousands of primitive
+      // meshes), we must still clear the blocking overlay — otherwise it hangs
+      // forever.
       try {
         loadFromGltf(gltf);
       } catch (err) {
@@ -924,13 +912,6 @@ async function importStep(file, mtlFile) {
         return;
       }
       let srcLine = `source: ${file.name} (converted to GLB in ${dt}s)`;
-      // OBJ colours live in a sibling .mtl; if it wasn't selected, say so
-      // clearly so a grey result isn't mistaken for a converter bug.
-      if (file.name.toLowerCase().endsWith('.obj') && !mtlFile) {
-        srcLine += '  ⚠ NO .MTL SELECTED — parts are grey. Re-open and select the .obj together with its .mtl.';
-      } else if (file.name.toLowerCase().endsWith('.obj') && mtlFile && !mtlId) {
-        srcLine += '  ⚠ .MTL STAGING FAILED — parts may be grey.';
-      }
       infoEl.textContent = srcLine + '\n' + infoEl.textContent;
       lastLocalModel = { buf, filename: file.name, kind: 'glb' };
       // In a session the model is also pushed to the guests once the local
@@ -1629,27 +1610,19 @@ function applyRemoteCamera(pos, target) {
 /* ============================ UI ============================ */
 // Local loads: if we're in a session, also share the model with the other viewers.
 document.getElementById('file').addEventListener('change', (e) => {
-  // Multi-select: pick the CAD file (an .obj may be accompanied by its .mtl —
-  // same stem, case-insensitive — which carries the part colours).
+  // Multi-select: pick the CAD file.
   const files = [...(e.target.files || [])];
-  const isMtl = (n) => /\.mtl$/i.test(n || '');
-  const f = files.find((x) => !isMtl(x.name)) || files[0];
+  const f = files[0];
   if (f) {
     const ext = f.name.toLowerCase();
     if (ext.endsWith('.step') || ext.endsWith('.stp') ||
-        ext.endsWith('.igs') || ext.endsWith('.iges') || ext.endsWith('.obj') ||
+        ext.endsWith('.igs') || ext.endsWith('.iges') ||
         ext.endsWith('.stl')) {
       // importStep converts locally (so the opener sees it too) and, when in a
       // session, hands the resulting GLB to shareBuffer for the guests.
       // (Named "Step" from the first format; it covers every kernel-convertible
       // format — the server routes by the real file extension.)
-      let mtlFile = null;
-      if (ext.endsWith('.obj')) {
-        const stem = f.name.replace(/\.[^.]+$/i, '').toLowerCase();
-        mtlFile = files.find((x) => isMtl(x.name) && x.name.toLowerCase().startsWith(stem))
-          || files.find((x) => isMtl(x.name)) || null;
-      }
-      importStep(f, mtlFile);
+      importStep(f);
     } else {
       // Load locally, then hand off to the "sending model to guest(s)" step
       // IF a session is live by the time the model lands. Opening a model
