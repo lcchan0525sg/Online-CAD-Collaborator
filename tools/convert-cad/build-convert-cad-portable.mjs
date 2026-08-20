@@ -35,9 +35,12 @@ mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recu
 // ---- tool files (into the zip root) ----
 for (const f of ['convert-cad.py', 'convert-cad.mjs', 'convert-cad.bat',
                  'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html',
-                 'draco-compress.mjs', 'README.md']) {
+                 'draco-compress.mjs', 'stl2glb.mjs', 'README.md']) {
   copyFileSync(join(TOOL, f), join(APP, f));
 }
+// The modular per-format converters package (step2glb.py dispatcher +
+// convert_*.py + common.py) must ship alongside the wrapper.
+cpSync(join(TOOL, 'converters'), join(APP, 'converters'), { recursive: true });
 // Stamp the version into the copied index.html title
 const html = readFileSync(join(APP, 'index.html'), 'utf8')
   .replace(/(convert-cad — drag & drop\s*<span class="ver">)v[0-9][^<]*/, `$1v${versionArg}`);

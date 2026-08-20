@@ -1,6 +1,6 @@
-# convert-cad — standalone STEP / IGES / OBJ → GLB / GLTF converter
+# convert-cad — standalone STEP / IGES / OBJ / STL → GLB / GLTF converter
 
-**Version: v0.2** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.21** — a standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
@@ -18,6 +18,26 @@ wheels. It is **independent** of the web app — it does not import the
 | `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
 | `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` (IGES usually has no names) |
 | `.obj` | Mesh; part names from `o`/`g` lines; colours from a sibling `.mtl` |
+| `.stl` | Mesh (already triangulated); converted **host-side** by `stl2glb.mjs` (pure JS, **no Docker**) as a single welded primitive — typically *smaller* than the source. The OCCT/B-rep path is avoided because it blows STL up ~10x (one glTF primitive per facet). |
+
+## STL is pure JS (no Docker)
+
+`.stl` does **not** go through the OCCT Docker converter. `stl2glb.mjs` parses
+ASCII/binary STL and writes a single-primitive GLB (welded vertices + computed
+normals + fallback colour) directly in Node — fast, tiny output, no container.
+Wired in both the web server (`convert-cad-server.mjs`) and CLI
+(`convert-cad.mjs`); the OCCT `convert_stl.py` remains only as a fallback if
+the Python dispatcher is ever invoked directly on an STL.
+
+## Modular structure (migrates to the CAD Viewer)
+
+The conversion logic lives in **`converters/`** — a flat folder of per-format
+modules (`step2glb.py` dispatcher + `convert_*.py` + `common.py`) that is laid
+out **exactly** like what the CAD Viewer's `server.js` mounts at `/converters`.
+`convert-cad.py` is now just a thin wrapper over it. So migrating to the main
+app is: copy `converters/` into the app, point `CQ_DIR` at it, and add the
+extension to the server's `CONVERT_EXT` map. Adding a format = one
+`convert_<fmt>.py` module + one `FORMATS` entry in `step2glb.py`.
 
 Output format is chosen by the **output file extension**: `.glb` → single
 binary file; `.gltf` → text JSON + a companion `.bin`.
@@ -114,12 +134,12 @@ node convert-cad.bat part.obj -o C:/exports/part.gltf --mtl part.mtl
 - `convert-cad-server.mjs` — Node HTTP server for the drag & drop web UI
 - `index.html` — the drag & drop page (upload → Convert → Download → 3D preview)
 - `convert-cad-web.bat` — Windows shortcut to launch the web UI
-- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.2.zip`)
+- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.21.zip`)
 
 ## Portable zip
 
 ```bash
-node build-convert-cad-portable.mjs 0.2     # -> dist/convert-cad-portable-v0.2.zip
+node build-convert-cad-portable.mjs v0.21   # -> dist/convert-cad-portable-v0.21.zip
 ```
 
 Bundles `node.exe`, the slimmed three.js modules, the CLI launcher, and the

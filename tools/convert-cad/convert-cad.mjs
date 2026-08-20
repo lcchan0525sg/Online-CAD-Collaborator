@@ -26,7 +26,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONVERTER = join(__dirname, 'convert-cad.py');
 
-const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.obj': 'OBJ' };
+const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.obj': 'OBJ', '.stl': 'STL' };
 
 // Host-side glTF geometry compression (Draco) via the self-contained draco3d
 // compressor (draco-compress.mjs). Runs after the Docker conversion so the
@@ -109,7 +109,7 @@ async function main() {
   if (!existsSync(input)) die('input not found: ' + input);
   if (pos[1]) out = pos[1];   // positional output (also settable via -o/--out)
   const ext = extname(input).toLowerCase();
-  if (!(ext in SUPPORTED)) die(`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj)`);
+  if (!(ext in SUPPORTED)) die(`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.stl)`);
 
   const stem = basename(input).replace(/\.[^.]+$/, '');
   // Output extension decides GLB vs GLTF.
@@ -154,27 +154,42 @@ async function main() {
   const stemSafe = stem.replace(/[^A-Za-z0-9_.-]/g, '_');
   const workOut = join(work, 'model' + wantExt);
 
-  const args = [
-    'run', '--rm',
-    '--env', `CQ_STEM=${stemSafe}`,
-    '-v', `${work}:/w`,
-    '-v', `${dirname(CONVERTER)}:/tool:ro`,
-    '-w', '/w',
-    container,
-    'python', '/tool/convert-cad.py', `/w/${inName}`, `/w/${'model' + wantExt}`,
-  ];
-  console.log(`convert-cad: converting ${SUPPORTED[ext]} -> ${basename(outArg)} (${wantExt === '.glb' ? 'GLB' : 'GLTF'})`);
-  console.log(`convert-cad: docker run ... ${container}`);
-  try {
-    const { code, stdout, stderr } = await run('docker', args);
-    if (code !== 0) {
+  if (ext === '.stl') {
+    // Pure mesh -> direct host-side writer (no Docker). The OCCT/B-rep path
+    // explodes STL to ~10x (one glTF primitive per facet); stl2glb.mjs writes a
+    // single welded primitive, typically smaller than the source.
+    if (wantExt !== '.glb') die('STL converts to GLB only; use a .glb output');
+    console.log(`convert-cad: converting STL -> ${basename(outArg)} (GLB, host-side)`);
+    try {
+      execFileSync(process.execPath, [join(__dirname, 'stl2glb.mjs'), inPath, workOut, '--stem', stemSafe],
+        { stdio: 'inherit' });
+    } catch {
       if (keep) console.error('convert-cad: temp work dir kept at ' + work);
-      die('conversion failed:\n' + stderr.slice(-2000));
+      die('stl2glb conversion failed');
     }
-    if (stderr.trim()) process.stderr.write(stderr.replace(/^/gm, '  '));
-  } catch (e) {
-    if (keep) console.error('convert-cad: temp work dir kept at ' + work);
-    die('docker error: ' + e.message);
+  } else {
+    const args = [
+      'run', '--rm',
+      '--env', `CQ_STEM=${stemSafe}`,
+      '-v', `${work}:/w`,
+      '-v', `${dirname(CONVERTER)}:/tool:ro`,
+      '-w', '/w',
+      container,
+      'python', '/tool/convert-cad.py', `/w/${inName}`, `/w/${'model' + wantExt}`,
+    ];
+    console.log(`convert-cad: converting ${SUPPORTED[ext]} -> ${basename(outArg)} (${wantExt === '.glb' ? 'GLB' : 'GLTF'})`);
+    console.log(`convert-cad: docker run ... ${container}`);
+    try {
+      const { code, stdout, stderr } = await run('docker', args);
+      if (code !== 0) {
+        if (keep) console.error('convert-cad: temp work dir kept at ' + work);
+        die('conversion failed:\n' + stderr.slice(-2000));
+      }
+      if (stderr.trim()) process.stderr.write(stderr.replace(/^/gm, '  '));
+    } catch (e) {
+      if (keep) console.error('convert-cad: temp work dir kept at ' + work);
+      die('docker error: ' + e.message);
+    }
   }
 
   // Copy outputs back.

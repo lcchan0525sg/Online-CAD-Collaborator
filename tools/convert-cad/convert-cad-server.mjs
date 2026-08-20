@@ -36,7 +36,7 @@ function threeFileFor(urlPath){
   if (buildName === 'three.module.js' || buildName === 'three.core.js') return join(THREE_ROOT, 'build', buildName);
   return join(THREE_ROOT, 'examples', 'jsm', rel);
 }
-const SUPPORTED = { '.step':'STEP','.stp':'STEP','.igs':'IGES','.iges':'IGES','.obj':'OBJ' };
+const SUPPORTED = { '.step':'STEP','.stp':'STEP','.igs':'IGES','.iges':'IGES','.obj':'OBJ','.stl':'STL' };
 const PASSTHROUGH = { '.glb':'glb', '.gltf':'gltf' };   // already-converted: no Docker needed
 const MAX_BODY = 300 * 1024 * 1024; // 300 MB upload cap
 
@@ -114,7 +114,7 @@ async function handleConvert(req,res){
   const ext=extname(model.filename).toLowerCase();
   const isPassthrough = ext in PASSTHROUGH;
   if(!isPassthrough && !(ext in SUPPORTED))
-    return sendErr(res,400,`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.glb/.gltf)`);
+    return sendErr(res,400,`unsupported extension '${ext}' (need .step/.stp/.igs/.iges/.obj/.stl/.glb/.gltf)`);
 
   // Fast path: file is already GLB/GLTF — no Docker. Return it straight for
   // preview/download, optionally Draco-compressing a GLB.
@@ -144,6 +144,41 @@ async function handleConvert(req,res){
     };
     res.writeHead(200,headers);
     return res.end(outBuf);
+  }
+
+  // STL is a pure mesh: convert HOST-SIDE with the direct JS writer (no Docker).
+  // The OCCT/B-rep path emits one glTF primitive per facet -> ~10x blowup (and
+  // Draco can't fix structural bloat); stl2glb.mjs writes a single welded
+  // primitive, typically smaller than the source STL.
+  if (ext === '.stl') {
+    const stem = basename(model.filename).replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_.-]/g, '_') || 'model';
+    const work = mkdtempSync(join(tmpdir(), 'convert-cad-web-'));
+    try {
+      const inPath = join(work, 'model.stl');
+      const outPath = join(work, 'model.glb');
+      writeFileSync(inPath, model.body);
+      execFileSync(process.execPath, [join(__dirname, 'stl2glb.mjs'), inPath, outPath, '--stem', stem],
+        { stdio: ['ignore', 'ignore', 'pipe'] });
+      let fileBuf = readFileSync(outPath);
+      const log = ['STL -> GLB (host-side, no Docker)'];
+      if (compress === 'draco') {
+        try { const comp = await compressGlbBuffer(fileBuf); fileBuf = comp.buf; log.push(`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`); }
+        catch (e) { log.push('draco compression failed, returning uncompressed: ' + e.message); }
+      } else if (compress !== 'none') {
+        return sendErr(res, 400, `unsupported compress '${compress}' (only 'draco' is supported)`);
+      }
+      res.writeHead(200, {
+        'Content-Type': 'model/gltf-binary',
+        'Content-Disposition': `attachment; filename="${stem}.glb"`,
+        'Content-Length': fileBuf.length,
+        'X-Convert-Log': Buffer.from(log.join('\n')).toString('base64'),
+      });
+      return res.end(fileBuf);
+    } catch (e) {
+      return sendErr(res, 500, ((e.stderr || '').toString() || 'stl2glb failed').slice(-4000));
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
   }
 
   // pre-flight docker

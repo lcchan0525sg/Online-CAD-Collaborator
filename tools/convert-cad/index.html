@@ -76,14 +76,14 @@
 </style>
 </head>
 <body>
-  <h1>convert-cad — drag &amp; drop <span class="ver">v0.2</span></h1>
-  <div class="sub">STEP / IGES / OBJ → GLB / GLTF · Docker (OpenCascade)</div>
+  <h1>convert-cad — drag &amp; drop <span class="ver">v0.21</span></h1>
+  <div class="sub">STEP / IGES / OBJ / STL → GLB / GLTF · Docker (OpenCascade)</div>
 
   <div class="card">
     <div class="drop" id="drop">
       <div class="big">⬆️</div>
       <p><strong>Drop a CAD file here</strong> or click to browse</p>
-      <div class="fmt">.step · .stp · .igs · .iges · .obj &nbsp; (add a companion .mtl for OBJ colours)</div>
+      <div class="fmt">.step · .stp · .igs · .iges · .obj · .stl &nbsp; (add a companion .mtl for OBJ colours)</div>
       <input class="file" id="file" type="file" multiple />
     </div>
 
@@ -186,7 +186,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const pbar = document.getElementById('pbar');
   const canvas = document.getElementById('viewer');
 
-  const FMT = /\.(step|stp|igs|iges|obj|glb|gltf)$/i;
+  const FMT = /\.(step|stp|igs|iges|obj|stl|glb|gltf)$/i;
   const MTL = /\.mtl$/i;
   const files = [];        // {name, file, kind:'model'|'mtl'}
   let latest = null;       // {name, blob} ready to download
