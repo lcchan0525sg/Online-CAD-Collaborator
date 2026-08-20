@@ -2754,13 +2754,16 @@ function applyExplodeGap(newGap) {
   }
   // Apply offsets (absolute from resting) in each target's parent frame.
   const seen = new Set();
-  const _z = new THREE.Vector3();
+  const _o = new THREE.Vector3();
+  const _d = new THREE.Vector3();
   for (const it of items) {
     if (seen.has(it.t.node.uuid)) continue;
     seen.add(it.t.node.uuid);
     const p = it.t.parent || model.children[0];
-    const a = p.worldToLocal(_z.set(0, 0, 0));
-    const b = p.worldToLocal(_z.copy(axisWorld).multiplyScalar(it.offset));
+    // NB: worldToLocal returns its argument, so `a` and `b` MUST be distinct
+    // vectors — otherwise b.sub(a) always yields (0,0,0) and nothing moves.
+    const a = p.worldToLocal(_o.set(0, 0, 0));
+    const b = p.worldToLocal(_d.copy(axisWorld).multiplyScalar(it.offset));
     const localDelta = b.sub(a);
     it.t.node.position.copy(it.t.resting).add(localDelta);
     it.t.node.updateMatrixWorld(true);
@@ -3066,6 +3069,7 @@ window.__viewer = {
       targets: explodeTargets.map(t => ({ n: t.node.name, key: t.node.uuid })),
     };
   },
+  get explodeTargets() { return explodeTargets.map((t) => ({ name: t.node.name, pos: t.axisPos, min: t.axisMin, ext: t.extent, rest: [t.resting.x, t.resting.y, t.resting.z] })); },
   get explodePos() {
     return explodeTargets.map((t) => {
       const p = t.node.position;

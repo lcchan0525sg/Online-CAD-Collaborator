@@ -259,6 +259,21 @@ to disk.
 
 ---
 
+## [v0.75] — 2026-08-20
+
+> **Baseline:** v0.74 (tag `v0.74`). Release on top of the current working tree.
+
+### Fixed
+
+- **Explode slider now actually moves the assembly.** Dragging the slider had no
+  visible effect because the displacement was always computed as zero: two
+  `worldToLocal` results were written into the *same* temp vector, so
+  `b.sub(a)` cancelled out to `(0,0,0)`. The offset math (which produced up to
+  ~9.5 m of expected spread) was correct but never applied. Now uses two
+  distinct temp vectors, so parts separate along the chosen axis, the
+  separation scales smoothly with the slider, and `gap=0` restores every part
+  exactly to its resting position (fully reversible).
+
 ## [v0.74] — 2026-08-20
 
 > **Baseline:** v0.73 (tag `v0.73`). Release on top of the current working tree.
