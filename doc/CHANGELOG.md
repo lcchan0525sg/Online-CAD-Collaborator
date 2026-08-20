@@ -259,9 +259,33 @@ to disk.
 
 ---
 
-## [v0.73] — 2026-08-20
+## [v0.74] — 2026-08-20
 
-> **Baseline:** v0.72 (tag `v0.72`). Release on top of the current working tree.
+> **Baseline:** v0.73 (tag `v0.73`). Release on top of the current working tree.
+
+### Fixed
+
+- **Smooth explode during slider drag — no more bouncing back.** A pure mm-gap
+  change now applies directly (smooth delta from the resting layout) instead of
+  collapsing to 0 and re-applying. This removes the visible snap-back that
+  happened when a receiving viewer handled a synced gap change.
+
+### Changed
+
+- **Removed the `Radial` explode direction.** It had no effect in mm-gap mode
+  (which is axis-based); the direction list is now **X / Y / Z** only.
+- **Added an Explode **Reset** button.** It collapses the explode (gap → 0) and
+  frames the model to fit the viewport — one click returns to the full view.
+
+### Fixed (sync)
+
+- **Session sync no longer causes a collapse-bounce on the receiving viewer.** A
+  remote mm-gap change is applied directly (smooth); only a change of explode
+  direction or scope triggers the recompute (collapse + recache) path.
+
+---
+
+## [v0.73] — 2026-08-20
 
 ### Changed
 

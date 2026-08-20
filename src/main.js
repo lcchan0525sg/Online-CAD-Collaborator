@@ -2689,11 +2689,30 @@ function computeExplodeDirs() {
   // Skip hidden parts in the layout — no phantom gap around hidden geometry.
   const visible = kids.filter((n) => n.visible !== false);
   if (!visible.length) { renderExplodeScope(); return; }
+  const axisWorld = axisVector();
+  const _c = new THREE.Vector3();
   for (const node of visible) {
     const parent = node.parent || model.children[0];
-    explodeTargets.push({ node, parent, resting: node.position.clone() });
+    // Cache the RESTING box along the current axis so slider drags are smooth:
+    // the layout reuses these cached scalars instead of re-reading geometry.
+    const box = new THREE.Box3().setFromObject(node);
+    const center = box.getCenter(_c).clone();
+    const size = box.getSize(new THREE.Vector3());
+    const extent = Math.abs(size.dot(axisWorld));
+    const half = extent / 2;
+    explodeTargets.push({
+      node, parent, resting: node.position.clone(),
+      axisPos: center.dot(axisWorld),
+      axisMin: center.dot(axisWorld) - half,
+      extent,
+    });
   }
   renderExplodeScope();
+}
+function axisVector() {
+  return explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
+    : explodeDir === 'z' ? new THREE.Vector3(0, 0, 1)
+    : new THREE.Vector3(1, 0, 0);
 }
 // ---- Apply mm-gap separation along an axis (bbox-driven layout) ----
 // Each target is moved along the chosen axis just enough to keep `gap` mm of
@@ -2704,11 +2723,8 @@ function computeExplodeDirs() {
 // Sub-assemblies are rigid (their whole box moves together).
 function applyExplodeGap(newGap) {
   const gap = Math.max(0, Number(newGap) || 0);
-  if (explodeDir === 'radial') { explodeDir = 'x'; if (explodeDirEl) explodeDirEl.value = 'x'; }
   if (!model || !explodeTargets.length || explodeNothing) { setExplodeUi(gap); return; }
-  const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
-    : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
-    : new THREE.Vector3(0, 0, 1);
+  const axisWorld = axisVector();
   // gap=0 means "assembled": restore every box to its resting position.
   if (gap <= 0) {
     const seen = new Set();
@@ -2723,16 +2739,9 @@ function applyExplodeGap(newGap) {
     return;
   }
   const gapWorld = gap / 1000;   // scene is mm -> m
-  // Each target's resting world position + bbox extent along the axis.
-  const items = [];
-  for (const t of explodeTargets) {
-    const box = new THREE.Box3().setFromObject(t.node);
-    const min = box.min, max = box.max;
-    const extent = new THREE.Vector3().subVectors(max, min).dot(axisWorld);
-    const center = box.getCenter(new THREE.Vector3());
-    const half = Math.abs(extent) / 2;
-    items.push({ t, axisPos: center.dot(axisWorld), min: center.dot(axisWorld) - half, extent: Math.abs(extent), offset: 0 });
-  }
+  // Use the cached resting boxes (axisPos / axisMin / extent) captured at
+  // computeExplodeDirs — no per-tick geometry read, so the slider is smooth.
+  const items = explodeTargets.map((t) => ({ t, axisPos: t.axisPos, min: t.axisMin, extent: t.extent, offset: 0 }));
   items.sort((a, b) => a.axisPos - b.axisPos);
   // Push each box forward only as far as needed to maintain `gap` after the
   // previous box. Cursor tracks the new trailing edge of the last box.
@@ -2745,12 +2754,13 @@ function applyExplodeGap(newGap) {
   }
   // Apply offsets (absolute from resting) in each target's parent frame.
   const seen = new Set();
+  const _z = new THREE.Vector3();
   for (const it of items) {
     if (seen.has(it.t.node.uuid)) continue;
     seen.add(it.t.node.uuid);
     const p = it.t.parent || model.children[0];
-    const a = p.worldToLocal(new THREE.Vector3());
-    const b = p.worldToLocal(axisWorld.clone().multiplyScalar(it.offset));
+    const a = p.worldToLocal(_z.set(0, 0, 0));
+    const b = p.worldToLocal(_z.copy(axisWorld).multiplyScalar(it.offset));
     const localDelta = b.sub(a);
     it.t.node.position.copy(it.t.resting).add(localDelta);
     it.t.node.updateMatrixWorld(true);
@@ -2787,6 +2797,13 @@ explodeDirEl.addEventListener('change', () => {
   explodeDir = explodeDirEl.value;
   recomputeExplodeGap();
 });
+const explodeResetEl = document.getElementById('btn-explode-reset');
+if (explodeResetEl) {
+  explodeResetEl.addEventListener('click', () => {
+    resetExplode();      // gap -> 0, restore all parts
+    frameModel();        // reframe the whole model (max view)
+  });
+}
 function recomputeExplodeGap() {
   resetExplodeToResting();
   const gap = explodeGap;
@@ -2821,8 +2838,13 @@ function applyRemoteExplode(msg) {
   try {
     const dirChanged = typeof msg.dir === 'string' && msg.dir !== explodeDir;
     if (dirChanged) { explodeDir = msg.dir; if (explodeDirEl) explodeDirEl.value = msg.dir; }
+    const scopeChanged = typeof msg.scopeKey === 'string' && msg.scopeKey !== explodeScopeKey;
+    if (scopeChanged) explodeScopeKey = msg.scopeKey;
     const gap = Math.max(0, Number(msg.gap) || 0);
-    if (dirChanged || gap !== explodeGap) recomputeExplodeGap();
+    // Pure gap change -> apply directly (smooth, no collapse). Only recompute
+    // (collapse + recache) when the direction or scope changed, since those
+    // change the layout geometry.
+    if (dirChanged || scopeChanged) recomputeExplodeGap();
     else applyExplodeGap(gap);
     setExplodeUi(gap);
   } finally { applyingRemoteExplode = false; }
@@ -2916,6 +2938,7 @@ window.__viewer = {
   },
   // Test helpers: drive the real create/share paths and report the result.
   createSession: () => { const c = newSessionCode(); connectTo(c, { create: true }); return c; },
+  createSessionCode: (code) => { connectTo(code, { create: true }); return code; },
   joinSession: (code) => { connectTo(code); return code; },
   loadUrl: (url) => loadUrl(url),
   loadFile: (file) => loadFile(file),
@@ -3042,6 +3065,12 @@ window.__viewer = {
       scope: scope ? { name: scope.name, kids: (scope.children||[]).map(c => c.name), hasKids: (scope.children||[]).length } : null,
       targets: explodeTargets.map(t => ({ n: t.node.name, key: t.node.uuid })),
     };
+  },
+  get explodePos() {
+    return explodeTargets.map((t) => {
+      const p = t.node.position;
+      return { n: t.node.name, x: +p.x.toFixed(4), y: +p.y.toFixed(4), z: +p.z.toFixed(4) };
+    });
   },
   partRowInfo: (key) => {
     const r = partRows.get(key);
