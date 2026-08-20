@@ -35,7 +35,7 @@ mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recu
 // ---- tool files (into the zip root) ----
 for (const f of ['convert-cad.py', 'convert-cad.mjs', 'convert-cad.bat',
                  'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html',
-                 'draco-compress.mjs', 'stl2glb.mjs', 'README.md']) {
+                 'draco-compress.mjs', 'stl2glb.mjs', 'obj2glb.mjs', 'README.md']) {
   copyFileSync(join(TOOL, f), join(APP, f));
 }
 // The modular per-format converters package (step2glb.py dispatcher +

@@ -1,6 +1,6 @@
 # convert-cad — standalone STEP / IGES / OBJ / STL → GLB / GLTF converter
 
-**Version: v0.21** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.22** — a standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
@@ -134,12 +134,12 @@ node convert-cad.bat part.obj -o C:/exports/part.gltf --mtl part.mtl
 - `convert-cad-server.mjs` — Node HTTP server for the drag & drop web UI
 - `index.html` — the drag & drop page (upload → Convert → Download → 3D preview)
 - `convert-cad-web.bat` — Windows shortcut to launch the web UI
-- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.21.zip`)
+- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.22.zip`)
 
 ## Portable zip
 
 ```bash
-node build-convert-cad-portable.mjs v0.21   # -> dist/convert-cad-portable-v0.21.zip
+node build-convert-cad-portable.mjs v0.22   # -> dist/convert-cad-portable-v0.22.zip
 ```
 
 Bundles `node.exe`, the slimmed three.js modules, the CLI launcher, and the

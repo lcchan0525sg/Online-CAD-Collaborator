@@ -54,12 +54,14 @@ Options:
   --container <img>   Docker image (default: chair-cq:local)
   --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
   --level <n>         Draco compression level 0-10 (default 7)
+  --js                OBJ: use the host-side JS writer (obj2glb.mjs) instead of OCCT/Docker
   --keep              Keep the temp work dir on failure (for debugging)
 
 Examples:
   node convert-cad.mjs model.step out.glb
   node convert-cad.mjs part.obj out.gltf --mtl part.mtl
-  node convert-cad.mjs asm.stp --out C:/out/asm.glb --compress draco`);
+  node convert-cad.mjs asm.stp --out C:/out/asm.glb --compress draco
+  node convert-cad.mjs part.obj out.glb --js`);
 }
 
 function die(msg) { console.error('convert-cad: ' + msg); process.exit(1); }
@@ -88,13 +90,14 @@ async function main() {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, mtl = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7;
+  let out = null, mtl = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7, useJs = false;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
     else if (a === '--mtl') mtl = argv[++i];
     else if (a === '--container') container = argv[++i];
     else if (a === '--keep') keep = true;
+    else if (a === '--js') useJs = true;
     else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
     else if (a === '--level') level = parseInt(argv[++i], 10) || 7;
     else if (a.startsWith('--out=')) out = a.split('=')[1];
@@ -116,6 +119,20 @@ async function main() {
   const outArg = out ? resolve(out) : join(dirname(input), stem + '.glb');
   const wantExt = extname(outArg).toLowerCase();
   if (wantExt !== '.glb' && wantExt !== '.gltf') die(`output must end in .glb or .gltf, got '${wantExt}'`);
+
+  // OBJ via the host-side JS writer (--js) — kept ALONGSIDE the OCCT path so you
+  // can A/B test before switching. Writes straight to the output; no Docker.
+  if (ext === '.obj' && useJs) {
+    if (wantExt !== '.glb') die('OBJ (--js) output must be .glb');
+    console.log(`convert-cad: converting OBJ -> ${basename(outArg)} (GLB, host-side obj2glb.mjs)`);
+    const mtlFile = mtl ? resolve(mtl) : findMtl(input);
+    const args = [join(__dirname, 'obj2glb.mjs'), input, outArg, '--stem', stem];
+    if (mtlFile && existsSync(mtlFile)) args.push('--mtl', mtlFile);
+    try { execFileSync(process.execPath, args, { stdio: 'inherit' }); }
+    catch { die('obj2glb conversion failed'); }
+    console.log(`convert-cad: done -> ${outArg}`);
+    process.exit(0);
+  }
 
   // Pre-flight: docker + image.
   try {

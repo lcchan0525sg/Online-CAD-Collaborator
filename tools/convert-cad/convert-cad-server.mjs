@@ -109,6 +109,7 @@ async function handleConvert(req,res){
   const mtl=parts.find(p=>p.name==='mtl'&&p.body.length>0);
   const fmt=(parts.find(p=>p.name==='fmt')||{}).body?.toString().trim()==='gltf'?'gltf':'glb';
   const compress=(parts.find(p=>p.name==='compress')||{}).body?.toString().trim().toLowerCase()||'none';
+  const converter=(parts.find(p=>p.name==='converter')||{}).body?.toString().trim().toLowerCase()||'occt';
   if(!model)return sendErr(res,400,'no model file uploaded');
 
   const ext=extname(model.filename).toLowerCase();
@@ -176,6 +177,41 @@ async function handleConvert(req,res){
       return res.end(fileBuf);
     } catch (e) {
       return sendErr(res, 500, ((e.stderr || '').toString() || 'stl2glb failed').slice(-4000));
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  }
+
+  // OBJ via the host-side JS writer (converter=js) — kept ALONGSIDE the OCCT
+  // Docker path so you can A/B test before switching. Colors from the staged
+  // .mtl; textures require the image files (not uploaded via the web UI).
+  if (ext === '.obj' && converter === 'js') {
+    const stem = basename(model.filename).replace(/\.[^.]+$/, '').replace(/[^A-Za-z0-9_.-]/g, '_') || 'model';
+    const work = mkdtempSync(join(tmpdir(), 'convert-cad-web-'));
+    try {
+      const inPath = join(work, 'model.obj');
+      const outPath = join(work, 'model.glb');
+      writeFileSync(inPath, model.body);
+      if (mtl) writeFileSync(join(work, 'model.mtl'), mtl.body);
+      execFileSync(process.execPath, [join(__dirname, 'obj2glb.mjs'), inPath, outPath, '--stem', stem],
+        { stdio: ['ignore', 'ignore', 'pipe'] });
+      let fileBuf = readFileSync(outPath);
+      const log = ['OBJ -> GLB (host-side JS, no Docker)'];
+      if (compress === 'draco') {
+        try { const comp = await compressGlbBuffer(fileBuf); fileBuf = comp.buf; log.push(`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`); }
+        catch (e) { log.push('draco compression failed, returning uncompressed: ' + e.message); }
+      } else if (compress !== 'none') {
+        return sendErr(res, 400, `unsupported compress '${compress}' (only 'draco' is supported)`);
+      }
+      res.writeHead(200, {
+        'Content-Type': 'model/gltf-binary',
+        'Content-Disposition': `attachment; filename="${stem}.glb"`,
+        'Content-Length': fileBuf.length,
+        'X-Convert-Log': Buffer.from(log.join('\n')).toString('base64'),
+      });
+      return res.end(fileBuf);
+    } catch (e) {
+      return sendErr(res, 500, ((e.stderr || '').toString() || 'obj2glb failed').slice(-4000));
     } finally {
       rmSync(work, { recursive: true, force: true });
     }

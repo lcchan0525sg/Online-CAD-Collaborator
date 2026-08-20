@@ -76,7 +76,7 @@
 </style>
 </head>
 <body>
-  <h1>convert-cad — drag &amp; drop <span class="ver">v0.21</span></h1>
+  <h1>convert-cad — drag &amp; drop <span class="ver">v0.22</span></h1>
   <div class="sub">STEP / IGES / OBJ / STL → GLB / GLTF · Docker (OpenCascade)</div>
 
   <div class="card">
@@ -100,6 +100,12 @@
         <select id="compress">
           <option value="none">none</option>
           <option value="draco">Draco</option>
+        </select>
+      </label>
+      <label title="OBJ converter: OCCT (Docker) or the host-side JS writer (obj2glb)">OBJ
+        <select id="objconv">
+          <option value="occt">OCCT</option>
+          <option value="js">JS</option>
         </select>
       </label>
       <button class="run" id="run" disabled>Convert</button>
@@ -135,6 +141,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
   const compressSel = document.getElementById('compress');
+  const objconvSel = document.getElementById('objconv');
   const statsEl = document.getElementById('stats');
   const statsGrid = document.getElementById('stats-grid');
 
@@ -227,7 +234,9 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   function initViewer() {
     if (viewer) return viewer;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xdfe4ea);
+    // Dark background so light-coloured CAD parts (e.g. light-grey OBJ/STL) are
+    // visible — a near-white background made light models invisible.
+    scene.background = new THREE.Color(0x1b1e24);
     // Fill lighting: hemisphere for soft ambient, key + rim for shape definition.
     const hemi = new THREE.HemisphereLight(0xffffff, 0x6a7280, 0.85); scene.add(hemi);
     const key = new THREE.DirectionalLight(0xffffff, 1.15); key.position.set(2,3,1.5); scene.add(key);
@@ -322,6 +331,9 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
       viewer.scene.add(gltf.scene);
       fitView(gltf.scene);
       pbar.textContent = name + ' — loaded';
+      // The preview canvas sits below the fold; bring it into view so the user
+      // actually sees the result.
+      preview.scrollIntoView({ block: 'nearest' });
     }).catch(err => {
       pbar.textContent = name + ' — preview error';
       setStatus(['Preview failed: '+ (err && (err.stack || err.message))], 'err');
@@ -343,6 +355,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     fd.append('model', model.file, model.name);
     if (mtl) fd.append('mtl', mtl.file, mtl.name);
     fd.append('fmt', fmt);
+    // OBJ converter choice (OCCT vs host-side JS) — only meaningful for .obj.
+    if (/\.obj$/i.test(model.name)) fd.append('converter', objconvSel.value);
     if (wantCompress) fd.append('compress', 'draco');
     try {
       const res = await fetch('/convert', { method:'POST', body:fd });
