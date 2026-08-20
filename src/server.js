@@ -274,7 +274,7 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'measure-add', id, p1:[x,y,z], p2:[x,y,z] } (committed measurement)
  *     { t:'measure-del', id }                        (remove one measurement)
  *     { t:'measure-clear' }                          (remove all measurements)
- *     { t:'explode', amount, mode:'pct'|'gap', gap, dir, scopeKey }   (exploded-view spread)
+ *     { t:'explode', gap, dir, scopeKey }                (exploded-view mm-gap spread)
  *   server -> client
  *     { t:'joined', id, session, isHost, roster:[{id,name,isHost}], model|null }
  *     { t:'roster', roster }                          (membership changed)
@@ -295,7 +295,7 @@ httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT
  *     { t:'measure-del', id }                              (removed measurement)
  *     { t:'measure-clear' }                                (all measurements cleared)
  *     { t:'measure-sync', measures:[{id,p1,p2}] }          (late-joiner snapshot)
- *     { t:'explode', amount, mode, gap, dir, scopeKey }   (exploded-view spread)
+ *     { t:'explode', gap, dir, scopeKey }                    (exploded-view mm-gap spread)
  */
 const sessions = new Map();   // code -> { model: {buf, filename, kind, note, ts} | null, members: Map<id, {ws, name, isHost}> }
 const wss = new WebSocketServer({ noServer: true });
@@ -444,14 +444,12 @@ wss.on('connection', (ws, req, url) => {
     } else if (msg.t === 'measure-clear') {
       session.measures = [];
       broadcast(session, { t: 'measure-clear' }, id);
-    } else if (msg.t === 'explode' && (typeof msg.amount === 'number' || typeof msg.gap === 'number')) {
-      // Explode state (amount/gap + mode + direction + scope): store for late
-      // joiners and relay to the other members.
+    } else if (msg.t === 'explode' && typeof msg.gap === 'number') {
+      // Explode state (mm gap + direction + scope): store for late joiners and
+      // relay to the other members.
       session.explode = {
-        amount: Math.max(0, Math.min(1, Number(msg.amount) || 0)),
         gap: Math.max(0, Number(msg.gap) || 0),
-        mode: typeof msg.mode === 'string' ? msg.mode : 'pct',
-        dir: typeof msg.dir === 'string' ? msg.dir : 'radial',
+        dir: typeof msg.dir === 'string' ? msg.dir : 'x',
         scopeKey: typeof msg.scopeKey === 'string' ? msg.scopeKey : null,
       };
       broadcast(session, { t: 'explode', ...session.explode }, id);

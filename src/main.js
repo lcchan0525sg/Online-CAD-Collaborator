@@ -506,9 +506,8 @@ function selectPart(key, force) {
   applyAllMaterials();
   // Selecting an assembly re-scopes the explode to its immediate children.
   const rowInfo = allPartRows.find((r) => r.key === key);
-  if (rowInfo && rowInfo.hasKids && typeof recomputeExplode === 'function') {
-    if (explodeMode === 'gap') recomputeExplodeGap();
-    else recomputeExplode();
+  if (rowInfo && rowInfo.hasKids && typeof recomputeExplodeGap === 'function') {
+    recomputeExplodeGap();
   } else if (typeof renderExplodeScope === 'function') {
     renderExplodeScope();
   }
@@ -731,10 +730,9 @@ function loadFromGltf(gltf) {
   if (typeof flushPendingTrans === 'function') flushPendingTrans();
   if (typeof computeExplodeDirs === 'function') computeExplodeDirs();
   // Re-apply any stored explode state on the fresh model (move from rest by the
-  // full amount, not a zero delta).
-  if (typeof explodeMode !== 'undefined' && (explodeAmount || explodeGap)) {
-    if (explodeMode === 'gap') { const g = explodeGap; explodeGap = 0; applyExplodeGap(g); }
-    else { const a = explodeAmount; explodeAmount = 0; applyExplodeAmount(a); }
+  // full gap, not a zero delta).
+  if (typeof explodeGap !== 'undefined' && explodeGap) {
+    const g = explodeGap; explodeGap = 0; applyExplodeGap(g);
   } else if (typeof renderExplodeScope === 'function') {
     renderExplodeScope();
   }
@@ -2610,28 +2608,18 @@ renderer.domElement.addEventListener('pointerleave', hidePartHover);
 // along. Default scope is the top level (the highest assembly with >1 child,
 // descending past any single-child "pure wrapper").
 //
-// Two separation modes:
-//   pct  — a 0..100% slider; works with Radial and X/Y/Z (current behaviour).
-//   gap  — a numeric mm value; the clear space between adjacent bounding boxes
-//          along the chosen axis. Axis-only: choosing gap while in Radial
-//          auto-switches direction to X.
-//
-// Non-destructive: explode only adds a per-part offset on top of the part's
-// resting position, and collapsing to 0 (or Reset) returns every part exactly
-// to where it was. State syncs across the session like light/anim.
+// Separation is a single **mm gap**: the slider sets the clear space (mm)
+// between adjacent bounding boxes along the chosen axis. Works along X/Y/Z
+// (Radial auto-switches to X). Non-destructive: explode only offsets each part
+// from its resting position, and gap 0 (or Reset) returns every part exactly to
+// where it was. State syncs across the session like light/anim.
 const explodeSliderEl = document.getElementById('explode-slider');
 const explodeValEl = document.getElementById('explode-val');
 const explodeDirEl = document.getElementById('explode-dir');
-const explodeModeEl = document.getElementById('explode-mode');
-const explodeGapEl = document.getElementById('explode-gap');
-const explodeGapUnitEl = document.getElementById('explode-gap-unit');
 const explodeScopeEl = document.getElementById('explode-scope');
-let explodeAmount = 0;          // 0..1 (pct mode)
-let explodeGap = 10;            // mm (gap mode)
-let explodeMode = 'pct';        // 'pct' | 'gap'
-let explodeScale = 1;           // world distance at 100% (scope-size fraction)
-let explodeTargets = [];        // [{ node, parent, dirLocal }] children to spread
-let explodeDir = 'radial';      // 'radial' | 'x' | 'y' | 'z'
+let explodeGap = 0;             // mm clear space between boxes
+let explodeTargets = [];        // [{ node, parent, resting }] children to spread
+let explodeDir = 'x';           // 'x' | 'y' | 'z' | 'radial' (radial -> x)
 let explodeScopeKey = null;     // selected assembly path key, or null (top level)
 let explodeScopeName = '—';     // display name of the scope for the readout
 let explodeNothing = false;     // scope has <=1 child (nothing to spread)
@@ -2692,7 +2680,7 @@ function scopeKeyOf(node) {
   return path.join('.');
 }
 
-// ---- Collect targets + compute directions (percentage mode) ----
+// ---- Collect targets (the scope's visible, mesh-bearing children) ----
 function computeExplodeDirs() {
   explodeTargets = [];
   if (!model) { renderExplodeScope(); return; }
@@ -2701,47 +2689,11 @@ function computeExplodeDirs() {
   // Skip hidden parts in the layout — no phantom gap around hidden geometry.
   const visible = kids.filter((n) => n.visible !== false);
   if (!visible.length) { renderExplodeScope(); return; }
-  const scope = explodeScopeNode();
-  const sbox = new THREE.Box3().setFromObject(scope);
-  const centre = sbox.getCenter(new THREE.Vector3());
-  explodeScale = sbox.getSize(new THREE.Vector3()).length() * 0.5 || 1;
-  const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
-    : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
-    : explodeDir === 'z' ? new THREE.Vector3(0, 0, 1) : null;
-  const _d = new THREE.Vector3();
   for (const node of visible) {
     const parent = node.parent || model.children[0];
-    const pbox = new THREE.Box3().setFromObject(node);
-    const pc = pbox.getCenter(new THREE.Vector3());
-    let dirWorld;
-    if (axisWorld) {
-      const s = _d.copy(pc).sub(centre).dot(axisWorld);
-      dirWorld = axisWorld.clone().multiplyScalar(s >= 0 ? 1 : -1);
-    } else {
-      dirWorld = pc.clone().sub(centre);
-      if (dirWorld.lengthSq() < 1e-12) dirWorld.set(0, 1, 0);   // centred -> up
-      dirWorld.normalize();
-    }
-    const wA = parent.worldToLocal(pc.clone());
-    const wB = parent.worldToLocal(pc.clone().add(dirWorld));
-    explodeTargets.push({ node, parent, dirLocal: wB.sub(wA).normalize(), resting: node.position.clone() });
+    explodeTargets.push({ node, parent, resting: node.position.clone() });
   }
   renderExplodeScope();
-}
-// ---- Apply percentage-mode separation ----
-function applyExplodeAmount(newAmount) {
-  if (!model || !explodeTargets.length || explodeNothing) { setExplodeUi(newAmount); return; }
-  const prev = explodeAmount;
-  const delta = (newAmount - prev) * explodeScale;
-  const seen = new Set();
-  for (const { node, dirLocal } of explodeTargets) {
-    if (seen.has(node.uuid)) continue;
-    seen.add(node.uuid);
-    node.position.addScaledVector(dirLocal, delta);
-    node.updateMatrixWorld(true);
-  }
-  setExplodeUi(newAmount);
-  broadcastExplode();
 }
 // ---- Apply mm-gap separation along an axis (bbox-driven layout) ----
 // Each target is moved along the chosen axis just enough to keep `gap` mm of
@@ -2753,7 +2705,7 @@ function applyExplodeAmount(newAmount) {
 function applyExplodeGap(newGap) {
   const gap = Math.max(0, Number(newGap) || 0);
   if (explodeDir === 'radial') { explodeDir = 'x'; if (explodeDirEl) explodeDirEl.value = 'x'; }
-  if (!model || !explodeTargets.length || explodeNothing) { setExplodeGapUi(gap); return; }
+  if (!model || !explodeTargets.length || explodeNothing) { setExplodeUi(gap); return; }
   const axisWorld = explodeDir === 'x' ? new THREE.Vector3(1, 0, 0)
     : explodeDir === 'y' ? new THREE.Vector3(0, 1, 0)
     : new THREE.Vector3(0, 0, 1);
@@ -2766,7 +2718,7 @@ function applyExplodeGap(newGap) {
       t.node.position.copy(t.resting);
       t.node.updateMatrixWorld(true);
     }
-    setExplodeGapUi(0);
+    setExplodeUi(0);
     broadcastExplode();
     return;
   }
@@ -2803,19 +2755,15 @@ function applyExplodeGap(newGap) {
     it.t.node.position.copy(it.t.resting).add(localDelta);
     it.t.node.updateMatrixWorld(true);
   }
-  setExplodeGapUi(gap);
+  setExplodeUi(gap);
   broadcastExplode();
 }
 
 // ---- UI setters (no broadcast) ----
-function setExplodeUi(amount) {
-  explodeAmount = Math.max(0, Math.min(1, amount));
-  if (explodeSliderEl) explodeSliderEl.value = Math.round(explodeAmount * 100);
-  if (explodeValEl) explodeValEl.textContent = Math.round(explodeAmount * 100) + '%';
-}
-function setExplodeGapUi(gap) {
+function setExplodeUi(gap) {
   explodeGap = Math.max(0, Number(gap) || 0);
-  if (explodeGapEl) explodeGapEl.value = explodeGap;
+  if (explodeSliderEl) explodeSliderEl.value = explodeGap;
+  if (explodeValEl) explodeValEl.textContent = Math.round(explodeGap) + ' mm';
 }
 function renderExplodeScope() {
   if (!explodeScopeEl) return;
@@ -2827,56 +2775,18 @@ function renderExplodeScope() {
   explodeScopeEl.textContent = `Exploding: ${explodeScopeName} — ${n} children`;
 }
 function resetExplode() {
-  // Return every target to its resting position (delta to 0 in the active mode).
-  if (model && explodeTargets.length) {
-    if (explodeMode === 'gap') applyExplodeGap(0);
-    else applyExplodeAmount(0);
-  } else {
-    setExplodeUi(0); setExplodeGapUi(0);
-  }
+  if (model && explodeTargets.length) applyExplodeGap(0);
+  else setExplodeUi(0);
 }
 
 // ---- Event wiring ----
 explodeSliderEl.addEventListener('input', () => {
-  explodeMode = 'pct'; if (explodeModeEl) explodeModeEl.value = 'pct'; showExplodeModeUi();
-  applyExplodeAmount(Number(explodeSliderEl.value) / 100);
-});
-explodeGapEl.addEventListener('change', () => {
-  explodeMode = 'gap'; if (explodeModeEl) explodeModeEl.value = 'gap'; showExplodeModeUi();
-  // Read the typed mm value into state before recomputing — otherwise the
-  // change is ignored because recompute reads the stale global.
-  explodeGap = Math.max(0, Number(explodeGapEl.value) || 0);
-  recomputeExplodeGap();
-});
-explodeModeEl.addEventListener('change', () => {
-  explodeMode = explodeModeEl.value;
-  if (explodeMode === 'gap') recomputeExplodeGap(); else recomputeExplode();
-  showExplodeModeUi();
+  applyExplodeGap(Number(explodeSliderEl.value) || 0);
 });
 explodeDirEl.addEventListener('change', () => {
   explodeDir = explodeDirEl.value;
-  if (explodeMode === 'gap') recomputeExplodeGap(); else recomputeExplode();
+  recomputeExplodeGap();
 });
-function showExplodeModeUi() {
-  const isGap = explodeMode === 'gap';
-  if (explodeGapEl) explodeGapEl.style.display = isGap ? '' : 'none';
-  if (explodeGapUnitEl) explodeGapUnitEl.style.display = isGap ? '' : 'none';
-  if (explodeSliderEl) explodeSliderEl.style.display = isGap ? 'none' : '';
-  if (explodeValEl) explodeValEl.style.display = isGap ? 'none' : '';
-  if (explodeDirEl) {
-    if (isGap && explodeDir === 'radial') { explodeDir = 'x'; explodeDirEl.value = 'x'; }
-  }
-}
-function recomputeExplode() {
-  // Reset all targets to their resting positions first (clean slate), then
-  // recompute directions and re-apply the stored amount.
-  resetExplodeToResting();
-  const amt = explodeAmount;
-  explodeAmount = 0;
-  computeExplodeDirs();
-  applyExplodeAmount(amt);
-  broadcastExplode();
-}
 function recomputeExplodeGap() {
   resetExplodeToResting();
   const gap = explodeGap;
@@ -2900,8 +2810,7 @@ function broadcastExplode() {
   if (!session?.connected || applyingRemoteExplode) return;
   try {
     session.ws.send(JSON.stringify({
-      t: 'explode', amount: explodeAmount, dir: explodeDir, mode: explodeMode,
-      gap: explodeGap, scopeKey: explodeScopeKey,
+      t: 'explode', gap: explodeGap, dir: explodeDir, scopeKey: explodeScopeKey,
     }));
   } catch {}
 }
@@ -2911,32 +2820,19 @@ function applyRemoteExplode(msg) {
   applyingRemoteExplode = true;
   try {
     const dirChanged = typeof msg.dir === 'string' && msg.dir !== explodeDir;
-    const modeChanged = typeof msg.mode === 'string' && msg.mode !== explodeMode;
     if (dirChanged) { explodeDir = msg.dir; if (explodeDirEl) explodeDirEl.value = msg.dir; }
-    if (modeChanged) { explodeMode = msg.mode; if (explodeModeEl) explodeModeEl.value = msg.mode; showExplodeModeUi(); }
-    const mode = explodeMode;
-    if (mode === 'gap') {
-      const gap = Math.max(0, Number(msg.gap) || 0);
-      if (dirChanged || modeChanged) recomputeExplodeGap();
-      else if (gap !== explodeGap) applyExplodeGap(gap);
-      else recomputeExplodeGap();
-      setExplodeGapUi(gap);
-    } else {
-      const amount = Math.max(0, Math.min(1, Number(msg.amount) || 0));
-      if (dirChanged || modeChanged) recomputeExplode();
-      else applyExplodeAmount(amount);
-    }
+    const gap = Math.max(0, Number(msg.gap) || 0);
+    if (dirChanged || gap !== explodeGap) recomputeExplodeGap();
+    else applyExplodeGap(gap);
+    setExplodeUi(gap);
   } finally { applyingRemoteExplode = false; }
 }
-// Programmatic set (debug hook).
-function explodeSet(amount, dir, mode, gap) {
+// Programmatic set (debug hook): explodeSet(gap, dir).
+function explodeSet(gap, dir) {
   if (typeof dir === 'string' && dir !== explodeDir) { explodeDir = dir; if (explodeDirEl) explodeDirEl.value = dir; }
-  if (typeof mode === 'string' && mode !== explodeMode) { explodeMode = mode; if (explodeModeEl) explodeModeEl.value = mode; showExplodeModeUi(); }
-  if (typeof amount === 'number') explodeAmount = Math.max(0, Math.min(1, amount));
-  if (typeof gap === 'number') explodeGap = Math.max(0, gap);
-  if (explodeMode === 'gap') { recomputeExplodeGap(); return explodeGap; }
-  recomputeExplode();
-  return explodeAmount;
+  explodeGap = Math.max(0, Number(gap) || 0);
+  recomputeExplodeGap();
+  return explodeGap;
 }
 
 
@@ -3135,8 +3031,7 @@ window.__viewer = {
   chatOpen: () => { if (chatWindowEl) chatWindowEl.hidden = false; return !chatWindowEl.hidden; },
   get explode() {
     return {
-      amount: explodeAmount, gap: explodeGap, mode: explodeMode,
-      scale: explodeScale, targets: explodeTargets.length, dir: explodeDir,
+      gap: explodeGap, targets: explodeTargets.length, dir: explodeDir,
       scopeKey: explodeScopeKey, scopeName: explodeScopeName, nothing: explodeNothing,
     };
   },
@@ -3153,7 +3048,7 @@ window.__viewer = {
     const all = allPartRows.filter((o) => o.key === key);
     return { hasRow: !!r, hasKids: all[0] ? all[0].hasKids : null, key };
   },
-  explodeSet: (amount, dir, mode, gap) => explodeSet(amount, dir, mode, gap),
+  explodeSet: (gap, dir) => explodeSet(gap, dir),
   explodeScope: () => explodeScopeNode()?.name || null,
   projectWorld: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);

@@ -259,6 +259,33 @@ to disk.
 
 ---
 
+## [v0.73] — 2026-08-20
+
+> **Baseline:** v0.72 (tag `v0.72`). Release on top of the current working tree.
+
+### Changed
+
+- **Explode simplified to a single mm-gap control driven by the slider.** The
+  `%` (percentage) mode and the **Sep** mode dropdown are removed — the explode
+  now uses one separation control: a **0–500 mm slider** that sets the clear
+  space between adjacent bounding boxes along the chosen axis. The value label
+  reads e.g. "120 mm". (This replaces the two-mode %-slider + mm-gap-number-input
+  design.)
+- Direction list is now **X / Y / Z / Radial** (Radial auto-switches to X, since
+  mm gap is axis-based). Selection-driven scope, scope readout, hidden-part
+  skipping, and non-destructive collapse are unchanged.
+
+### Technical
+
+- `src/index.html`: removed the `explode-mode` selector and `explode-gap` number
+  input; the slider is now 0–500 and drives the gap.
+- `src/main.js`: removed `explodeAmount`, `explodeScale`, `explodeMode`,
+  `applyExplodeAmount`, `recomputeExplode`, `setExplodeGapUi`, `showExplodeModeUi`
+  and their wiring. The slider's `input` handler now calls `applyExplodeGap`.
+  `explodeSet(gap, dir)` is the debug hook.
+- `src/server.js`: the `explode` message is now `{ gap, dir, scopeKey }` (no
+  amount/mode); store/replay updated accordingly.
+
 ## [v0.72] — 2026-08-20
 
 > **Baseline:** v0.71 (tag `v0.71`). Release on top of the current working tree.
