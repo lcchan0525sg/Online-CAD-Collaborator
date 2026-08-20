@@ -21,7 +21,7 @@ versioning follows `v0.x`.
 
 ---
 
-## [Unreleased]
+## [v0.79] — 2026-08-20
 
 ### Removed
 
