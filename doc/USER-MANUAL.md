@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.69 · **URL:** http://localhost:8088/
+**Version:** v0.80 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -515,12 +515,14 @@ review. It opens automatically when you create or join a session.
 
 Click **Leave session** to leave. What happens depends on your role:
 
-- **Host** — you keep your local model and return to solo viewing.
 - **Guest** — the shared model is **cleared from your view** when you leave on
   your own (for security, nothing stays on your screen), and you return to the
-  empty viewer.
-
-The session itself stays alive on the server for the remaining members.
+  empty viewer. The session stays alive for the other members.
+- **Host** — you keep your local model and return to solo viewing, but the
+  session **ends for everyone else**: the shared model belongs to the host, so
+  when the host leaves (or closes the browser), every guest's shared model is
+  **cleared** and they see *"host left — session ended"*. There is no new host —
+  a hostless session is dead.
 
 ![After leaving the session](manual-shots/10-after-leave.png)
 
@@ -642,4 +644,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.78 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.80 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

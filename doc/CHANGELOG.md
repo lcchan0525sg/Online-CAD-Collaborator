@@ -21,6 +21,16 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.80] — 2026-08-20
+
+### Changed
+
+- **Session ends when the host leaves or closes the browser.** The host owns the
+  shared model, so when the host disconnects (Leave button or browser close) the
+  session is terminated: every guest's shared model is **cleared from their
+  view** and they see *"host left — session ended"*. Host promotion was removed —
+  a hostless session is dead. The host keeps their own locally-opened model.
+
 ## [v0.79] — 2026-08-20
 
 ### Removed

@@ -1187,6 +1187,28 @@ async function refreshJoinLink(code) {
   linkEl.title = 'open on another machine, or copy';
 }
 
+// End the current session from the guest side, clearing the shared model and
+// restoring the empty pre-session state. Used when the host leaves/closes the
+// session (the shared model belonged to the host) and as the guest's own leave.
+function endSessionForGuest({ status = 'not in a session', info = '', toast = '' } = {}) {
+  if (session) { try { session.ws.close(); } catch {} }
+  session = null;
+  roster = []; renderRoster();
+  setSessionStatus(status);
+  showSessionUI(false);
+  const chk = document.getElementById('chk-rotate');
+  if (chk) chk.disabled = false;
+  // A transfer can't finish without a session — clear it and restore control.
+  pendingSend.clear();
+  currentModel = null;
+  if (sendGuard) clearTimeout(sendGuard);
+  xferAbort();
+  clearModel();
+  if (typeof resetChat === 'function') { resetChat(); if (chatWindowEl) chatWindowEl.hidden = true; }
+  if (info) { const infoEl = document.getElementById('info'); if (infoEl) infoEl.textContent = info; }
+  if (toast) xferToast(toast);
+}
+
 function connectTo(code, { create = false } = {}) {
   if (session) { try { session.ws.close(); } catch {} session = null; }
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
@@ -1213,6 +1235,10 @@ function connectTo(code, { create = false } = {}) {
       const infoEl = document.getElementById('info');
       if (infoEl) infoEl.textContent = 'You were removed from the session by the host.';
       xferToast('You were removed from the session by the host.');
+    } else if (ev.code === 4002) {
+      // Fallback: the server told us the host left, but the 'host-left' message
+      // was never delivered before the socket closed. End the session the same way.
+      endSessionForGuest({ status: 'host left — session ended', info: 'The host left the session.', toast: 'Host left — session ended.' });
     } else if (wasIn) {
       setSessionStatus('disconnected');
       showSessionUI(false);
@@ -1265,6 +1291,11 @@ function onSessionMsg(msg) {
       roster = roster.filter((r) => r.id !== msg.id);
       renderRoster();
       onPeerGone(msg.id);
+      break;
+    case 'host-left':
+      // The host left or closed the session. The shared model belonged to the
+      // host, so clear it from our view and end the session for this guest.
+      endSessionForGuest({ status: 'host left — session ended', info: 'The host left the session.', toast: 'Host left — session ended.' });
       break;
     case 'model':
       loadSharedModel(msg);
@@ -1756,11 +1787,13 @@ function newSessionCode() {
   return code;
 }
 document.getElementById('btn-create-session').addEventListener('click', () => {
+  askName();
   connectTo(newSessionCode(), { create: true });
 });
 document.getElementById('btn-join-session').addEventListener('click', () => {
   const code = joinCodeInput.value.trim().toUpperCase();
   if (!code) { setSessionStatus('enter a session code'); return; }
+  askName();
   connectTo(code);
 });
 joinCodeInput.addEventListener('keydown', (e) => {
@@ -2912,34 +2945,40 @@ renderer.setAnimationLoop(() => {
   renderer.render(scene, camera);
 });
 
-// ---- Viewer identity: ask for a name on launch and reuse it across sessions.
-// Persisted so it isn't re-asked every reload, but the user can change it.
+// ---- Viewer identity. Not prompted on app start — the name is only requested
+// when the user actually creates or joins a session (see the session buttons).
+// Persisted so a returning viewer is prefilled with their last name.
 let userName = '';
+function storedName() {
+  try { return (localStorage.getItem('cadv_name') || '').trim(); } catch { return ''; }
+}
+// Non-prompting: reuse the stored name (or fall back to 'viewer'). Used at boot
+// (deep-link join) so app start never blocks on a prompt.
+function ensureName() {
+  userName = storedName() || 'viewer';
+  return userName;
+}
+// Prompting: prefill with the stored name, let the user change or confirm it,
+// and persist. Only called from the create/join-session entry points.
+// A blocking window.prompt never returns under headless/automation (it
+// deadlocks the renderer), so skip it when navigator.webdriver is set —
+// headless tests and embedded viewers fall back to the stored name.
 function askName() {
-  let name = '';
-  try { name = (localStorage.getItem('cadv_name') || '').trim(); } catch {}
-  // A blocking window.prompt never returns under headless/automation (it
-  // deadlocks the renderer), so skip it when navigator.webdriver is set —
-  // headless tests and embedded viewers fall back to the stored name.
-  if (navigator.webdriver) {
-    userName = name || 'viewer';
-    return userName;
-  }
-  const entered = (window.prompt('Enter your name (shown to other viewers):', name) || '').trim().slice(0, 24);
+  ensureName();
+  if (navigator.webdriver) return userName;
+  const entered = (window.prompt('Enter your name (shown to other viewers):', userName) || '').trim().slice(0, 24);
   if (entered) {
     userName = entered;
     try { localStorage.setItem('cadv_name', entered); } catch {}
-  } else {
-    userName = name || 'viewer';
   }
   return userName;
 }
-askName();
 
 // Boot: if a ?s=CODE param is present, join that session (guest deep-link) and
 // load whatever model it has. Otherwise start empty — the user opens a model.
 const bootSession = new URLSearchParams(location.search).get('s')?.toUpperCase();
 if (bootSession) {
+  ensureName();   // deep-link join at boot: no prompt, use stored name
   connectTo(bootSession);   // 'joined' (with model info) triggers loadSharedModel
 }
 
@@ -2949,6 +2988,7 @@ window.__viewer = {
   get scale() { return modelScale; },
   get THREE() { return THREE; },
   get session() { return session; },
+  get userName() { return userName; },
   get roster() { return roster; },
   get controls() { return controls; },
   get xferLog() { return xferLog.slice(); },
@@ -2966,9 +3006,9 @@ window.__viewer = {
     return true;
   },
   // Test helpers: drive the real create/share paths and report the result.
-  createSession: () => { const c = newSessionCode(); connectTo(c, { create: true }); return c; },
-  createSessionCode: (code) => { connectTo(code, { create: true }); return code; },
-  joinSession: (code) => { connectTo(code); return code; },
+  createSession: () => { askName(); const c = newSessionCode(); connectTo(c, { create: true }); return c; },
+  createSessionCode: (code) => { askName(); connectTo(code, { create: true }); return code; },
+  joinSession: (code) => { askName(); connectTo(code); return code; },
   loadUrl: (url) => loadUrl(url),
   loadFile: (file) => loadFile(file),
   importStep: (file) => importStep(file),

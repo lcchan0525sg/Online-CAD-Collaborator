@@ -468,17 +468,22 @@ wss.on('connection', (ws, req, url) => {
   });
 
   const onGone = () => {
+    const wasHost = isHost;
     session.members.delete(id);
-    // If the host leaves, promote the next member so the session keeps working.
-    const remaining = [...session.members.values()];
-    if (isHost && remaining.length) {
-      remaining[0].isHost = true;
-      broadcast(session, { t: 'roster', roster: roster(session) });
-    } else if (!isHost) {
-      broadcast(session, { t: 'roster', roster: roster(session) });
+    if (wasHost) {
+      // The host owns the shared model (it lives in the host's browser/session
+      // state). When the host leaves — via the Leave button or by closing the
+      // browser — end the session: every guest must clear the shared model.
+      // We do NOT promote a new host; a hostless session is dead.
+      const rest = [...session.members.values()];
+      if (rest.length) broadcast(session, { t: 'host-left' });
+      for (const m of rest) { try { m.ws.close(4002, 'host left'); } catch {} }
+      sessions.delete(session.code);
+      return;
     }
-    // Tell the rest the member left (so a host waiting on this guest's
-    // model-ack can stop waiting).
+    // A guest left: tell the rest (a host waiting on this guest's model-ack
+    // can stop waiting).
+    broadcast(session, { t: 'roster', roster: roster(session) });
     broadcast(session, { t: 'peer-gone', id });
   };
   ws.on('close', onGone);
