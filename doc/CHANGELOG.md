@@ -21,6 +21,21 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.81] — 2026-08-20
+
+### Changed
+
+- **Modularized the client code.** The single `src/main.js` (~3,169 lines) was
+  split into concern-based ES modules with **no behaviour change**:
+  `context.js` (single shared `ctx` state object), `scene.js`, `parts.js`,
+  `measure.js`, `explode.js`, `move.js`, `session.js`, and a thin `main.js`
+  (render loop, boot, `window.__viewer` debug hooks). Cross-module calls use
+  explicit imports; shared mutable state all lives on `ctx`. The WebSocket
+  wire protocol and `server.js` are untouched. See `doc/ARCHITECTURE.md`.
+- Verified with `node --check` on all modules and a headless two-tab full
+  function test (load, parts tree, selection/highlight, transparency, explode,
+  measure, move with real drag, live session + host-left clears guests).
+
 ## [v0.80] — 2026-08-20
 
 ### Changed
