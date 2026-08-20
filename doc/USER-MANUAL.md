@@ -655,4 +655,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.69 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.77 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

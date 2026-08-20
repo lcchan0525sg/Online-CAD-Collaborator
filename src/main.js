@@ -287,6 +287,7 @@ function setPartVisible(key, visible) {
     }
   }
   broadcastParts(ops);
+  refreshExplodeForVisibility();
 }
 
 // Hide every part that is NOT the selected part (or one of its children).
@@ -313,6 +314,7 @@ function showOnlyPart(key) {
     ops.push({ path: r.key.split('.').map(Number), visible: keep });
   }
   broadcastParts(ops);
+  refreshExplodeForVisibility();
 }
 
 partMenuOnlyEl?.addEventListener('click', () => {
@@ -590,6 +592,7 @@ function applyRemoteParts(ops) {
         entry.row.classList.toggle('off', !op.visible);
       }
     }
+    refreshExplodeForVisibility();
   } finally { applyingRemoteParts = false; }
 }
 // Called from loadFromGltf once the scene is in: replay any parts state that
@@ -2636,7 +2639,15 @@ function explodeScopeNode() {
     const n = nodeAtPath(root, selectedPartKey.split('.').map(Number));
     const rowInfo = n && allPartRows.find((r) => r.key === selectedPartKey);
     if (n && rowInfo && rowInfo.hasKids) return n;
-    // Leaf part selected -> fall through to top level (scope unchanged).
+    // Leaf part selected -> fall through to a stored remote scope, else top level.
+  }
+  // Remote scope: a collaborator drilled into a sub-assembly and broadcast its
+  // scopeKey. Honor it when there's no overriding local assembly selection, so
+  // the guest's explode targets match the host's.
+  if (explodeScopeKey && explodeScopeKey !== '') {
+    const n = nodeAtPath(root, explodeScopeKey.split('.').map(Number));
+    const namedKids = (o) => (o.children || []).filter((c) => c.name && nodeHasMeshes(c));
+    if (n && n !== root && namedKids(n).length > 1) return n;
   }
   // Default top level: descend past single-child "pure wrapper" nodes (which may
   // be unnamed, e.g. a GLTF root) to the highest assembly with more than one
@@ -2808,6 +2819,7 @@ function resetExplode() {
     }
   }
   explodeDisplaced.clear();
+  explodeScopeKey = null;   // reset returns to top-level scope (or current selection)
   computeExplodeDirs();
   applyExplodeGap(0);
 }
@@ -2843,6 +2855,14 @@ function recomputeExplodeGap() {
   applyExplodeGap(gap);
   broadcastExplode();
 }
+// A part's visibility changed (hide/show/show-only, local or remote): re-pack
+// the explode layout so hidden parts no longer reserve a stale slot and
+// newly-shown parts slot back in at the current gap. No-op when there's no
+// model or the explode feature isn't initialized yet.
+function refreshExplodeForVisibility() {
+  if (!model || typeof recomputeExplodeGap !== 'function') return;
+  recomputeExplodeGap();
+}
 // Put every target back at its resting position (captured at last compute).
 function resetExplodeToResting() {
   if (!model) return;
@@ -2869,8 +2889,8 @@ function applyRemoteExplode(msg) {
   try {
     const dirChanged = typeof msg.dir === 'string' && msg.dir !== explodeDir;
     if (dirChanged) { explodeDir = msg.dir; if (explodeDirEl) explodeDirEl.value = msg.dir; }
-    const scopeChanged = typeof msg.scopeKey === 'string' && msg.scopeKey !== explodeScopeKey;
-    if (scopeChanged) explodeScopeKey = msg.scopeKey;
+    const scopeChanged = (msg.scopeKey ?? null) !== (explodeScopeKey ?? null);
+    if (scopeChanged) explodeScopeKey = msg.scopeKey ?? null;
     const gap = Math.max(0, Number(msg.gap) || 0);
     // Pure gap change -> apply directly (smooth, no collapse). Only re-scope
     // (without collapsing the previous scope) when the direction or scope
@@ -3112,6 +3132,7 @@ window.__viewer = {
   },
   explodeSet: (gap, dir) => explodeSet(gap, dir),
   explodeScope: () => explodeScopeNode()?.name || null,
+  setPartVisible: (k, v) => { setPartVisible(k, v); return true; },
   projectWorld: (x, y, z) => {
     const v = new THREE.Vector3(x, y, z).project(camera);
     const r = renderer.domElement.getBoundingClientRect();
