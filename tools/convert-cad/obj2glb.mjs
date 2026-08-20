@@ -100,7 +100,7 @@ function parseObj(src) {
 // those flipped faces get inverted normals and render dark/absent (a "broken"
 // surface). Flood-fill over shared edges, flipping each neighbor to oppose its
 // parent, then rebuild indices with the corrected winding.
-function orientConsistently(idx) {
+function orientConsistently(idx, pos) {
   const triCount = idx.length / 3;
   const edgeMap = new Map();   // "u-v" (u<v) -> [{ t, sign }]
   for (let t = 0; t < triCount; t++) {
@@ -113,9 +113,13 @@ function orientConsistently(idx) {
     }
   }
   const orient = new Int8Array(triCount).fill(0);   // 0=unset, +1 keep, -1 flip
+  const compOf = new Int32Array(triCount);          // component id per triangle
+  const compBoundary = [];                          // boundary-edge count per component
+  let compCount = 0;
   for (let seed = 0; seed < triCount; seed++) {
     if (orient[seed] !== 0) continue;
-    orient[seed] = 1;
+    const cid = compCount++;
+    compOf[seed] = cid; orient[seed] = 1;
     const stack = [seed];
     while (stack.length) {
       const t = stack.pop();
@@ -126,17 +130,47 @@ function orientConsistently(idx) {
         for (const nb of edgeMap.get(key) || []) {
           if (nb.t === t || orient[nb.t] !== 0) continue;
           orient[nb.t] = -orient[t] * tSign * nb.sign;
+          compOf[nb.t] = cid;
           stack.push(nb.t);
         }
       }
     }
   }
+  // An edge with a single owner is a boundary edge (open mesh).
+  for (const list of edgeMap.values())
+    if (list.length === 1) compBoundary[compOf[list[0].t]] = (compBoundary[compOf[list[0].t]] || 0) + 1;
   for (let t = 0; t < triCount; t++) {
     if (orient[t] === -1) {
       const a = idx[t*3], b = idx[t*3+1], c = idx[t*3+2];
       idx[t*3] = a; idx[t*3+1] = c; idx[t*3+2] = b;   // reverse winding
+      orient[t] = 1;
     }
   }
+  // Fix inversion (trimesh `fix_inversion`): for every WATERTIGHT component the
+  // signed volume (divergence theorem) is well defined; a negative volume means
+  // the whole body is consistently inside-out, so flip it to point outward.
+  // Open components are skipped — their "volume" is boundary-dependent and a
+  // flip could make them worse (doubleSided rendering covers those).
+  let flippedBodies = 0;
+  const volByComp = new Float64Array(compCount);
+  for (let t = 0; t < triCount; t++) {
+    const a = idx[t*3], b = idx[t*3+1], c = idx[t*3+2];
+    const pa = pos[a], pb = pos[b], pc = pos[c];
+    volByComp[compOf[t]] += pa[0] * (pb[1] * pc[2] - pb[2] * pc[1])
+      - pa[1] * (pb[0] * pc[2] - pb[2] * pc[0])
+      + pa[2] * (pb[0] * pc[1] - pb[1] * pc[0]);
+  }
+  const flipComp = new Uint8Array(compCount);
+  for (let cid = 0; cid < compCount; cid++) {
+    if (!compBoundary[cid] && volByComp[cid] < 0) flipComp[cid] = 1, flippedBodies++;
+  }
+  if (flippedBodies) {
+    for (let t = 0; t < triCount; t++) if (flipComp[compOf[t]]) {
+      const a = idx[t*3], b = idx[t*3+1], c = idx[t*3+2];
+      idx[t*3] = a; idx[t*3+1] = c; idx[t*3+2] = b;
+    }
+  }
+  return { flippedBodies };
 }
 
 // ---- weld + build one indexed mesh ------------------------------------------
@@ -174,7 +208,7 @@ function buildMesh(faces, V, VT, VN) {
     indices.push(tri[0], tri[1], tri[2]);
   }
   if (!indices.length) return null;
-  orientConsistently(indices);   // consistent winding -> correct normals (no broken surface)
+  const { flippedBodies } = orientConsistently(indices, pos);   // consistent winding + outward orientation
   for (let i = 0; i < nrm.length; i++) if (!nrm[i]) {
     const acc = [0, 0, 0];
     for (let j = 0; j < indices.length; j += 3) {
@@ -198,6 +232,7 @@ function buildMesh(faces, V, VT, VN) {
   return {
     positions, normals, uvs,
     indices: pos.length <= 0xFFFF ? Uint16Array.from(indices) : Uint32Array.from(indices),
+    flippedBodies,
   };
 }
 
@@ -378,7 +413,8 @@ function main() {
 
   const tris = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.indices.length / 3, 0), 0);
   const verts = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.positions.length / 3, 0), 0);
-  log(`OBJ -> GLB: ${parts.length} part(s), ${tris.toLocaleString()} triangles, ${verts.toLocaleString()} vertices, ${texOrder.length} texture(s)`);
+  const reoriented = parts.reduce((s, p) => s + p.subMeshes.reduce((x, m) => x + m.mesh.flippedBodies, 0), 0);
+  log(`OBJ -> GLB: ${parts.length} part(s), ${tris.toLocaleString()} triangles, ${verts.toLocaleString()} vertices, ${texOrder.length} texture(s)${reoriented ? `, ${reoriented} inside-out body(ies) reoriented` : ''}`);
   log(`bytes: ${glb.length}`);
   console.log('RESULT_OK');
   process.exit(0);
