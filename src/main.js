@@ -504,10 +504,11 @@ function selectPart(key, force) {
   const row = partRows.get(key);
   if (row) row.row.classList.add('sel');
   applyAllMaterials();
-  // Selecting an assembly re-scopes the explode to its immediate children.
+  // Selecting an assembly re-scopes the explode to its immediate children
+  // WITHOUT collapsing — the previous scope stays exploded; value resets to 0.
   const rowInfo = allPartRows.find((r) => r.key === key);
-  if (rowInfo && rowInfo.hasKids && typeof recomputeExplodeGap === 'function') {
-    recomputeExplodeGap();
+  if (rowInfo && rowInfo.hasKids && typeof rescopeExplode === 'function') {
+    rescopeExplode();
   } else if (typeof renderExplodeScope === 'function') {
     renderExplodeScope();
   }
@@ -2619,6 +2620,7 @@ const explodeDirEl = document.getElementById('explode-dir');
 const explodeScopeEl = document.getElementById('explode-scope');
 let explodeGap = 0;             // mm clear space between boxes
 let explodeTargets = [];        // [{ node, parent, resting }] children to spread
+let explodeDisplaced = new Map(); // uuid -> { node, resting } every node the explode has ever moved
 let explodeDir = 'x';           // 'x' | 'y' | 'z' | 'radial' (radial -> x)
 let explodeScopeKey = null;     // selected assembly path key, or null (top level)
 let explodeScopeName = '—';     // display name of the scope for the readout
@@ -2700,8 +2702,12 @@ function computeExplodeDirs() {
     const size = box.getSize(new THREE.Vector3());
     const extent = Math.abs(size.dot(axisWorld));
     const half = extent / 2;
+    // Prefer the recorded ORIGINAL resting position (from an earlier scope) so
+    // re-exploring an assembly uses the true assembled baseline, not the current
+    // displaced position. Fall back to the node's current position on first pass.
+    const rec = explodeDisplaced.get(node.uuid);
     explodeTargets.push({
-      node, parent, resting: node.position.clone(),
+      node, parent, resting: (rec ? rec.resting : node.position).clone(),
       axisPos: center.dot(axisWorld),
       axisMin: center.dot(axisWorld) - half,
       extent,
@@ -2731,6 +2737,7 @@ function applyExplodeGap(newGap) {
     for (const t of explodeTargets) {
       if (seen.has(t.node.uuid)) continue;
       seen.add(t.node.uuid);
+      if (!explodeDisplaced.has(t.node.uuid)) explodeDisplaced.set(t.node.uuid, { node: t.node, resting: t.resting.clone() });
       t.node.position.copy(t.resting);
       t.node.updateMatrixWorld(true);
     }
@@ -2765,6 +2772,7 @@ function applyExplodeGap(newGap) {
     const a = p.worldToLocal(_o.set(0, 0, 0));
     const b = p.worldToLocal(_d.copy(axisWorld).multiplyScalar(it.offset));
     const localDelta = b.sub(a);
+    if (!explodeDisplaced.has(it.t.node.uuid)) explodeDisplaced.set(it.t.node.uuid, { node: it.t.node, resting: it.t.resting.clone() });
     it.t.node.position.copy(it.t.resting).add(localDelta);
     it.t.node.updateMatrixWorld(true);
   }
@@ -2788,8 +2796,28 @@ function renderExplodeScope() {
   explodeScopeEl.textContent = `Exploding: ${explodeScopeName} — ${n} children`;
 }
 function resetExplode() {
-  if (model && explodeTargets.length) applyExplodeGap(0);
-  else setExplodeUi(0);
+  // Full collapse: restore EVERY node the explode has ever displaced (across all
+  // scopes), then re-scope so the slider/readout match the current selection.
+  if (model) {
+    const seen = new Set();
+    for (const { node, resting } of explodeDisplaced.values()) {
+      if (seen.has(node.uuid)) continue;
+      seen.add(node.uuid);
+      node.position.copy(resting);
+      node.updateMatrixWorld(true);
+    }
+  }
+  explodeDisplaced.clear();
+  computeExplodeDirs();
+  applyExplodeGap(0);
+}
+// Re-scope to the currently selected assembly WITHOUT collapsing anything: the
+// previous scope's parts stay exactly where they are (so you can drill into a
+// sub-assembly and explode it deeper). Only the value resets to 0 so the newly
+// selected scope starts at rest.
+function rescopeExplode() {
+  computeExplodeDirs();   // capture new scope's children as the active targets
+  applyExplodeGap(0);     // value -> 0; previous scope parts are untouched
 }
 
 // ---- Event wiring ----
@@ -2844,10 +2872,11 @@ function applyRemoteExplode(msg) {
     const scopeChanged = typeof msg.scopeKey === 'string' && msg.scopeKey !== explodeScopeKey;
     if (scopeChanged) explodeScopeKey = msg.scopeKey;
     const gap = Math.max(0, Number(msg.gap) || 0);
-    // Pure gap change -> apply directly (smooth, no collapse). Only recompute
-    // (collapse + recache) when the direction or scope changed, since those
-    // change the layout geometry.
-    if (dirChanged || scopeChanged) recomputeExplodeGap();
+    // Pure gap change -> apply directly (smooth, no collapse). Only re-scope
+    // (without collapsing the previous scope) when the direction or scope
+    // changed, since those change the layout geometry. Mirrors the local
+    // behavior where drilling into a sub-assembly keeps prior scopes exploded.
+    if (dirChanged || scopeChanged) rescopeExplode();
     else applyExplodeGap(gap);
     setExplodeUi(gap);
   } finally { applyingRemoteExplode = false; }

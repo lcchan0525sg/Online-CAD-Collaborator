@@ -95,6 +95,9 @@ body {
 .row .slider { flex: 1; min-width: 0; accent-color: var(--accent); height: 4px; cursor: pointer; }
 .row span { font-size: 12px; color: var(--muted); width: 34px; text-align: right; }
 .row .tlabel select + span, .row .tlabel .slider + span { width: auto; }
+/* Explode label is a bare span (not wrapping the slider); keep it from being
+   squeezed to the generic 34px row-span width, which overlapped the slider. */
+.row .explode-label { width: auto; white-space: nowrap; font-size: 13px; }
 
 .btn {
   display: inline-block;
