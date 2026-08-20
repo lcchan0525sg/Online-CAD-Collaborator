@@ -505,7 +505,8 @@ function selectPart(key, force) {
   if (row) row.row.classList.add('sel');
   applyAllMaterials();
   // Selecting an assembly re-scopes the explode to its immediate children.
-  if (row && row.hasKids && typeof recomputeExplode === 'function') {
+  const rowInfo = allPartRows.find((r) => r.key === key);
+  if (rowInfo && rowInfo.hasKids && typeof recomputeExplode === 'function') {
     if (explodeMode === 'gap') recomputeExplodeGap();
     else recomputeExplode();
   } else if (typeof renderExplodeScope === 'function') {
@@ -2643,26 +2644,40 @@ function explodeScopeNode() {
   // A selected assembly (a row with kids) becomes the scope.
   if (selectedPartKey) {
     const n = nodeAtPath(root, selectedPartKey.split('.').map(Number));
-    const row = n && partRows.get(selectedPartKey);
-    if (n && row && row.hasKids) return n;
+    const rowInfo = n && allPartRows.find((r) => r.key === selectedPartKey);
+    if (n && rowInfo && rowInfo.hasKids) return n;
     // Leaf part selected -> fall through to top level (scope unchanged).
   }
-  // Default top level: descend past single-child "pure wrapper" nodes to the
-  // highest assembly with more than one child.
+  // Default top level: descend past single-child "pure wrapper" nodes (which may
+  // be unnamed, e.g. a GLTF root) to the highest assembly with more than one
+  // named child.
+  const namedKids = (o) => (o.children || []).filter((c) => c.name && nodeHasMeshes(c));
+  // A "pure wrapper" to descend through: a non-light child that itself has
+  // children AND meshes in its subtree (i.e. leads to real geometry).
+  const wrappers = (o) => (o.children || []).filter((c) => !c.isLight && nodeHasMeshes(c) && c.children && c.children.length);
   let node = root;
-  const namedKids = (o) => (o.children || []).filter((c) => c.name);
   while (node) {
     const kids = namedKids(node);
-    if (kids.length > 1) return node;
-    if (kids.length === 1) { node = kids[0]; continue; }
+    if (kids.length > 1) return node;            // this is the assembly to explode
+    // No named children: descend into the single pure wrapper, if any. This
+    // handles unnamed GLTF roots that wrap the real sub-assemblies.
+    const w = wrappers(node);
+    if (w.length === 1) { node = w[0]; continue; }
     return null;   // single leaf / empty -> nothing to explode
   }
   return null;
 }
+// True if the node's subtree contains at least one renderable mesh. Used to
+// exclude lights/helpers (which have no geometry) from explode targets.
+function nodeHasMeshes(node) {
+  let found = false;
+  node.traverse((o) => { if (o.isMesh) found = true; });
+  return found;
+}
 function explodeScopeInfo() {
   const scope = explodeScopeNode();
   if (!scope) { explodeScopeKey = null; explodeScopeName = '—'; explodeNothing = true; return []; }
-  const kids = (scope.children || []).filter((c) => c.name);
+  const kids = (scope.children || []).filter((c) => c.name && nodeHasMeshes(c));
   explodeScopeKey = scope === model.children[0] && !partRows.has('') ? null : scopeKeyOf(scope);
   explodeScopeName = scope.name || 'Assembly';
   explodeNothing = kids.length <= 1;
@@ -3124,6 +3139,19 @@ window.__viewer = {
       scale: explodeScale, targets: explodeTargets.length, dir: explodeDir,
       scopeKey: explodeScopeKey, scopeName: explodeScopeName, nothing: explodeNothing,
     };
+  },
+  get explodeDiag() {
+    const scope = explodeScopeNode();
+    return {
+      sel: selectedPartKey,
+      scope: scope ? { name: scope.name, kids: (scope.children||[]).map(c => c.name), hasKids: (scope.children||[]).length } : null,
+      targets: explodeTargets.map(t => ({ n: t.node.name, key: t.node.uuid })),
+    };
+  },
+  partRowInfo: (key) => {
+    const r = partRows.get(key);
+    const all = allPartRows.filter((o) => o.key === key);
+    return { hasRow: !!r, hasKids: all[0] ? all[0].hasKids : null, key };
   },
   explodeSet: (amount, dir, mode, gap) => explodeSet(amount, dir, mode, gap),
   explodeScope: () => explodeScopeNode()?.name || null,

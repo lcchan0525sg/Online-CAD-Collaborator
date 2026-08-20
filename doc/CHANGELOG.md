@@ -259,6 +259,39 @@ to disk.
 
 ---
 
+## [v0.72] — 2026-08-20
+
+> **Baseline:** v0.71 (tag `v0.71`). Release on top of the current working tree.
+
+### Fixed
+
+- **Selecting a nested sub-assembly now correctly re-scopes the explode.** In a
+  multi-level assembly (a sub-assembly that itself contains sub-assemblies),
+  clicking a sub-assembly's name didn't switch the explode scope to its
+  children — it stayed on the top level. Two causes, both fixed in `src/main.js`:
+  - `explodeScopeNode()` checked `partRows.get(key).hasKids`, but `partRows`
+    values are `{ cb, row }` and don't carry `hasKids` (that flag lives on
+    `allPartRows`). It now looks up the row's `hasKids` in `allPartRows`.
+  - The same bug was in the `selectPart()` re-scope hook.
+- **Explode no longer treats light/helper nodes as parts.** GLB files exported
+  with lights (`light_0`, `light_1`, …) would include them as named scene
+  children, and the scope resolver counted them as explode targets. Explode
+  targets and the "pure wrapper" descend now require the child to contain mesh
+  geometry (`nodeHasMeshes`), so lights/helpers are excluded.
+
+### Added
+
+- `cad-samples/NestedAssembly.glb` — a small 3-level nested assembly (Frame /
+  Gearbox / Motor, each with 3 parts) added for testing the drill-down explode
+  (top level → select a sub-assembly → explode its children → repeat).
+
+### Technical
+
+- `src/main.js`: `explodeScopeNode()` now reads `hasKids` from `allPartRows`
+  (not `partRows`), and both the scope resolver and the descend logic filter
+  children by `nodeHasMeshes()` so lights are skipped. Debug hooks
+  (`partRowInfo`, `explodeDiag`) added for headless verification.
+
 ## [v0.71] — 2026-08-20
 
 > **Baseline:** v0.70 (tag `v0.70`). Release on top of the current working tree.
