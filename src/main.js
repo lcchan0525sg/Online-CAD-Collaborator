@@ -872,8 +872,11 @@ async function importStep(file, mtlFile) {
   const infoEl = document.getElementById('info');
   const gen = nextLoadGen();
   const inSession = !!(session && session.connected);
-  xferBegin('Converting CAD file…', `OpenCascade kernel · Docker — ${file.name}`);
-  infoEl.textContent = `converting ${file.name} to GLB…\n(OpenCascade kernel · Docker — allow a few seconds)`;
+  const isStl = /\.stl$/i.test(file.name);
+  xferBegin('Converting CAD file…', isStl ? `Host-side STL → GLB — ${file.name}` : `OpenCascade kernel · Docker — ${file.name}`);
+  infoEl.textContent = isStl
+    ? `converting ${file.name} to GLB…\n(pure JS, host-side — instant)`
+    : `converting ${file.name} to GLB…\n(OpenCascade kernel · Docker — allow a few seconds)`;
   const t0 = performance.now();
   try {
     // OBJ: stage the companion .mtl (if picked) so the converter can apply
@@ -1634,7 +1637,8 @@ document.getElementById('file').addEventListener('change', (e) => {
   if (f) {
     const ext = f.name.toLowerCase();
     if (ext.endsWith('.step') || ext.endsWith('.stp') ||
-        ext.endsWith('.igs') || ext.endsWith('.iges') || ext.endsWith('.obj')) {
+        ext.endsWith('.igs') || ext.endsWith('.iges') || ext.endsWith('.obj') ||
+        ext.endsWith('.stl')) {
       // importStep converts locally (so the opener sees it too) and, when in a
       // session, hands the resulting GLB to shareBuffer for the guests.
       // (Named "Step" from the first format; it covers every kernel-convertible

@@ -28,6 +28,11 @@ const convFileDefault = 'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py';
 function resolveConvSrc() {
   if (process.env.CQ_DIR) return process.env.CQ_DIR;
   if (process.env.CQ_SCRIPT) return process.env.CQ_SCRIPT;
+  // Prefer this repo's own modular converters (src/converters), which the
+  // standalone tool and the main viewer now share; fall back to the legacy
+  // chair-3d-web path only for older zips/tags.
+  const local = join(ROOT, 'src', 'converters');
+  if (existsSync(local)) return local;
   return existsSync(convDirDefault) ? convDirDefault : convFileDefault;
 }
 const convSrc = resolveConvSrc();
@@ -59,7 +64,7 @@ function buildFrom(src, version, zipName) {
   // ---- app files (into the zip root) ----
   // Newer source trees keep the app in src/; older tags are flat. Handle both.
   const SRC = existsSync(join(src, 'src', 'server.js')) ? join(src, 'src') : src;
-  for (const f of ['server.js', 'main.js', 'index.html', 'style.css']) {
+  for (const f of ['server.js', 'main.js', 'index.html', 'style.css', 'stl2glb.mjs']) {
     copyFileSync(join(SRC, f), join(APP, f));
   }
   // package files sit at the source root (node resolution for ws/three imports)

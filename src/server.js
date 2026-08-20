@@ -90,13 +90,14 @@ const CONVERT_EXT = {
   '.igs': 'iges',
   '.iges': 'iges',
   '.obj': 'obj',
+  '.stl': 'stl',
 };
 function kindFromExt(name) { return CONVERT_EXT[(String(name).toLowerCase().match(/\.\w+$/) || [''])[0]]; }
 // Human label for a converted source, e.g. "STEP → GLB".
 function labelFromKind(kind) { return kind.toUpperCase() + ' → GLB'; }
 // Canonical extension per kind, used when the filename carries no convertible
 // extension (e.g. a client that sends x-kind but a bare filename).
-const KIND_EXT = { step: '.step', iges: '.igs', obj: '.obj' };
+const KIND_EXT = { step: '.step', iges: '.igs', obj: '.obj', stl: '.stl' };
 // Extension to store the upload under: the file's REAL extension when it's
 // convertible (that's what the container's dispatcher routes on), else the
 // canonical extension for the declared kind.
@@ -510,7 +511,7 @@ async function handleSessionModelUpload(req, res, session) {
     // STEP/IGES/OBJ to GLB locally and kept the original filename) — trust
     // x-kind over a filename-extension guess.
     const declared = (req.headers['x-kind'] || '').toString().toLowerCase();
-    const declaredKnown = declared === 'glb' || declared === 'step' || declared === 'iges' || declared === 'obj';
+    const declaredKnown = declared === 'glb' || declared === 'step' || declared === 'iges' || declared === 'obj' || declared === 'stl';
     // Trust an explicit x-kind. Only fall back to a filename-extension guess
     // when the client did NOT declare a kind (older clients / direct uploads).
     let kind = declaredKnown ? declared : 'glb';
@@ -676,6 +677,34 @@ async function handleStepUpload(req, res) {
       } catch (e) {
         console.warn('[convert] mtl attach failed: ' + e.message);
       }
+    }
+
+    // STL is a pure mesh: convert HOST-SIDE with the direct JS writer (no
+    // Docker). The OCCT/B-rep path emits one glTF primitive per facet -> ~10x
+    // blowup (and Draco can't fix structural bloat); stl2glb.mjs writes a single
+    // welded, flat-shaded primitive, typically smaller than the source.
+    if (kind === 'stl') {
+      console.log(`[convert] STL ${(size / 1024).toFixed(1)} KB ...`);
+      const t0 = Date.now();
+      await new Promise((resolve, reject) => {
+        execFile(process.execPath, [join(WEB, 'stl2glb.mjs'), inPath, outPath, '--stem', stemOf(filename) || 'model'],
+          { timeout: 10 * 60 * 1000 }, (err, _so, se) => {
+            if (err) reject(new Error(String(se || err.message || 'stl2glb failed')));
+            else resolve();
+          });
+      });
+      console.log(`[convert] STL done in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+      const glb = await readFile(outPath);
+      const tris = countGlbTriangles(glb);
+      if (!tris) {
+        res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('STL conversion produced no visible geometry (0 triangles).');
+        return;
+      }
+      console.log(`[convert] GLB has ${tris} triangles`);
+      res.writeHead(200, { 'content-type': 'model/gltf-binary', 'content-length': glb.length });
+      res.end(glb);
+      return;
     }
 
     // Mount the temp dir (read/write) and the converter script, run the kernel.
