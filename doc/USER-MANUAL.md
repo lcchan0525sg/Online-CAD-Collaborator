@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.81 · **URL:** http://localhost:8088/
+**Version:** v0.82 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -196,9 +196,11 @@ The sidebar shows you:
 
 ## 4. The Assembly panel — parts and visibility
 
-Every part of the model appears in the **Assembly** tree. The tree opens
-expanded to **level 2** (the top assembly plus its direct children); deeper
-levels are collapsed until you expand them.
+Every part of the model appears in the **Parts** tree, shown in a floating panel
+at the **left edge of the viewport**. The tree opens expanded to **level 2** (the
+top assembly plus its direct children); deeper levels are collapsed until you
+expand them. (The tree used to live in the sidebar; it now lives here so the
+sidebar stays uncluttered.)
 
 ![Assembly tree with the part list](manual-shots/03-assembly-panel.png)
 
@@ -238,10 +240,10 @@ answers "which part is this?" instantly, without clicking.
 
 ![Hovering a part shows its name in a tooltip](manual-shots/22-part-hover.png)
 
-### Right-click menu (Hide / Move / Show me only / Make transparent)
+### Right-click menu (Hide / Move / Show me only / Make transparent / Comment)
 
 Right-click a part — either its name in the tree, or the part directly in the
-viewport — to open a menu with four actions:
+viewport — to open a menu with five actions:
 
 | Action | What it does |
 |---|---|
@@ -249,6 +251,7 @@ viewport — to open a menu with four actions:
 | **Move part** | Selects the part and arms the axis gizmo so you can move it (see §5) |
 | **Show me only** | Hides everything except that part and its children; ancestors stay visible so the isolated part still renders |
 | **Make transparent** | Renders the part at 25% opacity so you can see through it (see §8); the item reads **Make opaque** when the part is already transparent |
+| **Comment…** | Opens a small text box; type a note and press **Send** — it posts `[Part name] your note` into the session chat for everyone (see §13). A session is required. |
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
 
@@ -287,10 +290,25 @@ brighter than the others.
 - **Reset** returns all parts to their original positions, collapses the exploded
   view, and clears the move history.
 
+### Rotate a part
+
+Besides sliding, a part can be **rotated** around an axis using the same gizmo:
+
+1. **Select the part** and arm the gizmo (right-click → **Move part**, or tick
+   **Move part** in the sidebar).
+2. **Pick an axis** — click the X / Y / Z gizmo arrow (or press **X / Y / Z**). A
+   **semi-circle arc with an arrow** appears in the plane perpendicular to that
+   axis.
+3. **Press R** (or click the arc's arrowhead) to arm rotate — the arc glows.
+4. **Left-drag** around the arc to spin the part about that axis.
+
+Rotations share the same **Undo / Reset** as moves and sync to every member of a
+session.
+
 ![A part moved along the X axis, with the axis gizmo visible](manual-shots/15-part-move.png)
 
-**In a session, part moves sync to every member** — move a part and the others
-watch it move live, and can move it back.
+**In a session, part moves and rotations sync to every member** — move or rotate
+a part and the others watch it live, and can move/rotate it back.
 
 ---
 
@@ -383,6 +401,21 @@ transparency syncs to every member.**
 | **Wireframe overlay** | Toggle wireframe on all parts |
 | **Grid** | Toggle the ground grid |
 | **Auto-rotate** | Slow turntable spin (disabled in a session) |
+
+### Preset views
+
+A small **View** panel sits in the **top-right corner** of the viewport with
+standard camera orientations:
+
+| Button | View |
+|---|---|
+| **Iso** | Isometric (the default angled view) |
+| **Front / Back** | Looking along the model's Z axis |
+| **Left / Right** | Looking along the model's X axis |
+| **Top / Bottom** | Looking straight down / up (with a corrected up-vector) |
+
+Each frames the model from that direction. In a session the camera follows these
+presets too.
 
 ---
 
@@ -644,4 +677,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.81 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.82 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

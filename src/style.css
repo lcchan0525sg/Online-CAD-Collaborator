@@ -579,3 +579,121 @@ body {
   #viewport { order: 1; height: 54vh; }
   #panel { order: 2; width: 100%; flex: 1; height: 46vh; border-right: none; border-top: 1px solid var(--line); }
 }
+
+/* ---------- Floating panels over the viewport ---------- */
+#viewport .view-presets {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 210px;
+  padding: 6px 7px;
+  background: rgba(20, 24, 34, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+#viewport .view-presets[hidden] { display: none; }
+#viewport .vp-title {
+  width: 100%;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted, #9aa4b2);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  padding: 0 2px 3px;
+}
+#viewport .vp-btn {
+  flex: 1 1 auto;
+  min-width: 52px;
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: #dfe6f0;
+  cursor: pointer;
+}
+#viewport .vp-btn:hover { background: rgba(37, 99, 235, 0.6); border-color: #2563eb; }
+
+/* Floating Parts panel (list of all parts with show/hide) */
+#viewport .floating-parts {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 40;
+  width: 260px;
+  max-height: 48vh;
+  overflow: auto;
+  padding: 8px 9px;
+  background: rgba(20, 24, 34, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
+}
+#viewport .floating-parts[hidden] { display: none; }
+#viewport .fp-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+#viewport .fp-title { font-size: 12px; font-weight: 600; color: #dfe6f0; flex: 1; }
+#viewport .fp-btn {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 5px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.07);
+  color: #cfd8e3;
+  cursor: pointer;
+}
+#viewport .fp-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 3px;
+  border-radius: 5px;
+  font-size: 12px;
+  color: #dfe6f0;
+  cursor: pointer;
+}
+#viewport .fp-row:hover { background: rgba(255, 255, 255, 0.07); }
+#viewport .fp-row.off { opacity: 0.5; }
+#viewport .fp-row input { margin: 0; }
+#viewport .fp-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; }
+
+/* Part comment inline box (in the part menu) */
+#part-menu .part-comment-box {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 2px;
+}
+#part-menu .part-comment-box input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 4px 6px;
+  font-size: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--line, #333b47);
+  background: #141822;
+  color: #e6ecf3;
+}
+#part-menu .part-comment-box .pc-actions { display: flex; gap: 4px; }
+#part-menu .part-comment-box button {
+  flex: 1;
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.16);
+  background: rgba(37,99,235,0.55);
+  color: #fff;
+  cursor: pointer;
+}
+#part-menu .part-comment-box button.pc-cancel { background: rgba(255,255,255,0.08); color: #cfd8e3; }

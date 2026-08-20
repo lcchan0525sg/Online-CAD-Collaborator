@@ -5,13 +5,14 @@ import { ctx } from './context.js';
 
 import { refreshExplodeForVisibility, renderExplodeScope, rescopeExplode } from './explode.js';
 import { isPickVisible, pickPartKey, setMoveAxis } from './move.js';
-import { xferToast } from './session.js';
+import { xferToast, sendPartComment } from './session.js';
 
 export function clearPartsTree() {
   if (!ctx.partsEl) return;
   ctx.partsEl.innerHTML = '<span class="hint">—</span>';
   ctx.partRows.clear();
   ctx.allPartRows.length = 0;
+  setFloatingPartsVisible(false);
 }
 
 export function nodeAtPath(root, path) {
@@ -100,6 +101,7 @@ export function buildPartsTree(root) {
   ctx.collapsedPaths = new Set(ctx.allPartRows.filter((r) => r.hasKids && r.depth >= 1).map((r) => r.key));
   renderCollapseState();
   if (!count) ctx.partsEl.innerHTML = '<span class="hint">—</span>';
+  setFloatingPartsVisible(count > 0);
 }
 
 export function renderCollapseState() {
@@ -128,6 +130,8 @@ export function showPartMenu(x, y, key) {
 
 export function hidePartMenu() {
   if (ctx.partMenuEl) ctx.partMenuEl.hidden = true;
+  const cb = document.getElementById('part-comment-box');
+  if (cb) cb.hidden = true;
   ctx.partMenuKey = null;
 }
 
@@ -195,6 +199,37 @@ ctx.partMenuMoveEl?.addEventListener('click', () => {
   setMoveAxis(null);        // no axis chosen yet — wait for a gizmo-arrow click
   xferToast('Click an axis arrow to set the move direction');
 });
+
+// ---- Part comment -> session chat ----
+const partCommentBox = () => document.getElementById('part-comment-box');
+const partCommentInput = () => document.getElementById('part-comment-input');
+
+document.getElementById('part-menu-comment')?.addEventListener('click', (e) => {
+  e.stopPropagation();   // keep the menu open so the text box stays visible
+  const box = partCommentBox(), inp = partCommentInput();
+  if (!box || !inp) return;
+  box.hidden = false;
+  inp.value = '';
+  inp.focus();
+});
+
+function submitPartComment() {
+  const key = ctx.partMenuKey;
+  const inp = partCommentInput();
+  const text = inp ? inp.value : '';
+  if (sendPartComment(key, text)) {
+    const box = partCommentBox();
+    if (box) box.hidden = true;
+    hidePartMenu();
+  }
+}
+
+document.getElementById('part-comment-send')?.addEventListener('click', submitPartComment);
+document.getElementById('part-comment-cancel')?.addEventListener('click', () => {
+  const box = partCommentBox();
+  if (box) box.hidden = true;
+});
+partCommentInput()?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitPartComment(); } });
 
 export function captureMeshBases(root) {
   ctx.meshBase.clear();
@@ -491,3 +526,14 @@ export function hoverPickKey(clientX, clientY) {
 }
 
 ctx.renderer.domElement.addEventListener('pointerleave', hidePartHover);
+
+/* ---- Floating Parts side-menu (viewport) ---- */
+// The parts assembly tree now renders here (buildPartsTree targets
+// #floating-parts-list). Just show/hide the panel as parts come and go.
+export function setFloatingPartsVisible(show) {
+  const p = document.getElementById('floating-parts');
+  if (p) p.hidden = !show;
+}
+
+document.getElementById('fp-show-all')?.addEventListener('click', () => setAllParts(true));
+document.getElementById('fp-hide-all')?.addEventListener('click', () => setAllParts(false));

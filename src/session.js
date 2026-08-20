@@ -4,10 +4,10 @@ import * as THREE from 'three';
 import { ctx } from './context.js';
 
 import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } from './scene.js';
-import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree } from './parts.js';
+import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync } from './measure.js';
 import { applyRemoteExplode } from './explode.js';
-import { applyRemoteMove } from './move.js';
+import { applyRemoteMove, applyRemoteRot } from './move.js';
 
 export function onModelAck(from) {
   ctx.ackedSend.add(from);
@@ -105,14 +105,32 @@ export function appendChatMsg(msg) {
   ctx.chatMessagesEl.scrollTop = ctx.chatMessagesEl.scrollHeight;
 }
 
+export function sendChatText(text) {
+  const t = (text || '').trim();
+  if (!t) return;
+  if (!ctx.session?.connected) { appendChatMsg({ id: 'sys', system: true, text: 'Not connected to a session.' }); return; }
+  // Show your own message locally (the server relays only to the other members).
+  appendChatMsg({ id: 'self:' + (++ctx.chatSeq), name: ctx.userName, text: t, ts: Date.now(), self: true });
+  try { ctx.session.ws.send(JSON.stringify({ t: 'chat', text: t })); } catch {}
+}
+
 export function sendChat() {
   const text = (ctx.chatInputEl.value || '').trim();
   if (!text) return;
   ctx.chatInputEl.value = '';
-  if (!ctx.session?.connected) { appendChatMsg({ id: 'sys', system: true, text: 'Not connected to a session.' }); return; }
-  // Show your own message locally (the server relays only to the other members).
-  appendChatMsg({ id: 'self:' + (++ctx.chatSeq), name: ctx.userName, text, ts: Date.now(), self: true });
-  try { ctx.session.ws.send(JSON.stringify({ t: 'chat', text })); } catch {}
+  sendChatText(text);
+}
+
+// Send a part comment into the session chat, prefixed with the part name.
+export function sendPartComment(key, comment) {
+  const t = (comment || '').trim();
+  if (!t) return false;
+  if (!ctx.session?.connected) { xferToast('Join a session to comment on a part'); return false; }
+  const root = ctx.model?.children[0];
+  const node = key && root ? nodeAtPath(root, key.split('.').map(Number)) : null;
+  const name = (node && node.name) || `Part ${key}`;
+  sendChatText(`[${name}] ${t}`);
+  return true;
 }
 
 ctx.btnChatEl?.addEventListener('click', () => {
@@ -342,6 +360,9 @@ export function onSessionMsg(msg) {
       break;
     case 'move':
       applyRemoteMove(msg);
+      break;
+    case 'rot':
+      applyRemoteRot(msg);
       break;
     case 'trans':
       applyRemoteTransparent(msg.key, msg.transparent);

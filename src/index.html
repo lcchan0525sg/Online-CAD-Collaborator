@@ -121,10 +121,6 @@
 
       <section class="section">
         <h2>Assembly</h2>
-        <div class="row toggle" style="margin-bottom:6px">
-          <button class="btn" id="btn-parts-all" style="flex:1">Show all</button>
-          <button class="btn" id="btn-parts-none" style="flex:1">Hide all</button>
-        </div>
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move part</span></label>
           <span id="move-axis" class="move-axis" title="press X / Y / Z to choose an axis, then drag to move">off</span>
@@ -154,12 +150,19 @@
         <div class="row" style="margin-bottom:8px">
           <span id="explode-scope" class="explode-scope" title="Which assembly's children are being spread apart">Exploding: —</span>
         </div>
-        <div id="parts" class="parts"><span class="hint">—</span></div>
         <div id="part-menu" class="part-menu" hidden>
           <button type="button" id="part-menu-hide">Hide part</button>
           <button type="button" id="part-menu-move">Move part</button>
           <button type="button" id="part-menu-trans">Make transparent</button>
           <button type="button" id="part-menu-only">Show me only</button>
+          <button type="button" id="part-menu-comment">Comment…</button>
+          <div id="part-comment-box" class="part-comment-box" hidden>
+            <input type="text" id="part-comment-input" placeholder="Comment on this part…" maxlength="300" autocomplete="off" spellcheck="false">
+            <div class="pc-actions">
+              <button type="button" id="part-comment-send">Send</button>
+              <button type="button" id="part-comment-cancel" class="pc-cancel">Cancel</button>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -171,7 +174,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.81 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.82 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -189,6 +192,28 @@
       <div id="hud">
         <h1>CAD Viewer</h1>
         <p>drag&nbsp;to orbit &middot; scroll&nbsp;to zoom &middot; right-drag&nbsp;to pan</p>
+      </div>
+
+      <!-- Preset views: floating panel, top-right of the viewport -->
+      <div id="view-presets" class="view-presets">
+        <span class="vp-title">View</span>
+        <button type="button" class="vp-btn" data-view="iso" title="Isometric">Iso</button>
+        <button type="button" class="vp-btn" data-view="front" title="Front">Front</button>
+        <button type="button" class="vp-btn" data-view="back" title="Back">Back</button>
+        <button type="button" class="vp-btn" data-view="left" title="Left">Left</button>
+        <button type="button" class="vp-btn" data-view="right" title="Right">Right</button>
+        <button type="button" class="vp-btn" data-view="top" title="Top">Top</button>
+        <button type="button" class="vp-btn" data-view="bottom" title="Bottom">Bottom</button>
+      </div>
+
+      <!-- Floating Parts side-menu: lists all parts with show/hide -->
+      <div id="floating-parts" class="floating-parts" hidden>
+        <div class="fp-head">
+          <span class="fp-title">Parts</span>
+          <button type="button" class="fp-btn" id="fp-show-all" title="Show all parts">All</button>
+          <button type="button" class="fp-btn" id="fp-hide-all" title="Hide all parts">None</button>
+        </div>
+        <div id="floating-parts-list"></div>
       </div>
 
       <!-- Model-transfer overlay: blocks interaction until the shared model is fully received -->

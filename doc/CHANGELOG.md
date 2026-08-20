@@ -21,6 +21,33 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.82] — 2026-08-20
+
+### Added
+
+- **Rotate parts.** The move gizmo now shows a **semi-circle arc with an arrow**
+  in the plane perpendicular to the armed axis. Press **R** (or click the arc's
+  arrowhead) to arm rotate, then drag to spin the part around that axis.
+  Rotations join the same Undo/Reset history and **sync to guests** (`rot`
+  message relayed by the server). Also fixed a rotation-math bug: the delta is
+  now applied in the part's parent frame, so the axis is correct for
+  already-rotated parts and parts nested under a rotated assembly.
+- **Preset views.** A small floating **View** panel (top-right of the viewport)
+  with **Iso / Front / Back / Left / Right / Top / Bottom** camera orientations,
+  each framed on the model and synced to guests.
+- **Floating Parts panel.** The parts list now lives in a collapsible assembly
+  tree in a floating panel at the left edge of the viewport; the sidebar no
+  longer shows its own parts tree (no duplicate explorer).
+- **Part comment → chat.** The right-click part menu has a **Comment…** action
+  that opens an inline text box; sending posts `[Part name] note` into the
+  session chat. Requires being in a session.
+
+### Changed
+
+- `server.js` relays the new `rot` message type (rotate sync).
+
+---
+
 ## [v0.81] — 2026-08-20
 
 ### Changed

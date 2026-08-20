@@ -37,6 +37,19 @@ export function broadcastMove(path, pos) {
   try { ctx.session.ws.send(JSON.stringify({ t: 'move', path, pos: [pos.x, pos.y, pos.z] })); } catch {}
 }
 
+export function broadcastRot(path, quat) {
+  if (!ctx.session?.connected) return;
+  try { ctx.session.ws.send(JSON.stringify({ t: 'rot', path, quat: [quat.x, quat.y, quat.z, quat.w] })); } catch {}
+}
+
+export function applyRemoteRot(msg) {
+  if (!ctx.model || !Array.isArray(msg.path) || !Array.isArray(msg.quat)) return;
+  const node = nodeAtPath(ctx.model.children[0], msg.path);
+  if (!node) return;
+  node.quaternion.set(msg.quat[0], msg.quat[1], msg.quat[2], msg.quat[3]);
+  node.updateMatrixWorld(true);
+}
+
 export function applyRemoteMove(msg) {
   if (!ctx.model || !Array.isArray(msg.path) || !Array.isArray(msg.pos)) return;
   const node = nodeAtPath(ctx.model.children[0], msg.path);
@@ -60,8 +73,20 @@ export function resetPartPositions() {
     node.updateMatrixWorld(true);
     broadcastMove(path.split('.').map(Number), orig);
   }
-  // Reset also clears the undo history — the positions are back to the baseline.
+  // Also restore rotations (move + rotate share the Reset button).
+  const rv = new Set();
+  for (const [path, orig] of ctx.originalRotations) {
+    const node = nodeAtPath(root, path.split('.').map(Number));
+    if (!node || rv.has(node.uuid)) continue;
+    rv.add(node.uuid);
+    node.quaternion.copy(orig);
+    node.updateMatrixWorld(true);
+    broadcastRot(path.split('.').map(Number), orig);
+  }
+  // Reset also clears the undo history — positions/rotations back to baseline.
   ctx.moveHistory.length = 0;
+  ctx.rotHistory.length = 0;
+  setRotateMode(false);
   updateUndoState();
   xferToast('Part positions reset');
 }
@@ -82,6 +107,137 @@ export function saveOriginalPositions() {
   walk(root, []);
 }
 
+export function saveOriginalRotations() {
+  ctx.originalRotations.clear();
+  if (!ctx.model) return;
+  const root = ctx.model.children[0];
+  const walk = (obj, path) => {
+    (obj.children || []).forEach((c, i) => {
+      const p = [...path, i];
+      if (c.isObject3D || c.isMesh) ctx.originalRotations.set(p.join('.'), c.quaternion.clone());
+      walk(c, p);
+    });
+  };
+  walk(root, []);
+}
+
+export function setRotateMode(on) {
+  ctx.rotateMode = !!on;
+  if (ctx.rotateArc) ctx.rotateArc.material.opacity = ctx.rotateMode ? 1 : 0.4;
+  if (ctx.rotateArcArrow) ctx.rotateArcArrow.material.opacity = ctx.rotateMode ? 1 : 0.4;
+}
+
+export function buildRotateArc() {
+  if (ctx.rotateArc) return ctx.rotateArc;
+  const R = 0.5, SEG = 48, pts = [];
+  for (let i = 0; i <= SEG; i++) {
+    const a = Math.PI * i / SEG;
+    pts.push(new THREE.Vector3(Math.cos(a) * R, Math.sin(a) * R, 0));   // XY-plane semi-circle
+  }
+  const arc = new THREE.Line(
+    new THREE.BufferGeometry().setFromPoints(pts),
+    new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.4, depthTest: false }));
+  arc.userData.kind = 'rotateArc';
+  arc.visible = false;
+  const arrow = new THREE.Mesh(
+    new THREE.ConeGeometry(0.05, 0.14, 12),
+    new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.4, depthTest: false }));
+  arrow.position.set(R, 0, 0);                 // at the arc's 0° end
+  arrow.rotation.z = Math.PI / 2;              // point tangentially along the arc
+  arrow.userData.kind = 'rotateArrow';
+  arrow.visible = false;
+  ctx.moveGizmo.add(arc);
+  ctx.moveGizmo.add(arrow);
+  ctx.rotateArc = arc;
+  ctx.rotateArcArrow = arrow;
+  return arc;
+}
+
+// Is the pointer near the rotate semi-circle on screen?
+export function pickRotateArc(e) {
+  if (!ctx.rotateArc?.visible || !ctx.moveOnChk?.checked) return false;
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  const px = e.clientX - r.left, py = e.clientY - r.top;
+  ctx.rotateArc.updateMatrixWorld(true);
+  const pos = ctx.rotateArc.geometry.attributes.position;
+  let best = 1e9;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+    ctx.rotateArc.localToWorld(v);
+    const p = v.clone().project(ctx.camera);
+    const sx = (p.x * 0.5 + 0.5) * r.width, sy = (-p.y * 0.5 + 0.5) * r.height;
+    const d = Math.hypot(px - sx, py - sy);
+    if (d < best) best = d;
+  }
+  return best < 18;
+}
+
+// Pointer angle (radians) around ctx.rotAxisVec, relative to ctx.rotCenter.
+function pointerAngle(e) {
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  ctx._mv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1, 0.5);
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ctx._mv, ctx.camera);
+  const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(ctx.rotAxisVec, ctx.rotCenter);
+  const pt = new THREE.Vector3();
+  if (!ray.ray.intersectPlane(plane, pt)) return null;
+  const d = pt.sub(ctx.rotCenter);
+  const u = new THREE.Vector3();
+  if (Math.abs(ctx.rotAxisVec.y) < 0.9) u.crossVectors(ctx.rotAxisVec, new THREE.Vector3(0, 1, 0)).normalize();
+  else u.crossVectors(ctx.rotAxisVec, new THREE.Vector3(1, 0, 0)).normalize();
+  const v = new THREE.Vector3().crossVectors(ctx.rotAxisVec, u).normalize();
+  return Math.atan2(d.dot(v), d.dot(u));
+}
+
+ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !ctx.rotateArc?.visible || !ctx.rotateMode || !ctx.moveOnChk.checked) return;
+  if (!pickRotateArc(e)) return;
+  const node = movableNode();
+  if (!node) return;
+  ctx.rotating = true;
+  ctx.controls.enabled = false;
+  // Rotation axis in the node's parent-local frame (node rotates about its own center).
+  ctx.rotCenter.copy(node.getWorldPosition(new THREE.Vector3()));
+  ctx.rotAxisVec.set(0, 0, 1);
+  if (ctx.moveAxis === 'x') ctx.rotAxisVec.set(1, 0, 0);
+  else if (ctx.moveAxis === 'y') ctx.rotAxisVec.set(0, 1, 0);
+  const cL = node.parent.worldToLocal(ctx.rotCenter.clone());
+  const aL = node.parent.worldToLocal(ctx.rotCenter.clone().add(ctx.rotAxisVec));
+  ctx.rotLocalAxis.copy(aL.sub(cL)).normalize();
+  ctx.rotStartQuat.copy(node.quaternion);
+  ctx.rotStartAngle = pointerAngle(e) || 0;
+});
+
+ctx.renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!ctx.rotating) return;
+  const a = pointerAngle(e);
+  if (a == null) return;
+  const node = movableNode();
+  if (!node) return;
+  const delta = a - ctx.rotStartAngle;
+  // PRE-multiply the delta so it's applied in the part's parent frame (the axis
+  // rotLocalAxis is expressed there). Post-multiplying would rotate around the
+  // part's own tilted local frame, giving the wrong axis for already-rotated
+  // parts or parts under a rotated assembly.
+  node.quaternion.copy(new THREE.Quaternion().setFromAxisAngle(ctx.rotLocalAxis, delta))
+    .multiply(ctx.rotStartQuat);
+  node.updateMatrixWorld(true);
+  broadcastRot(movePathFor(node), node.quaternion);
+});
+
+export function endRotateDrag() {
+  if (!ctx.rotating) return;
+  ctx.rotating = false;
+  ctx.controls.enabled = true;
+  const node = movableNode();
+  if (node && ctx.moveHistory && !node.quaternion.equals(ctx.rotStartQuat)) {
+    ctx.moveHistory.push({ path: movePathFor(node), kind: 'rot', from: ctx.rotStartQuat.clone(), to: node.quaternion.clone() });
+    if (ctx.moveHistory.length > ctx.MOVE_HISTORY_MAX) ctx.moveHistory.shift();
+    updateUndoState();
+  }
+}
+
 export function moveRayToPlane(e, out) {
   const r = ctx.renderer.domElement.getBoundingClientRect();
   ctx._mv.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1, 0.5);
@@ -91,6 +247,9 @@ export function moveRayToPlane(e, out) {
 
 ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || !ctx.moveAxis || !ctx.moveOnChk.checked) return;
+  // If rotate is armed and the click landed on the rotate arc, that's a rotate
+  // gesture, not a move — don't start a move drag.
+  if (ctx.rotateMode && pickRotateArc(e)) return;
   const node = movableNode();
   if (!node) return;
   ctx.moveDragging = true;
@@ -132,7 +291,7 @@ export function endMoveDrag() {
     const path = movePathFor(node);
     const to = node.position.clone();
     if (!to.equals(ctx.moveStartNodePos)) {
-      ctx.moveHistory.push({ path, from: ctx.moveStartNodePos.clone(), to });
+      ctx.moveHistory.push({ path, kind: 'move', from: ctx.moveStartNodePos.clone(), to });
       if (ctx.moveHistory.length > ctx.MOVE_HISTORY_MAX) ctx.moveHistory.shift();
       updateUndoState();
     }
@@ -149,15 +308,23 @@ export function undoLastMove() {
   const entry = ctx.moveHistory.pop();
   const node = nodeAtPath(ctx.model.children[0], entry.path);
   if (node) {
-    node.position.copy(entry.from);
-    node.updateMatrixWorld(true);
-    broadcastMove(entry.path, node.position);
-    xferToast('Undid part movement');
+    if (entry.kind === 'rot') {
+      node.quaternion.copy(entry.from);
+      node.updateMatrixWorld(true);
+      broadcastRot(entry.path, node.quaternion);
+      xferToast('Undid part rotation');
+    } else {
+      node.position.copy(entry.from);
+      node.updateMatrixWorld(true);
+      broadcastMove(entry.path, node.position);
+      xferToast('Undid part movement');
+    }
   }
   updateUndoState();
 }
 
 ctx.renderer.domElement.addEventListener('pointerup', endMoveDrag);
+ctx.renderer.domElement.addEventListener('pointerup', endRotateDrag);
 
 ctx.renderer.domElement.addEventListener('pointercancel', endMoveDrag);
 
@@ -229,10 +396,13 @@ ctx.renderer.domElement.addEventListener('contextmenu', (e) => {
 document.addEventListener('keydown', (e) => {
   if (!ctx.moveOnChk?.checked) return;
   const k = e.key.toLowerCase();
-  if (k === 'x' || k === 'y' || k === 'z') setMoveAxis(k);
+  if (k === 'x' || k === 'y' || k === 'z') { setMoveAxis(k); setRotateMode(false); }
+  else if (k === 'r') { setRotateMode(ctx.moveAxis ? !ctx.rotateMode : false); }
 });
 
-ctx.moveOnChk.addEventListener('change', () => { if (!ctx.moveOnChk.checked) setMoveAxis(null); });
+ctx.moveOnChk.addEventListener('change', () => {
+  if (!ctx.moveOnChk.checked) { setMoveAxis(null); setRotateMode(false); }
+});
 
 document.getElementById('btn-reset-pos').addEventListener('click', resetPartPositions);
 
@@ -273,6 +443,25 @@ export function updateMoveGizmo() {
     arrow.line.material.opacity = (ctx.moveAxis === axis) ? 1 : 0.35;
     arrow.cone.material.opacity = (ctx.moveAxis === axis) ? 1 : 0.35;
   });
+  // Rotate semi-circle: shown when an axis is armed, in the plane perpendicular
+  // to that axis, so its normal aligns with the rotation axis.
+  if (ctx.rotateArc && ctx.moveAxis) {
+    const axisVec = ctx.moveAxis === 'x' ? new THREE.Vector3(1, 0, 0)
+      : ctx.moveAxis === 'y' ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(0, 0, 1);
+    ctx.rotateArc.visible = true;
+    ctx.rotateArc.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axisVec);
+    ctx.rotateArc.position.copy(p);
+    ctx.rotateArc.scale.setScalar(base / 0.5);
+    ctx.rotateArcArrow.visible = true;
+    ctx.rotateArcArrow.position.copy(new THREE.Vector3(0.5, 0, 0).applyQuaternion(ctx.rotateArc.quaternion)).add(p);
+    ctx.rotateArcArrow.quaternion.copy(ctx.rotateArc.quaternion)
+      .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
+    ctx.rotateArcArrow.scale.setScalar(base / 0.5);
+  } else if (ctx.rotateArc) {
+    ctx.rotateArc.visible = false;
+    ctx.rotateArcArrow.visible = false;
+  }
   ctx.moveGizmoActive = ctx.moveAxis;
 }
 

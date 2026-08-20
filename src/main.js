@@ -8,7 +8,9 @@ import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, part
 import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';
 import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
-import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, shareBuffer, xferDone, xferLogReset } from './session.js';
+import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
+import { setPresetView } from './scene.js';
+import { setRotateMode } from './move.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -78,6 +80,27 @@ window.__viewer = {
   },
   get moveAxis() { return ctx.moveAxis; },
   get gizmoVisible() { return ctx.moveGizmo.visible; },
+  get rotateMode() { return ctx.rotateMode; },
+  setRotate: (on) => setRotateMode(!!on),
+  get rotateArcVisible() { return !!(ctx.rotateArc && ctx.rotateArc.visible); },
+  rotateArcPoints: () => {
+    const a = ctx.rotateArc;
+    if (!a || !a.geometry.attributes.position) return [];
+    const r = ctx.renderer.domElement.getBoundingClientRect();
+    a.updateMatrixWorld(true);
+    const pos = a.geometry.attributes.position;
+    const v = new THREE.Vector3();
+    const out = [];
+    for (let i = 0; i < pos.count; i += 6) {
+      v.set(pos.getX(i), pos.getY(i), pos.getZ(i));
+      a.localToWorld(v);
+      const p = v.clone().project(ctx.camera);
+      out.push({ x: (p.x * 0.5 + 0.5) * r.width, y: (-p.y * 0.5 + 0.5) * r.height });
+    }
+    return out;
+  },
+  presetView: (view) => setPresetView(view),
+  partComment: (key, text) => sendPartComment(key, text),
   get measureOn() { return ctx.measureOn; },
   get measure() {
     return {

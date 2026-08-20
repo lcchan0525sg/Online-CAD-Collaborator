@@ -7,7 +7,7 @@ import { ctx } from './context.js';
 import { buildPartsTree, captureMeshBases, clearPartSelection, clearPartsTree, clearTransparency, flushPendingParts, flushPendingTrans } from './parts.js';
 import { flushPendingMeasures, measureClear } from './measure.js';
 import { applyExplodeGap, computeExplodeDirs, renderExplodeScope, resetExplode } from './explode.js';
-import { makeArrow, saveOriginalPositions, setMoveAxis, updateUndoState } from './move.js';
+import { buildRotateArc, makeArrow, saveOriginalPositions, saveOriginalRotations, setMoveAxis, setRotateMode, updateUndoState } from './move.js';
 import { applyRemoteAnim, broadcastAnim, broadcastLight, esc, setHealth, shareBuffer, streamBytes, xferBegin, xferDone, xferError, xferProgress } from './session.js';
 
 ctx.scene.background = new THREE.Color(0x141822);
@@ -83,7 +83,11 @@ export function clearModel() {
   if (typeof measureClear === 'function') measureClear();
   if (typeof resetExplode === 'function') resetExplode();
   if (typeof setMoveAxis === 'function') setMoveAxis(null);
+  if (typeof setRotateMode === 'function') setRotateMode(false);
   if (typeof ctx.originalPositions !== 'undefined') ctx.originalPositions.clear();
+  if (typeof ctx.originalRotations !== 'undefined') ctx.originalRotations.clear();
+  ctx.moveHistory.length = 0;
+  if (ctx.rotateArc) { ctx.rotateArc.visible = false; ctx.rotateArcArrow.visible = false; }
   if (typeof ctx.moveGizmo !== 'undefined' && ctx.moveGizmo) ctx.moveGizmo.visible = false;
   ctx.scene.remove(ctx.model);
   ctx.model.traverse((o) => {
@@ -102,15 +106,21 @@ export function clearModel() {
   clearPartSelection();
 }
 
-export function frameModel() {
-  if (!ctx.model) return;
+// Common framing math: returns { center, maxDim, dist } for the current model.
+function framing() {
   const box = new THREE.Box3().setFromObject(ctx.model);
   const center = box.getCenter(new THREE.Vector3());
   const size = box.getSize(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
-
-  ctx.controls.target.copy(center);
   const dist = (maxDim / 2) / Math.tan(THREE.MathUtils.degToRad(ctx.camera.fov / 2)) * 1.6;
+  return { center, maxDim, dist };
+}
+
+export function frameModel() {
+  if (!ctx.model) return;
+  const { center, maxDim, dist } = framing();
+  ctx.controls.target.copy(center);
+  ctx.camera.up.set(0, 1, 0);
   ctx.camera.position.set(center.x + dist * 0.7, center.y + dist * 0.55, center.z + dist * 0.85);
   ctx.camera.near = dist / 1000;
   ctx.camera.far = dist * 1000;
@@ -126,6 +136,33 @@ export function frameModel() {
   ctx.key.shadow.camera.far = g * 6;
   ctx.key.shadow.camera.updateProjectionMatrix();
 }
+
+// Standard preset views (front/back/left/right/top/bottom/iso) around the model.
+export function setPresetView(view) {
+  if (!ctx.model) return;
+  const { center, dist } = framing();
+  ctx.controls.target.copy(center);
+  const pos = new THREE.Vector3();
+  const up = new THREE.Vector3(0, 1, 0);
+  switch (view) {
+    case 'front':  pos.set(center.x, center.y, center.z + dist); break;
+    case 'back':   pos.set(center.x, center.y, center.z - dist); break;
+    case 'left':   pos.set(center.x - dist, center.y, center.z); break;
+    case 'right':  pos.set(center.x + dist, center.y, center.z); break;
+    case 'top':    pos.set(center.x, center.y + dist, center.z); up.set(0, 0, -1); break;
+    case 'bottom': pos.set(center.x, center.y - dist, center.z); up.set(0, 0, 1); break;
+    case 'iso':
+    default:       pos.set(center.x + dist * 0.7, center.y + dist * 0.55, center.z + dist * 0.85); break;
+  }
+  ctx.camera.up.copy(up);
+  ctx.camera.position.copy(pos);
+  ctx.controls.update();
+}
+
+document.querySelectorAll('#view-presets .vp-btn').forEach((b) => {
+  b.addEventListener('click', () => setPresetView(b.dataset.view));
+});
+
 
 export function showInfo(gltf, root, fileMaxDim) {
   const infoEl = document.getElementById('info');
@@ -227,6 +264,7 @@ export function loadFromGltf(gltf) {
   buildPartsTree(root);
   if (typeof captureMeshBases === 'function') captureMeshBases(root);
   if (typeof saveOriginalPositions === 'function') saveOriginalPositions();
+  if (typeof saveOriginalRotations === 'function') saveOriginalRotations();
   flushPendingParts();
   if (typeof flushPendingMeasures === 'function') flushPendingMeasures();
   if (typeof flushPendingTrans === 'function') flushPendingTrans();
@@ -559,6 +597,7 @@ updateUndoState();
 ctx.scene.add(ctx.moveGizmo);
 
 ['x', 'y', 'z'].forEach((a) => { ctx.moveGizmoArrows[a] = makeArrow(a); });
+buildRotateArc();
 
 export function resize() {
   const w = ctx.stage.clientWidth, h = ctx.stage.clientHeight;

@@ -39,7 +39,9 @@ let modelScale = 1;
 
 let modelGen = 0;      // monotonic load token: a stale async load can't clobber a newer one
 
-const partsEl = document.getElementById('parts');
+// The parts tree now renders inside the floating Parts panel (the sidebar no
+// longer has its own explorer tree).
+const partsEl = document.getElementById('floating-parts-list');
 
 const partRows = new Map();   // pathKey -> { cb, row }
 
@@ -216,6 +218,19 @@ let moveGizmo = new THREE.Group();
 let moveGizmoArrows = {};
 
 let moveGizmoActive = null;      // the armed arrow (brighter)
+
+// ---- Rotate (semi-circle arc in the move gizmo) ----
+let rotateMode = false;            // R pressed — rotate armed
+let rotating = false;              // actively rotating
+let rotStartAngle = 0;             // pointer angle around axis at drag start
+let rotStartQuat = new THREE.Quaternion();   // node.quaternion at drag start
+let rotLocalAxis = new THREE.Vector3();      // rotation axis in node.parent's frame
+let rotCenter = new THREE.Vector3();         // world center of rotation (= node world pos)
+let rotAxisVec = new THREE.Vector3();        // world rotation axis unit vector
+let originalRotations = new Map();           // path -> THREE.Quaternion (node.quaternion at load)
+let rotHistory = [];                         // [{ path, kind:'rot', from, to }] quaternions
+let rotateArc = null;                        // THREE.Line semi-circle
+let rotateArcArrow = null;                   // THREE cone at the arc end
 
 const measureOnChk = document.getElementById('measure-on');
 
@@ -403,6 +418,17 @@ export const ctx = {
   moveGizmo,
   moveGizmoArrows,
   moveGizmoActive,
+  rotateMode,
+  rotating,
+  rotStartAngle,
+  rotStartQuat,
+  rotLocalAxis,
+  rotCenter,
+  rotAxisVec,
+  originalRotations,
+  rotHistory,
+  rotateArc,
+  rotateArcArrow,
   measureOnChk,
   measureStatusEl,
   measureClearBtn,
