@@ -13,7 +13,7 @@
 //
 // Docker is the default runtime. Set CAD_NATIVE_PYTHON to bundle a complete
 // native Python/OCP runtime as well, allowing the UI to select Native Windows.
-import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -85,8 +85,11 @@ if (NATIVE_PYTHON) {
   const info = execFileSync(NATIVE_PYTHON, ['-c',
     'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
     .trim().split(/\r?\n/);
-  const basePython = info[0];
-  const venvPython = info[1];
+  // uv-managed Python installations may expose the base prefix as a Windows
+  // directory symlink. Resolve it so the ZIP contains real files and remains
+  // portable after extraction.
+  const basePython = realpathSync(info[0]);
+  const venvPython = realpathSync(info[1]);
   const nativeRoot = join(APP, 'python');
   mkdirSync(nativeRoot, { recursive: true });
   cpSync(basePython, nativeRoot, { recursive: true });
