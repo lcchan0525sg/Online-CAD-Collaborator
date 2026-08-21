@@ -21,6 +21,25 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.88] — 2026-08-21
+
+### Added
+
+- Guest reconnect workflow with automatic retry and a manual Reconnect action.
+- Session state replay on reconnect without unnecessary model reload.
+
+### Changed
+
+- First-time guests load the host model; reconnecting guests preserve their current model.
+- Host shutdown remains authoritative: guests end the session and clear the model.
+- Reconnect is never attempted after host removal, host shutdown, or explicit Leave.
+
+### Verification
+
+- Full two-client harness: **60 passed, 0 failed**.
+
+---
+
 ## [v0.87] — 2026-08-21
 
 ### Added

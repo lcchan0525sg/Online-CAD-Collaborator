@@ -10,6 +10,11 @@ import { applySectionState, sectionState } from './section.js';
 import { applyRemoteExplode } from './explode.js';
 import { applyRemoteMove, applyRemoteRot, applyRemoteTransform } from './move.js';
 
+let reconnectCode = null;
+let reconnectCreate = false;
+let reconnectAttempts = 0;
+let reconnectTimer = null;
+
 export function broadcastSection(s = sectionState()) {
   if (!ctx.session?.connected) return;
   try { ctx.session.ws.send(JSON.stringify({ t: 'section', s })); } catch {}
@@ -38,6 +43,11 @@ export function onPeerGone(id) {
 
 export function sendModelAck(note) {
   if (ctx.session?.ws?.readyState === 1) { try { ctx.session.ws.send(JSON.stringify({ t: 'model-ack', note })); } catch {} }
+}
+
+export function setReconnectVisible(show) {
+  const button = document.getElementById('btn-reconnect-session');
+  if (button) button.hidden = !show;
 }
 
 export function setSessionStatus(text) {
@@ -248,6 +258,7 @@ export async function refreshJoinLink(code) {
 export function endSessionForGuest({ status = 'not in a session', info = '', toast = '' } = {}) {
   if (ctx.session) { try { ctx.session.ws.close(); } catch {} }
   ctx.session = null;
+  setReconnectVisible(false);
   ctx.roster = []; renderRoster();
   setSessionStatus(status);
   showSessionUI(false);
@@ -264,13 +275,27 @@ export function endSessionForGuest({ status = 'not in a session', info = '', toa
   if (toast) xferToast(toast);
 }
 
-export function connectTo(code, { create = false } = {}) {
-  if (ctx.session) { try { ctx.session.ws.close(); } catch {} ctx.session = null; }
+function scheduleGuestReconnect() {
+  if (!reconnectCode || reconnectCreate || reconnectAttempts >= 3 || reconnectTimer) return;
+  const delay = [1000, 2000, 5000][reconnectAttempts];
+  reconnectAttempts++;
+  setSessionStatus(`reconnecting… ${reconnectAttempts}/3`);
+  reconnectTimer = setTimeout(() => {
+    reconnectTimer = null;
+    connectTo(reconnectCode, { create: false, reconnect: true });
+  }, delay);
+}
+
+export function connectTo(code, { create = false, reconnect = false } = {}) {
+  reconnectCode = code;
+  reconnectCreate = create;
+  if (!reconnect) reconnectAttempts = 0;
+  setReconnectVisible(false);
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const q = new URLSearchParams({ session: code, name: ctx.userName });
   if (create) q.set('create', '1');
   const ws = new WebSocket(`${proto}://${location.host}/ws?${q}`);
-  ctx.session = { code, ws, id: null, isHost: false, connected: false, name: ctx.userName };
+  ctx.session = { code, ws, id: null, isHost: false, connected: false, name: ctx.userName, reconnect };
   setSessionStatus('connecting…');
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m); };
   ws.onclose = (ev) => {
@@ -278,6 +303,7 @@ export function connectTo(code, { create = false } = {}) {
     // stale close handler must not clobber the new session's state.
     if (!ctx.session || ctx.session.ws !== ws) return;
     const wasIn = ctx.session?.connected;
+    const wasHost = ctx.session?.isHost;
     ctx.session = null;
     if (ev.code === 4001) {
       setSessionStatus('removed by host');
@@ -294,10 +320,15 @@ export function connectTo(code, { create = false } = {}) {
       // Fallback: the server told us the host left, but the 'host-left' message
       // was never delivered before the socket closed. End the session the same way.
       endSessionForGuest({ status: 'host left — session ended', info: 'The host left the session.', toast: 'Host left — session ended.' });
+    } else if (wasIn && !wasHost) {
+      setSessionStatus('disconnected — reconnecting');
+      showSessionUI(true);
+      setReconnectVisible(true);
+      scheduleGuestReconnect();
     } else if (wasIn) {
       setSessionStatus('disconnected');
       showSessionUI(false);
-      ctx.roster = []; renderRoster();
+      setReconnectVisible(false);
     } else if (ctx.sessionStatusEl && ctx.sessionStatusEl.textContent === 'connecting…') {
       setSessionStatus('could not connect');
     }
@@ -316,6 +347,9 @@ export function onSessionMsg(msg) {
       ctx.session.id = msg.id;
       ctx.session.isHost = msg.isHost;
       ctx.session.connected = true;
+      reconnectAttempts = 0;
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      setReconnectVisible(false);
       ctx.roster = msg.roster;
       setSessionStatus(`connected${msg.isHost ? ' · host' : ''}`);
       const roleEl = document.getElementById('session-role');
@@ -329,7 +363,7 @@ export function onSessionMsg(msg) {
       }
       // Guest deep-link: the server tells us the session already has a model —
       // fetch + load it (blocking overlay until it lands).
-      if (msg.model) loadSharedModel(msg.model);
+      if (msg.model && (!ctx.session.reconnect || !ctx.model)) loadSharedModel(msg.model);
       break;
     case 'roster':
       ctx.roster = msg.roster; renderRoster();
@@ -721,6 +755,13 @@ document.getElementById('btn-join-session').addEventListener('click', () => {
 
 ctx.joinCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('btn-join-session').click();
+});
+
+document.getElementById('btn-reconnect-session')?.addEventListener('click', () => {
+  if (!reconnectCode) return;
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  reconnectAttempts = 0;
+  connectTo(reconnectCode, { create: reconnectCreate, reconnect: true });
 });
 
 document.getElementById('btn-leave-session').addEventListener('click', () => {

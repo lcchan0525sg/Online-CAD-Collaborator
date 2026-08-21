@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.87 · **URL:** http://localhost:8088/
+**Version:** v0.88 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -719,4 +719,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.87 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.88 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
