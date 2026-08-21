@@ -133,20 +133,18 @@ function walkVisible(obj, fn) {
   for (const c of obj.children) walkVisible(c, fn);
 }
 
-function rebuildContours() {
-  const lines = ctx.sectionContours;
-  if (!lines) return;
-  if (!ctx.model || !ctx.sectionOn) {
-    setContourGeometry(lines, []);
-    return;
-  }
+// Compute the section-plane / visible-mesh intersection segments, returned as
+// world-space point pairs ([a,b,a,b,...]). Shared by the viewport overlay and
+// the 2D drawing export.
+function collectContourSegments() {
+  const worldPts = [];
+  if (!ctx.model || !ctx.sectionOn) return worldPts;
   const world = new THREE.Matrix4();
   const worldInv = new THREE.Matrix4();
   const planeLocal = new THREE.Plane();
   const tri = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
   const d = [0, 0, 0];
   const pts = [];
-  const worldPts = [];
   const tmpV = new THREE.Vector3();
 
   walkVisible(ctx.model, (obj) => {
@@ -176,7 +174,6 @@ function rebuildContours() {
       edgeCross(planeLocal, tri[1], tri[2], d[1], d[2], pts);
       edgeCross(planeLocal, tri[2], tri[0], d[2], d[0], pts);
       if (pts.length >= 2) {
-        // dedupe near-identical crossing points, keep the two distinct ones
         let a = pts[0], b = null;
         for (const p of pts) {
           if (p.distanceTo(a) > 1e-9) { b = p; break; }
@@ -187,8 +184,17 @@ function rebuildContours() {
       }
     }
   });
+  return worldPts;
+}
 
-  setContourGeometry(lines, worldPts);
+function rebuildContours() {
+  const lines = ctx.sectionContours;
+  if (!lines) return;
+  if (!ctx.model || !ctx.sectionOn) {
+    setContourGeometry(lines, []);
+    return;
+  }
+  setContourGeometry(lines, collectContourSegments());
 }
 
 function setContourGeometry(lines, worldPts) {
@@ -364,5 +370,96 @@ ctx.sectionPresetSaveBtn?.addEventListener('click', () => addSectionPreset(ctx.s
 ctx.sectionPresetNameEl?.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') { e.preventDefault(); addSectionPreset(ctx.sectionPresetNameEl.value); }
 });
+
+// ---- Section 2D drawing export (SVG / PNG) ----
+
+const _n = new THREE.Vector3();
+const _up = new THREE.Vector3();
+const _u = new THREE.Vector3();
+const _v = new THREE.Vector3();
+
+// Project the current contour segments onto the section plane's 2D frame, scaled
+// to the current display unit. Returns { segs:[x,y pairs], unit, label }.
+function projectSectionDrawing() {
+  const worldPts = collectContourSegments();
+  _n.copy(axisVector(ctx.sectionAxis, false)).normalize();
+  _up.set(Math.abs(_n.y) < 0.9 ? 0 : 1, Math.abs(_n.y) < 0.9 ? 1 : 0, 0);
+  _u.crossVectors(_n, _up).normalize();
+  _v.crossVectors(_n, _u).normalize();
+  const toUnit = ctx.units === 'in' ? 1000 / 25.4 : 1000;   // world (1 = 1000 mm) -> display unit
+  const segs = [];
+  for (let i = 0; i + 2 <= worldPts.length; i += 2) {
+    segs.push([worldPts[i].dot(_u) * toUnit, worldPts[i].dot(_v) * toUnit]);
+    segs.push([worldPts[i + 1].dot(_u) * toUnit, worldPts[i + 1].dot(_v) * toUnit]);
+  }
+  return { segs, unit: ctx.units === 'in' ? 'in' : 'mm', label: `Section ${ctx.sectionAxis.toUpperCase()} · ${fmtOffset(ctx.sectionOffset)}` };
+}
+
+function drawingBounds(segs) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of segs) { minX = Math.min(minX, p[0]); maxX = Math.max(maxX, p[0]); minY = Math.min(minY, p[1]); maxY = Math.max(maxY, p[1]); }
+  const spanX = (maxX - minX) || 1, spanY = (maxY - minY) || 1;
+  const margin = Math.max(spanX, spanY) * 0.06;
+  return { minX, minY, maxX, maxY, spanX, spanY, margin };
+}
+
+export function exportSectionSvg() {
+  if (!ctx.sectionOn || !ctx.model) { xferToast('Enable Section view to export a cut'); return null; }
+  const { segs, unit, label } = projectSectionDrawing();
+  if (!segs.length) { xferToast('No geometry intersects this section'); return null; }
+  const { minX, minY, maxX, maxY, spanX, spanY, margin } = drawingBounds(segs);
+  const w = spanX + 2 * margin, h = spanY + 2 * margin;
+  let d = '';
+  for (let i = 0; i + 2 <= segs.length; i += 2) {
+    const a = segs[i], b = segs[i + 1];
+    d += `M${(a[0] - minX + margin).toFixed(3)} ${(maxY - a[1] + margin).toFixed(3)}L${(b[0] - minX + margin).toFixed(3)} ${(maxY - b[1] + margin).toFixed(3)}`;
+  }
+  const fs = (Math.max(spanX, spanY) * 0.03) || 8;
+  const sw = (Math.max(spanX, spanY) * 0.002) || 0.5;
+  const svg = `<?xml version="1.0" encoding="UTF-8"?>\n`
+    + `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(2)}" height="${h.toFixed(2)}" viewBox="0 0 ${w.toFixed(2)} ${h.toFixed(2)}">`
+    + `<rect width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="#ffffff"/>`
+    + `<g fill="none" stroke="#111111" stroke-width="${sw.toFixed(4)}" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></g>`
+    + `<text x="${margin.toFixed(2)}" y="${(h - margin * 0.4).toFixed(2)}" font-family="sans-serif" font-size="${fs.toFixed(2)}" fill="#555555">${label} · units ${unit}</text>`
+    + `</svg>`;
+  const a = document.createElement('a');
+  a.href = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  a.download = `section-${ctx.sectionAxis}-${Date.now()}.svg`;
+  document.body.appendChild(a); a.click(); a.remove();
+  return svg;
+}
+
+export function exportSectionPng() {
+  if (!ctx.sectionOn || !ctx.model) { xferToast('Enable Section view to export a cut'); return null; }
+  const { segs, unit, label } = projectSectionDrawing();
+  if (!segs.length) { xferToast('No geometry intersects this section'); return null; }
+  const { minX, maxY, spanX, spanY, margin } = drawingBounds(segs);
+  const scale = 8;   // pixels per display unit
+  const W = Math.ceil((spanX + 2 * margin) * scale);
+  const H = Math.ceil((spanY + 2 * margin) * scale);
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#ffffff'; g.fillRect(0, 0, W, H);
+  g.strokeStyle = '#111111'; g.lineWidth = Math.max(1, scale * 0.5); g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath();
+  for (let i = 0; i + 2 <= segs.length; i += 2) {
+    const a = segs[i], b = segs[i + 1];
+    g.moveTo((a[0] - minX + margin) * scale, (maxY - a[1] + margin) * scale);
+    g.lineTo((b[0] - minX + margin) * scale, (maxY - b[1] + margin) * scale);
+  }
+  g.stroke();
+  g.fillStyle = '#555555';
+  g.font = `${Math.max(10, Math.round(scale * Math.max(spanX, spanY) * 0.03))}px sans-serif`;
+  g.fillText(`${label} · units ${unit}`, margin * scale * 0.5, H - margin * scale * 0.4);
+  const data = canvas.toDataURL('image/png');
+  const a = document.createElement('a');
+  a.href = data; a.download = `section-${ctx.sectionAxis}-${Date.now()}.png`;
+  document.body.appendChild(a); a.click(); a.remove();
+  return data;
+}
+
+document.getElementById('section-export-svg')?.addEventListener('click', exportSectionSvg);
+document.getElementById('section-export-png')?.addEventListener('click', exportSectionPng);
 
 applySectionState(null, false);

@@ -4,7 +4,7 @@
 // Each viewer applies the shared corrections to its own loaded model.
 import * as THREE from 'three';
 import { ctx } from './context.js';
-import { renderMeasureList } from './measure.js';
+import { rebuildDimensionLayer, renderMeasureList } from './measure.js';
 import { refreshSectionDisplay } from './section.js';
 import { broadcastCorrections } from './session.js';
 
@@ -65,6 +65,7 @@ export function applyRemoteCorrections(s) {
   refreshUnitUI();
   renderMeasureList();        // units may have changed
   refreshSectionDisplay();
+  rebuildDimensionLayer();
   applyModelCorrections();
 }
 
@@ -86,6 +87,7 @@ export function applyUnits(u) {
   refreshUnitUI();
   renderMeasureList();
   refreshSectionDisplay();
+  rebuildDimensionLayer();
   broadcastCorrections();
 }
 

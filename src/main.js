@@ -6,13 +6,13 @@ import './scene.js'; import './parts.js'; import './measure.js'; import './explo
 import './interaction.js'; import './section.js'; import './theme.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
 import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, partTransparent, selectPart, setPartTransparent, setPartVisible, showPartMenu } from './parts.js';
-import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';
+import { commitMeasurement, measureClear, measureEnsureVisuals, pickNearestCorner, updateMeasureStatus } from './measure.js';
 import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, broadcastCorrections, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
 import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot, broadcastTransform } from './move.js';
-import { addSectionPreset, applySectionState, removeSectionPreset, resetSection, sectionPresetsState, sectionState } from './section.js';
+import { addSectionPreset, applySectionState, exportSectionPng, exportSectionSvg, removeSectionPreset, resetSection, sectionPresetsState, sectionState } from './section.js';
 import { applyModelCorrections, resetModelCorrections, applyUnits } from './model.js';
 import { formatMm } from './measure.js';
 
@@ -97,6 +97,8 @@ window.__viewer = {
   sectionPresets: () => sectionPresetsState(),
   addSectionPreset: (name) => { addSectionPreset(name); return sectionPresetsState(); },
   removeSectionPreset: (id) => { removeSectionPreset(id); return sectionPresetsState(); },
+  exportSectionSvg: () => exportSectionSvg(),
+  exportSectionPng: () => exportSectionPng(),
   get sectionVisualsVisible() { return !!(ctx.sectionVisuals && ctx.sectionVisuals.visible); },
   get sectionContourCount() {
     const g = ctx.sectionContours && ctx.sectionContours.geometry;
@@ -304,6 +306,20 @@ window.__viewer = {
   snapshotDataUrl: () => {
     ctx.renderer.render(ctx.scene, ctx.camera);
     return ctx.renderer.domElement.toDataURL('image/png');
+  },
+  addMeasure: (p1, p2, part1, part2) => {
+    measureEnsureVisuals();
+    commitMeasurement(new THREE.Vector3(...p1), new THREE.Vector3(...p2), part1 ? { partName: part1 } : null, part2 ? { partName: part2 } : null);
+    return ctx.measureList.length;
+  },
+  dimensionLayer: () => {
+    const el = ctx.measureAnnotationsEl;
+    const svg = el && el.querySelector('svg');
+    return {
+      groups: svg ? svg.querySelectorAll('g').length : 0,
+      arrowheads: svg ? svg.querySelectorAll('polygon').length : 0,
+      texts: svg ? [...svg.querySelectorAll('text')].map((t) => t.textContent) : [],
+    };
   },
 }
 

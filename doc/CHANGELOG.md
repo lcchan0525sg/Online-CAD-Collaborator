@@ -21,6 +21,24 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.93] — 2026-08-21
+
+### Added
+
+- Section **2D drawing export**: **Export SVG** and **Export PNG** buttons under
+  the section controls save the current cross-section contour silhouette as a
+  flat, unit-scaled drawing (mm/in) with a small label.
+- **Dimension annotations** in the viewport: each measurement now draws a
+  CAD-style **dimension line** with **arrowheads** and an edge-snapped,
+  camera-facing **distance label** that re-projects live as you orbit/zoom/pan.
+
+### Verification
+
+- Full two-client harness: **105 passed, 0 failed** (SVG/PNG export valid;
+  dimension annotations drawn with arrowheads + label and clear correctly).
+
+---
+
 ## [v0.92] — 2026-08-21
 
 ### Added

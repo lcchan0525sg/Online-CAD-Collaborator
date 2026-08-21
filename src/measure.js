@@ -258,6 +258,7 @@ export function makeMeasureEntry(p1, p2, part1 = null, part2 = null) {
 export function addMeasurement(entry, broadcast) {
   ctx.measureList.push(entry);
   renderMeasureList();
+  rebuildDimensionLayer();
   if (broadcast) broadcastMeasureAdd(entry);
 }
 
@@ -278,6 +279,7 @@ export function removeMeasurement(id) {
   ctx.measureList = ctx.measureList.filter((m) => m.id !== id);
   rebuildMeasureLayer();
   renderMeasureList();
+  rebuildDimensionLayer();
   if (!ctx.applyingRemoteMeasure) broadcastMeasureDel(id);
 }
 
@@ -287,6 +289,7 @@ export function measureClear() {
   ctx.measureP1Part = null;
   clearHoverGlow();
   rebuildMeasureLayer();
+  rebuildDimensionLayer();
   if (ctx.measureListEl) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
   const panel = document.getElementById('floating-measurements');
   if (panel) panel.hidden = true;
@@ -338,6 +341,7 @@ export function applyRemoteMeasureSync(measures) {
     }));
     rebuildMeasureLayer();
     renderMeasureList();
+    rebuildDimensionLayer();
   } finally { ctx.applyingRemoteMeasure = false; }
 }
 
@@ -432,6 +436,101 @@ export function renderMeasureList() {
   });
   if (!ctx.measureList.length) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
 }
+
+// ---- Screen-space dimension annotations (crisp arrowheads + edge-snapped labels) ----
+const _SVGNS = 'http://www.w3.org/2000/svg';
+const _dimGroups = new Map();   // measurement id -> { g, line, a1, a2, label }
+
+function projectToScreen(p) {
+  const v = new THREE.Vector3(p[0], p[1], p[2]).project(ctx.camera);
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  return { x: (v.x * 0.5 + 0.5) * r.width, y: (-v.y * 0.5 + 0.5) * r.height, z: v.z };
+}
+
+// Recreate the SVG + one group per measurement. Call when the measurement set or
+// the unit changes. Positions are (re)applied by updateDimensionLayer().
+export function rebuildDimensionLayer() {
+  const el = ctx.measureAnnotationsEl;
+  if (!el) return;
+  for (const d of _dimGroups.values()) d.g.remove();
+  _dimGroups.clear();
+  el.innerHTML = '';
+  if (!ctx.measureList.length) return;
+  const rect = ctx.renderer.domElement.getBoundingClientRect();
+  const svg = document.createElementNS(_SVGNS, 'svg');
+  svg.setAttribute('width', '100%');
+  svg.setAttribute('height', '100%');
+  svg.setAttribute('viewBox', `0 0 ${rect.width} ${rect.height}`);
+  svg.style.position = 'absolute';
+  svg.style.left = '0';
+  svg.style.top = '0';
+  svg.style.overflow = 'visible';
+  ctx.measureList.forEach((m) => {
+    const g = document.createElementNS(_SVGNS, 'g');
+    const line = document.createElementNS(_SVGNS, 'line');
+    line.setAttribute('stroke', '#ffd166'); line.setAttribute('stroke-width', '1.5');
+    const a1 = document.createElementNS(_SVGNS, 'polygon'); a1.setAttribute('fill', '#ffd166');
+    const a2 = document.createElementNS(_SVGNS, 'polygon'); a2.setAttribute('fill', '#ffd166');
+    const label = document.createElementNS(_SVGNS, 'text');
+    label.setAttribute('fill', '#ffd166');
+    label.setAttribute('font-size', '11');
+    label.setAttribute('font-family', 'ui-monospace,Consolas,monospace');
+    label.setAttribute('text-anchor', 'middle');
+    label.setAttribute('dominant-baseline', 'middle');
+    label.setAttribute('paint-order', 'stroke');
+    label.setAttribute('stroke', '#101418');
+    label.setAttribute('stroke-width', '3');
+    label.setAttribute('stroke-linejoin', 'round');
+    label.textContent = formatMm(m.mm);
+    g.append(line, a1, a2, label);
+    svg.appendChild(g);
+    _dimGroups.set(m.id, { g, line, a1, a2, label });
+  });
+  el.appendChild(svg);
+  updateDimensionLayer();
+}
+
+// Re-project each measurement's screen position. Call on camera change / each frame.
+export function updateDimensionLayer() {
+  const el = ctx.measureAnnotationsEl;
+  if (!el || !_dimGroups.size) return;
+  const rect = ctx.renderer.domElement.getBoundingClientRect();
+  const vw = rect.width, vh = rect.height;
+  for (const m of ctx.measureList) {
+    const d = _dimGroups.get(m.id);
+    if (!d) continue;
+    const p1 = projectToScreen(m.p1), p2 = projectToScreen(m.p2);
+    if (p1.z > 1 || p2.z > 1) { d.g.style.display = 'none'; continue; }
+    d.g.style.display = '';
+    const dx = p2.x - p1.x, dy = p2.y - p1.y;
+    const ang = Math.atan2(dy, dx);
+    const len = Math.hypot(dx, dy);
+    if (len < 2) { d.g.style.display = 'none'; continue; }
+    d.line.setAttribute('x1', p1.x); d.line.setAttribute('y1', p1.y);
+    d.line.setAttribute('x2', p2.x); d.line.setAttribute('y2', p2.y);
+    // Arrowheads (chevron triangles) at both ends, pointing outward.
+    const ah = 9, aw = 5;
+    const mkArrow = (x, y, oAng) => {
+      const bx = x + Math.cos(oAng) * ah, by = y + Math.sin(oAng) * ah;
+      const px = -Math.sin(oAng) * aw, py = Math.cos(oAng) * aw;
+      return `${x},${y} ${(bx + px).toFixed(1)},${(by + py).toFixed(1)} ${(bx - px).toFixed(1)},${(by - py).toFixed(1)}`;
+    };
+    d.a1.setAttribute('points', mkArrow(p1.x, p1.y, ang + Math.PI));
+    d.a2.setAttribute('points', mkArrow(p2.x, p2.y, ang));
+    // Edge-snapped label: offset perpendicular to the dimension line.
+    const mx = (p1.x + p2.x) / 2, my = (p1.y + p2.y) / 2;
+    const off = 15;
+    const pxo = -Math.sin(ang) * off, pyo = Math.cos(ang) * off;
+    d.label.setAttribute('x', (mx + pxo).toFixed(1));
+    d.label.setAttribute('y', (my + pyo).toFixed(1));
+  }
+}
+
+export function dimensionLayerCount() {
+  return ctx.measureList.length;
+}
+
+ctx.controls.addEventListener('change', updateDimensionLayer);
 
 export function rebuildMeasureLayer() {
   if (ctx.measureLayer) ctx.scene.remove(ctx.measureLayer);

@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.92 · **URL:** http://localhost:8088/
+**Version:** v0.93 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -396,6 +396,18 @@ cancels the in-progress first point.
 **In a session, committed measurements sync to every member** — and late joiners
 see the measurements that were already made.
 
+### Dimension annotations
+
+Each committed measurement also draws a **CAD-style dimension** in the viewport,
+on top of the amber line:
+
+- a crisp **dimension line** with **arrowheads** at both ends, and
+- a **distance label** (in the current mm/in unit) sitting beside the line at its
+  midpoint, with a dark outline so it stays readable over the model.
+
+The annotation always faces the camera and re-projects live as you orbit, zoom or
+pan, so it stays glued to the two measured corners.
+
 ---
 
 ## 7. Exploded view
@@ -514,6 +526,20 @@ section controls — click it to jump straight back to that axis/offset, or **�
 to remove it. The active cut is highlighted. Presets are shared in a session, so
 every member sees and can jump to the same named cuts, and they clear when a new
 model is loaded.
+
+### Export a cut as a 2D drawing
+
+Two buttons under the section controls, **Export SVG** and **Export PNG**, save
+the current cross-section as a flat 2D drawing of the **contour silhouette**
+(the same orange lines shown in the viewport), projected onto the cut plane and
+sized in the current unit (mm or in):
+
+- **SVG** — crisp, scalable vector, ideal for printing or dimensioning in a CAD
+  or drawing tool.
+- **PNG** — the same drawing rasterized, easy to paste into notes or chat.
+
+Each file carries a small label such as `Section Y · 60 mm`. Export is local to
+your viewer and never sent to the session.
 
 ---
 
@@ -795,4 +821,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.92 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.93 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
