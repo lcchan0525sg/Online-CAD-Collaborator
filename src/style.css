@@ -693,6 +693,8 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
 }
 
 /* ---------- Floating panels over the viewport ---------- */
+#measurement-annotations { position:absolute; inset:0; pointer-events:none; z-index:14; }
+.measure-annotation { position:absolute; transform:translate(-50%,-50%); padding:3px 6px; border:1px solid rgba(255,209,102,.7); border-radius:4px; background:rgba(10,12,17,.82); color:#ffd166; font:11px "SFMono-Regular",ui-monospace,Consolas,monospace; white-space:nowrap; box-shadow:0 2px 8px rgba(0,0,0,.3); }
 #viewport .floating-measurements { position: absolute; right: 12px; top: 112px; bottom: auto; width: min(360px, calc(100% - 24px)); max-height: 42vh; z-index: 18; background: rgba(15,17,21,.92); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.35); backdrop-filter: blur(5px); color: #dfe6f0; }
 #viewport .fm-head { display:flex; align-items:center; gap:6px; padding:7px 8px; font-size:12px; font-weight:600; border-bottom:1px solid rgba(255,255,255,.12); }
 #viewport .fm-head span { flex:1; }

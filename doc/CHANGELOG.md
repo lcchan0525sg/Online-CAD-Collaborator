@@ -21,6 +21,24 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.90] — 2026-08-21
+
+### Added
+
+- Viewport measurement labels positioned at measurement midpoints.
+- Measurement labels and owning Assembly tree part names in the floating panel.
+
+### Changed
+
+- Measurement entry display order is part, P1, P2, distance, then angle.
+- Floating measurement panel spacing and annotation styling refined.
+
+### Verification
+
+- Full two-client harness: **65 passed, 0 failed**.
+
+---
+
 ## [v0.89] — 2026-08-21
 
 ### Added

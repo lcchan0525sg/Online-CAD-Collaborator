@@ -386,7 +386,11 @@ export function fmtAngle(deg) {
 
 export function renderMeasureList() {
   const panel = document.getElementById('floating-measurements');
-  if (panel) panel.hidden = !ctx.measureList.length;
+  const view = document.getElementById('view-presets');
+  if (panel) {
+    panel.hidden = !ctx.measureList.length;
+    if (view && !view.hidden) panel.style.top = `${view.offsetTop + view.offsetHeight + 10}px`;
+  }
   if (!ctx.measureListEl) return;
   ctx.measureListEl.innerHTML = '';
   ctx.measureList.forEach((m, i) => {

@@ -255,6 +255,7 @@ const measureStatusEl = document.getElementById('measure-status');
 const measureClearBtn = document.getElementById('btn-measure-clear');
 
 const measureLabelEl = document.getElementById('measure-label');
+const measureAnnotationsEl = document.getElementById('measurement-annotations');
 
 const measureListEl = document.getElementById('floating-measure-list') || document.getElementById('measure-list');
 
@@ -479,6 +480,7 @@ export const ctx = {
   measureStatusEl,
   measureClearBtn,
   measureLabelEl,
+  measureAnnotationsEl,
   measureListEl,
   measureOn,
   measureP1,
