@@ -29,6 +29,8 @@ export function buildPartsTree(root) {
   ctx.partsEl.innerHTML = '';
   ctx.partRows.clear();
   ctx.allPartRows.length = 0;
+  treeFilter = '';
+  if (fpFilterEl) fpFilterEl.value = '';
   let count = 0;
   // Three.js GLTFLoader makes ONE Mesh per glTF PRIMITIVE, and RWGltf_CafWriter
   // emits one primitive per triangle/face — so a single part can spawn hundreds
@@ -114,7 +116,32 @@ export function renderCollapseState() {
     r.row.style.display = visible ? '' : 'none';
     if (r.hasKids) r.toggle.textContent = ctx.collapsedPaths.has(r.key) ? '+' : '–';
   }
+  applyTreeFilter();   // a name filter overrides collapse visibility
 }
+
+// ---- Floating Assembly-tree name filter (local, per-viewer, no sync) ----
+let treeFilter = '';
+const fpFilterEl = document.getElementById('fp-filter');
+
+export function applyTreeFilter() {
+  const q = treeFilter.trim().toLowerCase();
+  if (!q) return;   // no filter: collapse state (set above) already rules
+  const matched = new Set();
+  for (const r of ctx.allPartRows) {
+    if ((r.row.querySelector('.partname')?.textContent || '').toLowerCase().includes(q)) {
+      matched.add(r.key);
+      const segs = r.key.split('.');
+      for (let i = 1; i < segs.length; i++) matched.add(segs.slice(0, i).join('.'));   // keep ancestors visible
+    }
+  }
+  for (const r of ctx.allPartRows) r.row.style.display = matched.has(r.key) ? '' : 'none';
+}
+
+fpFilterEl?.addEventListener('input', () => {
+  treeFilter = fpFilterEl.value;
+  if (!treeFilter.trim()) { for (const r of ctx.allPartRows) r.row.style.display = ''; renderCollapseState(); }
+  else applyTreeFilter();
+});
 
 export function showPartMenu(x, y, key) {
   if (!ctx.partMenuEl) return;

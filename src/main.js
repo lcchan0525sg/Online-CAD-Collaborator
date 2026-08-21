@@ -11,8 +11,8 @@ import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, broadcastCorrections, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
-import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot } from './move.js';
-import { applySectionState, resetSection, sectionState } from './section.js';
+import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot, broadcastTransform } from './move.js';
+import { addSectionPreset, applySectionState, removeSectionPreset, resetSection, sectionPresetsState, sectionState } from './section.js';
 import { applyModelCorrections, resetModelCorrections, applyUnits } from './model.js';
 import { formatMm } from './measure.js';
 
@@ -94,6 +94,9 @@ window.__viewer = {
   sectionState: () => sectionState(),
   setSection: (state) => { applySectionState(state); return sectionState(); },
   resetSection: () => { resetSection(); return sectionState(); },
+  sectionPresets: () => sectionPresetsState(),
+  addSectionPreset: (name) => { addSectionPreset(name); return sectionPresetsState(); },
+  removeSectionPreset: (id) => { removeSectionPreset(id); return sectionPresetsState(); },
   get sectionVisualsVisible() { return !!(ctx.sectionVisuals && ctx.sectionVisuals.visible); },
   get sectionContourCount() {
     const g = ctx.sectionContours && ctx.sectionContours.geometry;
@@ -136,6 +139,17 @@ window.__viewer = {
   resetModelCorrections: () => resetModelCorrections(),
   undoTransform: () => undoTransform(),
   redoTransform: () => redoTransform(),
+  partActor: (key) => ctx.partLastActor.get(key) || null,
+  broadcastMove: (key, pos, quat) => {
+    const root = ctx.model && ctx.model.children[0];
+    const node = root && nodeAtPath(root, key.split('.').map(Number));
+    if (!node) return false;
+    node.position.set(pos[0], pos[1], pos[2]);
+    if (quat) node.quaternion.set(quat[0], quat[1], quat[2], quat[3]);
+    node.updateMatrixWorld(true);
+    broadcastTransform(key.split('.').map(Number), node);
+    return true;
+  },
   get transformHistoryLength() { return ctx.transformHistory.length; },
   get transformRedoLength() { return ctx.transformRedo.length; },
   get rotateArcVisible() { return !!(ctx.rotateArc && ctx.rotateArc.visible); },
@@ -287,4 +301,22 @@ window.__viewer = {
     const r = ctx.renderer.domElement.getBoundingClientRect();
     return { x: r.left + (v.x*0.5+0.5)*r.width, y: r.top + (-v.y*0.5+0.5)*r.height };
   },
+  snapshotDataUrl: () => {
+    ctx.renderer.render(ctx.scene, ctx.camera);
+    return ctx.renderer.domElement.toDataURL('image/png');
+  },
 }
+
+// Viewport snapshot: capture the current view as a PNG and download it (local, no sync).
+function snapshotView() {
+  const data = ctx.renderer.domElement.toDataURL('image/png');
+  if (!data || data === 'data:,') return;
+  const a = document.createElement('a');
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  a.href = data;
+  a.download = `cad-view-${ts}.png`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+document.getElementById('vp-snapshot')?.addEventListener('click', snapshotView);

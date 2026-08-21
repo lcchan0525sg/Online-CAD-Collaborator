@@ -21,6 +21,29 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.92] — 2026-08-21
+
+### Added
+
+- Section-view **saved cuts (presets)**: name the current cut and save it as a
+  chip; click to jump back, **✕** to delete. Shared with the session (new
+  `section-preset` message) and replayed on resync / to late joiners.
+- Assembly-tree **name filter** box (local, per-viewer): narrow the floating tree
+  to matching parts, keeping ancestors visible.
+- **Actor-aware conflict messages**: the server stamps the sender's name on every
+  transform; when a peer changes a part you have selected you get a live
+  "*name changed part*" notice, and an Undo/Redo refused because a part changed
+  remotely names the actor.
+- **Viewport snapshot** button (**📷** in the View panel) downloads the current
+  view as a PNG (local, no sync).
+
+### Verification
+
+- Full two-client harness: **101 passed, 0 failed** (presets save/apply/delete +
+  sync/resync, tree filter, actor attribution, snapshot PNG).
+
+---
+
 ## [v0.91] — 2026-08-21
 
 ### Added

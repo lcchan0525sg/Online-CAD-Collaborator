@@ -10,7 +10,7 @@
 // while the offset slider is dragged, and immediately on release / axis change.
 import * as THREE from 'three';
 import { ctx } from './context.js';
-import { broadcastSection } from './session.js';
+import { broadcastSection, broadcastSectionPresets } from './session.js';
 
 const PLANE_COLOR = 0x5aa0ff;        // soft blue reference plane
 const PLANE_OPACITY = 0.15;
@@ -243,6 +243,7 @@ export function applySectionState(state, sync = true) {
   ensureVisuals();
   updatePlaneVisual();
   scheduleContours();   // throttled live; crisp enough for axis/toggle/slider drags
+  renderSectionPresets();   // refresh the active-preset highlight
   if (sync && !ctx.applyingRemoteSection) broadcastSection(sectionState());
 }
 
@@ -282,10 +283,86 @@ window.addEventListener('viewer-model-loaded', () => {
   ensureVisuals();
   applySectionState(null, false);
   scheduleContours(true);
+  clearSectionPresets(false);
 });
 window.addEventListener('viewer-model-cleared', () => {
   ctx.sectionVisuals.visible = false;
   if (ctx.sectionContours) { ctx.sectionContours.visible = false; setContourGeometry(ctx.sectionContours, []); }
+  clearSectionPresets(false);
+});
+
+// ---- Section presets (named cuts) ----
+
+export function sectionPresetsState() {
+  return ctx.sectionPresets.map((p) => ({ id: p.id, name: p.name, axis: p.axis, offset: p.offset, reversed: p.reversed }));
+}
+
+function isActivePreset(p) {
+  return ctx.sectionOn && ctx.sectionAxis === p.axis && ctx.sectionOffset === p.offset && ctx.sectionReversed === p.reversed;
+}
+
+function renderSectionPresets() {
+  if (!ctx.sectionPresetListEl) return;
+  ctx.sectionPresetListEl.innerHTML = '';
+  if (!ctx.sectionPresets.length) { ctx.sectionPresetListEl.hidden = true; return; }
+  ctx.sectionPresetListEl.hidden = false;
+  ctx.sectionPresets.forEach((p) => {
+    const chip = document.createElement('span');
+    chip.className = 'section-preset-chip' + (isActivePreset(p) ? ' active' : '');
+    chip.title = `${p.axis.toUpperCase()} · offset ${p.offset}${ctx.units === 'in' ? ' in' : ' mm'}${p.reversed ? ' (reversed)' : ''}`;
+    const name = document.createElement('span');
+    name.className = 'sp-name';
+    name.textContent = p.name;
+    const del = document.createElement('button');
+    del.className = 'sp-del';
+    del.textContent = '✕';
+    del.title = 'Delete preset';
+    del.addEventListener('click', (e) => { e.stopPropagation(); removeSectionPreset(p.id); });
+    chip.append(name, del);
+    chip.addEventListener('click', () => applySectionState({ enabled: true, axis: p.axis, offset: p.offset, reversed: p.reversed }));
+    ctx.sectionPresetListEl.appendChild(chip);
+  });
+}
+
+export function addSectionPreset(name, broadcast = true) {
+  const n = (name || '').trim().slice(0, 40) || `Cut ${ctx.sectionPresets.length + 1}`;
+  ctx.sectionPresets.push({ id: 'sp' + (++ctx.sectionPresetSeq), name: n, axis: ctx.sectionAxis, offset: ctx.sectionOffset, reversed: ctx.sectionReversed });
+  if (ctx.sectionPresetNameEl) ctx.sectionPresetNameEl.value = '';
+  renderSectionPresets();
+  if (broadcast && !ctx.applyingRemoteSectionPreset) broadcastSectionPresets(sectionPresetsState());
+}
+
+export function removeSectionPreset(id, broadcast = true) {
+  ctx.sectionPresets = ctx.sectionPresets.filter((p) => p.id !== id);
+  renderSectionPresets();
+  if (broadcast && !ctx.applyingRemoteSectionPreset) broadcastSectionPresets(sectionPresetsState());
+}
+
+export function clearSectionPresets(broadcast = true) {
+  if (!ctx.sectionPresets.length) { renderSectionPresets(); return; }
+  ctx.sectionPresets = [];
+  renderSectionPresets();
+  if (broadcast && !ctx.applyingRemoteSectionPreset) broadcastSectionPresets(sectionPresetsState());
+}
+
+export function applyRemoteSectionPresets(presets) {
+  if (!Array.isArray(presets)) return;
+  ctx.applyingRemoteSectionPreset = true;
+  try {
+    ctx.sectionPresets = presets.map((p) => ({
+      id: p.id || ('sp' + (++ctx.sectionPresetSeq)),
+      name: (p.name || 'Cut').slice(0, 40),
+      axis: ['x', 'y', 'z'].includes(p.axis) ? p.axis : 'x',
+      offset: Number.isFinite(Number(p.offset)) ? Number(p.offset) : 0,
+      reversed: !!p.reversed,
+    }));
+    renderSectionPresets();
+  } finally { ctx.applyingRemoteSectionPreset = false; }
+}
+
+ctx.sectionPresetSaveBtn?.addEventListener('click', () => addSectionPreset(ctx.sectionPresetNameEl?.value));
+ctx.sectionPresetNameEl?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); addSectionPreset(ctx.sectionPresetNameEl.value); }
 });
 
 applySectionState(null, false);

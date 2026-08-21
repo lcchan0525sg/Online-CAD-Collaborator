@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.91 · **URL:** http://localhost:8088/
+**Version:** v0.92 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -220,6 +220,13 @@ sidebar stays uncluttered.)
   to render anything).
 - **Show all / Hide all** buttons apply to the whole model at once.
 
+### Filter the tree
+
+A **Filter parts…** box at the top of the Assembly tree narrows it to parts whose
+name matches what you type (matching ancestors stay visible so you can see where
+a part sits). Clear the box to restore the full tree. Filtering is purely local —
+it never changes part visibility or the other members' view.
+
 ### Highlight a part (click the name, or click it in the viewport)
 
 Click a part's **name** to highlight it in blue in the viewport — or **click the
@@ -305,7 +312,10 @@ completed drag is one history step, up to 200 steps.
 
 In a session, Undo and Redo broadcast the resulting complete transform to the
 other members. If another user changed the same part in the meantime, the stale
-Undo or Redo is refused instead of overwriting the newer change.
+Undo or Redo is refused instead of overwriting the newer change — and the message
+names who changed it (e.g. *"Cannot undo: Bob changed this part"*). If a peer
+moves or rotates a part you currently have selected, you'll also get a live
+notice naming them.
 
 ### Rotate a part
 
@@ -461,6 +471,11 @@ standard camera orientations:
 Each frames the model from that direction. In a session the camera follows these
 presets too.
 
+The **📷** button in the same panel downloads the current view as a **PNG image**
+(`cad-view-<timestamp>.png`) — handy for pasting into chat, notes, or a review
+record. It captures exactly what you see and is local (nothing is sent to the
+session).
+
 ---
 
 ## 10. Section view (cut plane)
@@ -490,6 +505,15 @@ the model is cut:
 Drag the **Offset** slider and both the plane and the contours follow live, so
 you can sweep through the model to find a section of interest. The overlay is
 purely visual — the geometry is clipped only by the section plane itself.
+
+### Saved cuts (presets)
+
+To revisit the same cut later, **name the current section** in the "Name this
+cut…" box and press **Save cut** (or Enter). It appears as a chip under the
+section controls — click it to jump straight back to that axis/offset, or **✕**
+to remove it. The active cut is highlighted. Presets are shared in a session, so
+every member sees and can jump to the same named cuts, and they clear when a new
+model is loaded.
 
 ---
 
@@ -771,4 +795,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.91 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.92 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

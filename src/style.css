@@ -866,3 +866,35 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
 #viewport .seg-btn:hover { border-color: rgba(124,196,255,.7); color: #fff; }
 #viewport .seg-btn.active { background: rgba(47,125,255,.88); border-color: #5a9cff; color: #fff; font-weight: 600; }
 #viewport .floating-model[hidden] { display: none; }
+
+/* ---- Section presets (named cuts) chips in the sidebar ---- */
+#panel .section-preset-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.08);
+  color: #dfe6f0;
+  border-radius: 12px;
+  padding: 2px 7px 2px 9px;
+  font-size: 11px;
+  cursor: pointer;
+  margin: 0 4px 4px 0;
+  user-select: none;
+}
+#panel .section-preset-chip:hover { border-color: rgba(124,196,255,.7); }
+#panel .section-preset-chip.active { background: rgba(47,125,255,.55); border-color: #5a9cff; color: #fff; font-weight: 600; }
+.section-preset-chip .sp-del { border: none; background: transparent; color: #9fb0c3; cursor: pointer; font-size: 11px; line-height: 1; padding: 0; margin-left: 2px; }
+.section-preset-chip .sp-del:hover { color: #ff9b94; }
+
+/* ---- Floating Assembly-tree name filter ---- */
+#viewport .fp-filter {
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 5px;
+  padding: 4px 7px;
+  font-size: 11px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: #141822;
+  color: #e6ecf3;
+}
+#viewport .fp-filter::placeholder { color: #7d8ea3; }

@@ -423,6 +423,7 @@ wss.on('connection', (ws, req, url) => {
         pos: msg.pos,
         quat: msg.quat,
         pivot: Array.isArray(msg.pivot) ? msg.pivot : null,
+        name: (session.members.get(id) || {}).name || '',
       };
       broadcast(session, { t: 'transform', ...session.transforms[key] }, id);
     } else if (msg.t === 'move' && Array.isArray(msg.path) && Array.isArray(msg.pos)) {
@@ -483,6 +484,16 @@ wss.on('connection', (ws, req, url) => {
         reversed: !!msg.s.reversed,
       };
       broadcast(session, { t: 'section', s: session.section }, id);
+    } else if (msg.t === 'section-preset' && Array.isArray(msg.presets)) {
+      // Named section cuts: store the full list for late joiners + relay.
+      session.sectionPresets = msg.presets.map((p) => ({
+        id: String(p.id || ''),
+        name: String(p.name || 'Cut').slice(0, 40),
+        axis: ['x', 'y', 'z'].includes(p.axis) ? p.axis : 'x',
+        offset: Number.isFinite(Number(p.offset)) ? Number(p.offset) : 0,
+        reversed: !!p.reversed,
+      }));
+      broadcast(session, { t: 'section-preset', presets: session.sectionPresets }, id);
     } else if (msg.t === 'corr' && msg.s && typeof msg.s === 'object') {
       // Model corrections (units / scale / flip / rotate): store for late
       // joiners and relay to the other members.
@@ -502,6 +513,7 @@ wss.on('connection', (ws, req, url) => {
       if (session.measures?.length) send(ws, { t: 'measure-sync', measures: session.measures });
       if (session.explode) send(ws, { t: 'explode', ...session.explode });
       if (session.section) send(ws, { t: 'section', s: session.section });
+      if (session.sectionPresets?.length) send(ws, { t: 'section-preset', presets: session.sectionPresets });
       if (session.corr) send(ws, { t: 'corr', s: session.corr });
       for (const key of Object.keys(session.trans || {}).filter((k) => session.trans[k])) send(ws, { t: 'trans', key, transparent: true });
       for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });

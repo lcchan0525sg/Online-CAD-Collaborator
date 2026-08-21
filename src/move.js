@@ -71,9 +71,12 @@ export function undoTransform() {
   if (!ctx.model || !ctx.transformHistory.length) return false;
   const entries = takeGrouped(ctx.transformHistory);
   for (const entry of entries) entry.expected = entry.after;
-  if (!entries.every((entry) => applyTransformSnapshot(entry, entry.before))) {
-    xferToast('Cannot undo: part changed remotely');
-    return false;
+  for (const entry of entries) {
+    if (!applyTransformSnapshot(entry, entry.before)) {
+      const actor = ctx.partLastActor.get(entry.key);
+      xferToast(actor ? `Cannot undo: ${actor} changed this part` : 'Cannot undo: part changed remotely');
+      return false;
+    }
   }
   ctx.transformHistory.splice(ctx.transformHistory.length - entries.length, entries.length);
   ctx.transformRedo.push(...entries);
@@ -86,9 +89,12 @@ export function redoTransform() {
   if (!ctx.model || !ctx.transformRedo.length) return false;
   const entries = takeGrouped(ctx.transformRedo);
   for (const entry of entries) entry.expected = entry.before;
-  if (!entries.every((entry) => applyTransformSnapshot(entry, entry.after))) {
-    xferToast('Cannot redo: part changed remotely');
-    return false;
+  for (const entry of entries) {
+    if (!applyTransformSnapshot(entry, entry.after)) {
+      const actor = ctx.partLastActor.get(entry.key);
+      xferToast(actor ? `Cannot redo: ${actor} changed this part` : 'Cannot redo: part changed remotely');
+      return false;
+    }
   }
   ctx.transformRedo.splice(ctx.transformRedo.length - entries.length, entries.length);
   ctx.transformHistory.push(...entries);
@@ -256,6 +262,12 @@ export function applyRemoteTransform(msg) {
     if (ctx.selectedPartKey === key) ctx.customPivot = null;
   }
   if (ctx.selectedPartKey === key) updateMoveGizmo();
+  // Actor-aware conflict surfacing: remember who last changed this part, and if
+  // the user is currently working on it, tell them who edited it.
+  if (msg.name) {
+    ctx.partLastActor.set(key, msg.name);
+    if (ctx.selectedPartKey === key) xferToast(`${msg.name} changed ${node.name || 'this part'}`);
+  }
 }
 
 export function flushPendingRemoteTransforms() {

@@ -205,6 +205,7 @@ let transformHistory = [];            // committed local transforms, newest last
 let transformRedo = [];               // undone transforms available for redo
 
 const TRANSFORM_HISTORY_MAX = 200;
+let partLastActor = new Map();   // part key -> last remote actor who changed it
 
 const _planePt = new THREE.Vector3();     // current ray/plane intersection
 
@@ -283,8 +284,16 @@ let sectionContours = null;       // thick orange contour line layer (Line2)
 let sectionPlaneSize = 0;         // cached in-plane side length (world units)
 let sectionContourTimer = null;   // throttle handle for live contour rebuild
 
-// Model-correction controls (Units / Scale / Flip / Rotate) — local, per-viewer.
-// They apply on top of the auto-scale, never sync to the session.
+// Saved section-cut presets (named axis/offset/reverse) — shared with the session.
+const sectionPresetNameEl = document.getElementById('section-preset-name');
+const sectionPresetSaveBtn = document.getElementById('section-preset-save');
+const sectionPresetListEl = document.getElementById('section-preset-list');
+let sectionPresets = [];          // [{ id, name, axis, offset, reversed }]
+let sectionPresetSeq = 0;
+let applyingRemoteSectionPreset = false;
+
+// Model-correction controls (Units / Scale / Flip / Rotate) — session-shared.
+// They apply on top of the auto-scale and sync to the session.
 const unitSegEl = document.getElementById('unit-seg');
 const modelScaleEl = document.getElementById('model-scale');
 const modelScaleValEl = document.getElementById('model-scale-val');
@@ -479,6 +488,7 @@ export const ctx = {
   transformHistory,
   transformRedo,
   TRANSFORM_HISTORY_MAX,
+  partLastActor,
   _planePt,
   moveStartPlanePt,
   pickRay,
@@ -546,6 +556,12 @@ export const ctx = {
   sectionContours,
   sectionPlaneSize,
   sectionContourTimer,
+  sectionPresetNameEl,
+  sectionPresetSaveBtn,
+  sectionPresetListEl,
+  sectionPresets,
+  sectionPresetSeq,
+  applyingRemoteSectionPreset,
   unitSegEl,
   modelScaleEl,
   modelScaleValEl,
