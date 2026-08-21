@@ -548,6 +548,12 @@ document.getElementById('file').addEventListener('change', (e) => {
 export function bindLightSlider(id, key) {
   const el = document.getElementById(id);
   if (!el) return;
+  // Keep the control synchronized with the actual light default on startup.
+  // This prevents the Front slider from displaying 0 while the light is 1.0.
+  const initial = ctx.LIGHTS[key].obj.intensity;
+  el.value = String(initial);
+  const initialVal = document.getElementById(id + '-val');
+  if (initialVal) initialVal.textContent = initial.toFixed(1);
   el.addEventListener('input', () => {
     ctx.LIGHTS[key].obj.intensity = parseFloat(el.value);
     const v = document.getElementById(id + '-val');

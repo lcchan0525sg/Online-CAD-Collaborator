@@ -269,7 +269,9 @@ const sectionResetBtn = document.getElementById('section-reset');
 let sectionOn = false;
 let sectionAxis = 'x';
 let sectionOffset = 0;
-let sectionReversed = false;
+// Default section direction keeps the front side of the model. The Reverse
+// button still lets the user select the opposite side explicitly.
+let sectionReversed = true;
 let sectionPlane = new THREE.Plane();
 let pendingRemoteSection = null;
 let applyingRemoteSection = false;

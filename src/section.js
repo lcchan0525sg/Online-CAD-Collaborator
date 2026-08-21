@@ -18,6 +18,7 @@ const CONTOUR_COLOR = 0xffa726;      // bright orange intersection lines
 const PLANE_MARGIN = 1.15;           // plane extends 15% past the model's in-plane extent
 const EPS = 1e-7;                    // plane-coplanarity tolerance
 const CONTOUR_THROTTLE_MS = 50;      // live-recompute coalescing window
+const DEFAULT_SECTION_REVERSED = true;
 
 let planeSize = 0;                   // cached in-plane side length (world units)
 
@@ -95,7 +96,10 @@ function updatePlaneTransform() {
   );
   planeSize = (Number.isFinite(side) && side > 0 ? side : 1) * PLANE_MARGIN;
 
-  const n = axisVector(ctx.sectionAxis, false).normalize();
+  // Use the SAME (possibly reversed) normal as the clip plane so the transparent
+  // quad always coincides with the actual cutting plane — otherwise Reverse makes
+  // the two sweep in opposite directions.
+  const n = axisVector(ctx.sectionAxis, ctx.sectionReversed).normalize();
   ctx.sectionVisuals.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
   const center = box.getCenter(new THREE.Vector3());
   // Place the quad at the cut (offset along the axis) but shifted so its
@@ -258,7 +262,7 @@ export function sectionState() {
 }
 
 export function resetSection(sync = true) {
-  applySectionState({ enabled: false, axis: 'x', offset: 0, reversed: false }, sync);
+  applySectionState({ enabled: false, axis: 'x', offset: 0, reversed: DEFAULT_SECTION_REVERSED }, sync);
 }
 
 ctx.sectionOnChk?.addEventListener('change', () => {

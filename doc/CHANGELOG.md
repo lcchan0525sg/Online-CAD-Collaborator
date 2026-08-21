@@ -21,6 +21,23 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.94] — 2026-08-21
+
+### Fixed
+
+- Section View now starts by keeping the front side of the model; **Reverse**
+  switches to the opposite side.
+- The transparent section reference plane and the actual clipping plane remain
+  aligned when Reverse is enabled and the offset slider moves.
+- Front-light slider position now matches its intensity default of 1.0 at startup.
+
+### Verification
+
+- Full harness: **109 passed, 0 failed** after the section-direction and lighting
+  fixes.
+
+---
+
 ## [v0.93] — 2026-08-21
 
 ### Added
