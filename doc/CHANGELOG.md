@@ -21,6 +21,34 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.95] — 2026-08-21
+
+### Added
+
+- Section View **interaction mode** in the viewport toolbar with a centre normal
+  handle for directly dragging the cut plane along its normal.
+- Section handle hover/drag feedback, constrained offset movement, and Escape
+  cancellation while preserving the existing slider, presets, exports, and sync.
+
+### Changed
+
+- Model-correction **Scale** control is now an exact numeric textbox (`0.10×` to
+  `10.00×`, `0.01` step) instead of a range slider. Values commit on Enter or
+  field change and continue to synchronize with session members.
+
+### Fixed
+
+- Legacy `move`/`rot` session messages now carry actor names, so reset and other
+  older transform paths also participate in actor-aware conflict notifications.
+- Portable builds now include the `model.js` client module required by the Model
+  corrections panel.
+
+### Verification
+
+- Full browser harness: **115 passed, 0 failed**.
+
+---
+
 ## [v0.94] — 2026-08-21
 
 ### Fixed

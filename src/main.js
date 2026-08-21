@@ -100,6 +100,18 @@ window.__viewer = {
   exportSectionSvg: () => exportSectionSvg(),
   exportSectionPng: () => exportSectionPng(),
   get sectionVisualsVisible() { return !!(ctx.sectionVisuals && ctx.sectionVisuals.visible); },
+  get sectionMode() { return !!ctx.sectionMode; },
+  get sectionHandleVisible() { return !!(ctx.sectionHandle && ctx.sectionHandle.visible); },
+  get sectionHandleDragging() { return !!ctx.sectionHandleDragging; },
+  sectionHandlePoints: () => {
+    if (!ctx.sectionHandle) return null;
+    const r = ctx.renderer.domElement.getBoundingClientRect();
+    const toScreen = (local) => {
+      const p = ctx.sectionHandle.localToWorld(local).project(ctx.camera);
+      return { x: r.left + (p.x * 0.5 + 0.5) * r.width, y: r.top + (-p.y * 0.5 + 0.5) * r.height };
+    };
+    return { center: toScreen(new THREE.Vector3()), tip: toScreen(new THREE.Vector3(0, 0, 0.3)) };
+  },
   get sectionContourCount() {
     const g = ctx.sectionContours && ctx.sectionContours.geometry;
     if (!g || !g.attributes || !g.attributes.position) return 0;

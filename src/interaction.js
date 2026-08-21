@@ -10,6 +10,7 @@ import {
   setPivotMode,
   setRotateMode,
 } from './move.js';
+import { cancelSectionDrag, setSectionMode } from './section.js';
 import {
   clearPartSelection,
   partNameForKey,
@@ -35,6 +36,7 @@ function isTextEntry(target) {
 }
 
 export function activeTool() {
+  if (ctx.sectionMode && ctx.sectionOn) return 'section';
   if (ctx.measureOn) return 'measure';
   if (ctx.pivotMode) return 'pivot';
   if (ctx.moveOnChk?.checked) return ctx.rotateMode ? 'rotate' : 'move';
@@ -42,6 +44,10 @@ export function activeTool() {
 }
 
 function toolStatus(tool) {
+  if (tool === 'section') {
+    const offset = ctx.sectionOffsetValEl?.textContent || `${ctx.sectionOffset} mm`;
+    return `Section view · ${ctx.sectionAxis.toUpperCase()} plane · ${offset} · drag the handle`;
+  }
   if (tool === 'measure') {
     return ctx.measureP1 ? 'First point set · click a second corner' : 'Click a corner to measure';
   }
@@ -105,6 +111,7 @@ export function syncInteractionUI() {
 }
 
 function setTool(tool) {
+  if (tool !== 'section') setSectionMode(false);
   if (tool === 'select') {
     if (ctx.measureOnChk.checked) {
       ctx.measureOnChk.checked = false;
@@ -153,6 +160,20 @@ function setTool(tool) {
     setPivotMode(false);
     ctx.measureOnChk.checked = true;
     ctx.measureOnChk.dispatchEvent(new Event('change'));
+  } else if (tool === 'section') {
+    if (ctx.measureOnChk.checked) {
+      ctx.measureOnChk.checked = false;
+      ctx.measureOnChk.dispatchEvent(new Event('change'));
+    }
+    if (ctx.moveOnChk.checked) {
+      ctx.moveOnChk.checked = false;
+      ctx.moveOnChk.dispatchEvent(new Event('change'));
+    }
+    if (!ctx.sectionOn) {
+      ctx.sectionOnChk.checked = true;
+      ctx.sectionOnChk.dispatchEvent(new Event('change'));
+    }
+    setSectionMode(true);
   }
   syncInteractionUI();
 }
@@ -208,6 +229,7 @@ document.addEventListener('keydown', (event) => {
   if (key === 'escape') {
     cancelMoveDrag();
     cancelRotateDrag();
+    cancelSectionDrag();
     setTool('select');
     return;
   }

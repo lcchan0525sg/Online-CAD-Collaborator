@@ -65,7 +65,7 @@ function buildFrom(src, version, zipName) {
   // Newer source trees keep the app in src/; older tags are flat. Handle both.
   const SRC = existsSync(join(src, 'src', 'server.js')) ? join(src, 'src') : src;
   for (const f of ['server.js', 'main.js', 'index.html', 'style.css', 'stl2glb.mjs',
-                   'context.js', 'scene.js', 'parts.js', 'measure.js', 'explode.js', 'move.js', 'session.js', 'interaction.js', 'section.js', 'theme.js']) {
+                   'context.js', 'scene.js', 'parts.js', 'measure.js', 'explode.js', 'move.js', 'session.js', 'interaction.js', 'section.js', 'model.js', 'theme.js']) {
     copyFileSync(join(SRC, f), join(APP, f));
   }
   // package files sit at the source root (node resolution for ws/three imports)

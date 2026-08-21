@@ -272,6 +272,7 @@ let sectionOffset = 0;
 // Default section direction keeps the front side of the model. The Reverse
 // button still lets the user select the opposite side explicitly.
 let sectionReversed = true;
+let sectionMode = false;
 let sectionPlane = new THREE.Plane();
 let pendingRemoteSection = null;
 let applyingRemoteSection = false;
@@ -283,6 +284,12 @@ let sectionVisuals = new THREE.Group();
 scene.add(sectionVisuals);
 let sectionPlaneMesh = null;      // transparent reference plane at the cut
 let sectionContours = null;       // thick orange contour line layer (Line2)
+let sectionHandle = null;          // centre normal-drag handle
+let sectionHandleDragging = false;
+let sectionDragStartOffset = 0;
+let sectionDragStartPoint = new THREE.Vector3();
+let sectionDragPlane = new THREE.Plane();
+let sectionDragNormal = new THREE.Vector3();
 let sectionPlaneSize = 0;         // cached in-plane side length (world units)
 let sectionContourTimer = null;   // throttle handle for live contour rebuild
 
@@ -550,12 +557,19 @@ export const ctx = {
   sectionAxis,
   sectionOffset,
   sectionReversed,
+  sectionMode,
   sectionPlane,
   pendingRemoteSection,
   applyingRemoteSection,
   sectionVisuals,
   sectionPlaneMesh,
   sectionContours,
+  sectionHandle,
+  sectionHandleDragging,
+  sectionDragStartOffset,
+  sectionDragStartPoint,
+  sectionDragPlane,
+  sectionDragNormal,
   sectionPlaneSize,
   sectionContourTimer,
   sectionPresetNameEl,

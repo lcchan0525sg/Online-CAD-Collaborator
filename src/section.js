@@ -79,6 +79,29 @@ function ensureVisuals() {
   // translated to align the local-space plane quad).
   ctx.sectionContours = lines;
   ctx.scene.add(lines);
+
+  const handle = new THREE.Group();
+  handle.userData.kind = 'sectionHandle';
+  const handleMat = new THREE.MeshBasicMaterial({
+    color: 0xffd166, transparent: true, opacity: 0.9,
+    depthTest: false, depthWrite: false,
+  });
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.09, 16, 10), handleMat);
+  ball.userData.kind = 'sectionHandle';
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.22, 10), handleMat);
+  shaft.rotation.x = Math.PI / 2;
+  shaft.position.z = 0.12;
+  shaft.userData.kind = 'sectionHandle';
+  const arrow = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 10), handleMat);
+  arrow.rotation.x = Math.PI / 2;
+  arrow.position.z = 0.29;
+  arrow.userData.kind = 'sectionHandle';
+  handle.add(ball, shaft, arrow);
+  handle.visible = false;
+  handle.renderOrder = 1001;
+  handle.traverse((o) => { o.renderOrder = 1001; o.frustumCulled = false; });
+  ctx.sectionHandle = handle;
+  ctx.sectionVisuals.add(handle);
 }
 
 // Size + orient + place the plane quad. The quad is a square sized to the
@@ -107,6 +130,10 @@ function updatePlaneTransform() {
   ctx.sectionVisuals.position
     .copy(n).multiplyScalar(ctx.sectionOffset / 1000 - center.dot(n)).add(center);
   ctx.sectionPlaneMesh.scale.set(planeSize || 1, planeSize || 1, 1);
+  if (ctx.sectionHandle) {
+    const s = THREE.MathUtils.clamp(planeSize * 0.18, 0.12, 0.28);
+    ctx.sectionHandle.scale.setScalar(s);
+  }
 }
 
 // Cheap per-change refresh: show/hide, orient, place, size the plane quad.
@@ -114,6 +141,7 @@ function updatePlaneVisual() {
   const show = ctx.sectionOn && !!ctx.model;
   ctx.sectionVisuals.visible = show;
   if (ctx.sectionContours) ctx.sectionContours.visible = show;
+  if (ctx.sectionHandle) ctx.sectionHandle.visible = show && !!ctx.sectionMode;
   if (!show) return;
   updatePlaneTransform();
 }
@@ -257,6 +285,11 @@ export function applySectionState(state, sync = true) {
   if (sync && !ctx.applyingRemoteSection) broadcastSection(sectionState());
 }
 
+export function setSectionMode(enabled) {
+  ctx.sectionMode = !!enabled && !!ctx.sectionOn;
+  updatePlaneVisual();
+}
+
 export function sectionState() {
   return { enabled: !!ctx.sectionOn, axis: ctx.sectionAxis, offset: ctx.sectionOffset, reversed: !!ctx.sectionReversed };
 }
@@ -267,6 +300,7 @@ export function resetSection(sync = true) {
 
 ctx.sectionOnChk?.addEventListener('change', () => {
   ctx.sectionOn = ctx.sectionOnChk.checked;
+  ctx.sectionMode = ctx.sectionOn;
   applySectionState(null);
   scheduleContours(true);   // immediate on toggle
 });
@@ -288,6 +322,104 @@ ctx.sectionReverseBtn?.addEventListener('click', () => {
   scheduleContours(true);
 });
 ctx.sectionResetBtn?.addEventListener('click', () => resetSection());
+
+function sectionHandleScreenDistance(e) {
+  if (!ctx.sectionHandle?.visible) return Infinity;
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  const best = Infinity;
+  const points = [new THREE.Vector3(), new THREE.Vector3(0, 0, 0.3)];
+  let distance = best;
+  for (const local of points) {
+    const p = ctx.sectionHandle.localToWorld(local).project(ctx.camera);
+    const sx = r.left + (p.x * 0.5 + 0.5) * r.width;
+    const sy = r.top + (-p.y * 0.5 + 0.5) * r.height;
+    distance = Math.min(distance, Math.hypot(e.clientX - sx, e.clientY - sy));
+  }
+  return distance;
+}
+
+function sectionNormal() {
+  return axisVector(ctx.sectionAxis, ctx.sectionReversed).normalize();
+}
+
+function sectionDragPoint(e, out = new THREE.Vector3()) {
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((e.clientX - r.left) / r.width) * 2 - 1,
+    -((e.clientY - r.top) / r.height) * 2 + 1,
+  );
+  const ray = new THREE.Raycaster();
+  ray.setFromCamera(ndc, ctx.camera);
+  return ray.ray.intersectPlane(ctx.sectionDragPlane, out);
+}
+
+function setSectionOffsetFromDrag(offset) {
+  const min = Number(ctx.sectionOffsetEl?.min ?? -1000);
+  const max = Number(ctx.sectionOffsetEl?.max ?? 1000);
+  ctx.sectionOffset = THREE.MathUtils.clamp(Math.round(offset), min, max);
+  applySectionState(null);
+}
+
+function updateSectionHandleHover(e) {
+  if (!ctx.sectionHandle?.visible || ctx.sectionHandleDragging) return;
+  const hover = sectionHandleScreenDistance(e) <= 24;
+  ctx.sectionHandle.traverse((o) => {
+    if (o.material) o.material.opacity = hover ? 1 : 0.9;
+  });
+  ctx.renderer.domElement.style.cursor = hover ? 'grab' : '';
+}
+
+ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !ctx.sectionMode || !ctx.sectionOn || sectionHandleScreenDistance(e) > 24) return;
+  const n = sectionNormal();
+  const handleWorld = ctx.sectionHandle.localToWorld(new THREE.Vector3());
+  const cameraRight = new THREE.Vector3().setFromMatrixColumn(ctx.camera.matrixWorld, 0).normalize();
+  const ref = Math.abs(n.dot(ctx.camera.up)) < 0.9 ? ctx.camera.up : cameraRight;
+  const dragNormal = n.clone().cross(ref).normalize();
+  if (dragNormal.lengthSq() < 1e-8) return;
+  ctx.sectionDragNormal.copy(n);
+  ctx.sectionDragPlane.setFromNormalAndCoplanarPoint(dragNormal, handleWorld);
+  const start = sectionDragPoint(e, ctx.sectionDragStartPoint);
+  if (!start) return;
+  ctx.sectionHandleDragging = true;
+  ctx.sectionDragStartOffset = ctx.sectionOffset;
+  ctx.controls.enabled = false;
+  ctx.sectionHandle.traverse((o) => { if (o.material) o.material.opacity = 1; });
+  ctx.renderer.domElement.style.cursor = 'grabbing';
+  e.preventDefault();
+});
+
+ctx.renderer.domElement.addEventListener('pointermove', (e) => {
+  if (ctx.sectionHandleDragging) {
+    const point = sectionDragPoint(e);
+    if (!point) return;
+    const deltaMm = point.clone().sub(ctx.sectionDragStartPoint).dot(ctx.sectionDragNormal) * 1000;
+    setSectionOffsetFromDrag(ctx.sectionDragStartOffset + deltaMm);
+    return;
+  }
+  updateSectionHandleHover(e);
+});
+
+export function endSectionDrag() {
+  if (!ctx.sectionHandleDragging) return;
+  ctx.sectionHandleDragging = false;
+  ctx.controls.enabled = true;
+  scheduleContours(true);
+  ctx.sectionHandle?.traverse((o) => { if (o.material) o.material.opacity = 0.9; });
+  ctx.renderer.domElement.style.cursor = '';
+}
+
+export function cancelSectionDrag() {
+  if (!ctx.sectionHandleDragging) return;
+  const start = ctx.sectionDragStartOffset;
+  endSectionDrag();
+  ctx.sectionOffset = start;
+  applySectionState(null);
+  scheduleContours(true);
+}
+
+ctx.renderer.domElement.addEventListener('pointerup', endSectionDrag);
+ctx.renderer.domElement.addEventListener('pointercancel', endSectionDrag);
 
 window.addEventListener('viewer-model-loaded', () => {
   ensureVisuals();

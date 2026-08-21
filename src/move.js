@@ -33,8 +33,8 @@ function currentMatches(node, snapshot, key) {
 
 export function recordTransform(before, after, label, groupId = null) {
   if (!before || !after || sameTransform(before, after)) return;
-  ctx.transformHistory.push({ path: [...after.path], before, after, label, groupId });
   const key = pivotPathKey(after.path);
+  ctx.transformHistory.push({ key, path: [...after.path], before, after, label, groupId });
   if (after.pivot) ctx.pivotByPath.set(key, after.pivot.clone());
   else ctx.pivotByPath.delete(key);
   if (ctx.transformHistory.length > ctx.TRANSFORM_HISTORY_MAX) ctx.transformHistory.shift();
@@ -245,6 +245,13 @@ export function broadcastTransform(path, node, pivotOverride = ctx.customPivot) 
   } catch {}
 }
 
+function rememberRemoteActor(msg, node) {
+  if (!msg.name || !Array.isArray(msg.path)) return;
+  const key = msg.path.join('.');
+  ctx.partLastActor.set(key, msg.name);
+  if (ctx.selectedPartKey === key) xferToast(`${msg.name} changed ${node.name || 'this part'}`);
+}
+
 export function applyRemoteTransform(msg) {
   if (!Array.isArray(msg.path) || !Array.isArray(msg.pos) || !Array.isArray(msg.quat)) return;
   if (!ctx.model) { ctx.pendingRemoteTransforms.push(msg); return; }
@@ -264,10 +271,7 @@ export function applyRemoteTransform(msg) {
   if (ctx.selectedPartKey === key) updateMoveGizmo();
   // Actor-aware conflict surfacing: remember who last changed this part, and if
   // the user is currently working on it, tell them who edited it.
-  if (msg.name) {
-    ctx.partLastActor.set(key, msg.name);
-    if (ctx.selectedPartKey === key) xferToast(`${msg.name} changed ${node.name || 'this part'}`);
-  }
+  rememberRemoteActor(msg, node);
 }
 
 export function flushPendingRemoteTransforms() {
@@ -283,6 +287,7 @@ export function applyRemoteRot(msg) {
   if (!node) return;
   node.quaternion.set(msg.quat[0], msg.quat[1], msg.quat[2], msg.quat[3]);
   node.updateMatrixWorld(true);
+  rememberRemoteActor(msg, node);
 }
 
 export function applyRemoteMove(msg) {
@@ -291,6 +296,7 @@ export function applyRemoteMove(msg) {
   if (!node) return;
   node.position.set(msg.pos[0], msg.pos[1], msg.pos[2]);
   node.updateMatrixWorld(true);
+  rememberRemoteActor(msg, node);
 }
 
 export function resetPartPositions() {

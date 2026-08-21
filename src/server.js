@@ -429,10 +429,12 @@ wss.on('connection', (ws, req, url) => {
     } else if (msg.t === 'move' && Array.isArray(msg.path) && Array.isArray(msg.pos)) {
       // Part move: relay the new position to the other members so everyone sees
       // the same part placement. No stored state needed (host Reset re-broadcasts).
-      broadcast(session, { t: 'move', path: msg.path, pos: msg.pos }, id);
+      const name = (session.members.get(id) || {}).name || '';
+      broadcast(session, { t: 'move', path: msg.path, pos: msg.pos, name }, id);
     } else if (msg.t === 'rot' && Array.isArray(msg.path) && Array.isArray(msg.quat)) {
       // Part rotation: relay the new quaternion to the other members.
-      broadcast(session, { t: 'rot', path: msg.path, quat: msg.quat }, id);
+      const name = (session.members.get(id) || {}).name || '';
+      broadcast(session, { t: 'rot', path: msg.path, quat: msg.quat, name }, id);
     } else if (msg.t === 'trans' && typeof msg.key === 'string') {
       // Part transparency: store (for late joiners) and relay to the others.
       session.trans = session.trans || {};

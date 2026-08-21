@@ -97,7 +97,7 @@ function refreshUnitUI() {
     .forEach((b) => b.classList.toggle('active', b.dataset.unit === ctx.units));
 }
 function refreshScaleUI() {
-  if (ctx.modelScaleEl) ctx.modelScaleEl.value = String(ctx.modelScaleMult);
+  if (ctx.modelScaleEl) ctx.modelScaleEl.value = ctx.modelScaleMult.toFixed(2);
   if (ctx.modelScaleValEl) ctx.modelScaleValEl.textContent = ctx.modelScaleMult.toFixed(2) + '×';
 }
 function refreshFlipUI() {
@@ -114,11 +114,19 @@ ctx.unitSegEl?.addEventListener('click', (e) => {
   if (b) applyUnits(b.dataset.unit);
 });
 
-ctx.modelScaleEl?.addEventListener('input', () => {
-  ctx.modelScaleMult = Number(ctx.modelScaleEl.value) || 1;
+function commitScaleInput() {
+  const raw = Number(ctx.modelScaleEl?.value);
+  const value = Number.isFinite(raw) ? raw : ctx.modelScaleMult;
+  ctx.modelScaleMult = THREE.MathUtils.clamp(value, 0.1, 10);
   refreshScaleUI();
   applyModelCorrections();
   broadcastCorrections();
+}
+
+ctx.modelScaleEl?.addEventListener('change', commitScaleInput);
+ctx.modelScaleEl?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') { e.preventDefault(); commitScaleInput(); ctx.modelScaleEl.blur(); }
+  if (e.key === 'Escape') { e.preventDefault(); refreshScaleUI(); ctx.modelScaleEl.blur(); }
 });
 ctx.modelScaleResetEl?.addEventListener('click', () => {
   ctx.modelScaleMult = 1;
