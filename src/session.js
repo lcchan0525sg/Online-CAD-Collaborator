@@ -6,8 +6,14 @@ import { ctx } from './context.js';
 import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } from './scene.js';
 import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync } from './measure.js';
+import { applySectionState, sectionState } from './section.js';
 import { applyRemoteExplode } from './explode.js';
 import { applyRemoteMove, applyRemoteRot, applyRemoteTransform } from './move.js';
+
+export function broadcastSection(s = sectionState()) {
+  if (!ctx.session?.connected) return;
+  try { ctx.session.ws.send(JSON.stringify({ t: 'section', s })); } catch {}
+}
 
 export function onModelAck(from) {
   ctx.ackedSend.add(from);
@@ -375,6 +381,10 @@ export function onSessionMsg(msg) {
       break;
     case 'transform':
       applyRemoteTransform(msg);
+      break;
+    case 'section':
+      ctx.applyingRemoteSection = true;
+      try { applySectionState(msg.s || msg, false); } finally { ctx.applyingRemoteSection = false; }
       break;
     case 'rot':
       applyRemoteRot(msg);

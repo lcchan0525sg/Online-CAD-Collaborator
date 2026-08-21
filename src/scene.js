@@ -298,6 +298,7 @@ export function loadFromGltf(gltf) {
     renderExplodeScope();
   }
   document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
+  window.dispatchEvent(new Event('viewer-model-loaded'));
 }
 
 export function setupAnimation(gltf, root) {

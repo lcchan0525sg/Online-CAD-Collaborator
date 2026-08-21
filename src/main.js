@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from './context.js';
 import './scene.js'; import './parts.js'; import './measure.js'; import './explode.js'; import './move.js'; import './session.js';
-import './interaction.js';
+import './interaction.js'; import './section.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
 import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, partTransparent, selectPart, setPartTransparent, setPartVisible, showPartMenu } from './parts.js';
 import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';
@@ -12,6 +12,7 @@ import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
 import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot } from './move.js';
+import { applySectionState, resetSection, sectionState } from './section.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -88,6 +89,9 @@ window.__viewer = {
   pivotFor: (key) => { const p = ctx.pivotByPath.get(key); return p ? [p.x, p.y, p.z] : null; },
   setPivot: (p) => { ctx.customPivot = p ? new THREE.Vector3(p[0], p[1], p[2]) : null; rememberActivePivot(); setPivotMode(!!p); updateMoveGizmo(); return window.__viewer.pivot; },
   setRotate: (on) => setRotateMode(!!on),
+  sectionState: () => sectionState(),
+  setSection: (state) => { applySectionState(state); return sectionState(); },
+  resetSection: () => { resetSection(); return sectionState(); },
   undoTransform: () => undoTransform(),
   redoTransform: () => redoTransform(),
   get transformHistoryLength() { return ctx.transformHistory.length; },

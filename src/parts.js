@@ -563,3 +563,12 @@ export function setFloatingPartsVisible(show) {
 
 document.getElementById('fp-show-all')?.addEventListener('click', () => setAllParts(true));
 document.getElementById('fp-hide-all')?.addEventListener('click', () => setAllParts(false));
+const fpCollapse = document.getElementById('fp-collapse');
+const fpList = document.getElementById('floating-parts-list');
+fpCollapse?.addEventListener('click', () => {
+  const collapsed = !fpList.hidden;
+  fpList.hidden = collapsed;
+  fpCollapse.textContent = collapsed ? '▸' : '▾';
+  fpCollapse.setAttribute('aria-expanded', String(!collapsed));
+  fpCollapse.title = collapsed ? 'Expand Assembly tree' : 'Collapse Assembly tree';
+});

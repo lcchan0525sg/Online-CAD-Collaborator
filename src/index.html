@@ -62,7 +62,7 @@
         <div class="row toggle view-toggles">
           <label class="tlabel"><input class="ctl" type="checkbox" id="chk-wire" ><span>Wireframe</span></label>
           <label class="tlabel"><input class="ctl" type="checkbox" id="chk-grid" checked><span>Grid</span></label>
-          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-rotate" checked><span>Rotate</span></label>
+          <label class="tlabel"><input class="ctl" type="checkbox" id="chk-rotate"><span>Rotate</span></label>
         </div>
         <button class="btn" id="btn-frame">Frame model</button>
       </section>
@@ -121,7 +121,7 @@
       </section>
 
       <section class="section">
-        <h2>Assembly</h2>
+        <h2>MODEL CONTROL</h2>
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move part</span></label>
           <span id="move-axis" class="move-axis" title="press X / Y / Z to choose an axis, then drag to move">off</span>
@@ -135,6 +135,19 @@
           <button class="btn" id="btn-measure-clear" title="Clear all measurements" style="margin-left:auto">Clear</button>
         </div>
         <div id="measure-list" class="mats" style="margin-top:4px"></div>
+        <div class="row toggle section-view-row" style="margin-bottom:6px; align-items:center">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="section-on"><span>Section view</span></label>
+          <span id="section-offset-val" class="move-axis">0 mm</span>
+          <button class="btn" id="section-reverse" type="button" aria-pressed="false" title="Keep the opposite side of the section plane">Reverse</button>
+          <button class="btn" id="section-reset" type="button" title="Reset section view">Reset</button>
+        </div>
+        <div class="row toggle" style="margin-bottom:6px; align-items:center; gap:6px">
+          <label class="tlabel" style="font-size:12px">Plane</label>
+          <select id="section-axis" class="ctl" title="Section plane axis">
+            <option value="x">X</option><option value="y">Y</option><option value="z">Z</option>
+          </select>
+          <input class="slider" type="range" id="section-offset" min="-1000" max="1000" value="0" step="1" style="flex:1; min-width:0">
+        </div>
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <span class="tlabel explode-label">Explode</span>
           <input class="slider" type="range" id="explode-slider" min="0" max="500" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
@@ -177,7 +190,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.85 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.86 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -241,7 +254,8 @@
       <!-- Floating Parts side-menu: lists all parts with show/hide -->
       <div id="floating-parts" class="floating-parts" hidden>
         <div class="fp-head">
-          <span class="fp-title">Parts</span>
+          <span class="fp-title">Assembly tree</span>
+          <button type="button" class="fp-btn" id="fp-collapse" aria-expanded="true" title="Collapse Assembly tree">▾</button>
           <button type="button" class="fp-btn" id="fp-show-all" title="Show all parts">All</button>
           <button type="button" class="fp-btn" id="fp-hide-all" title="Hide all parts">None</button>
         </div>

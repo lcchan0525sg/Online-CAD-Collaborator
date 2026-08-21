@@ -362,6 +362,7 @@ wss.on('connection', (ws, req, url) => {
   // Late joiner: replay the committed measurements + explode state.
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
   if (session.explode) send(ws, { t: 'explode', ...session.explode });
+  if (session.section) send(ws, { t: 'section', s: session.section });
   // Late joiner: replay part transparency state (key -> transparent).
   const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
   if (transKeys.length) send(ws, { t: 'trans-sync', keys: transKeys });
@@ -467,6 +468,14 @@ wss.on('connection', (ws, req, url) => {
         scopeKey: typeof msg.scopeKey === 'string' ? msg.scopeKey : null,
       };
       broadcast(session, { t: 'explode', ...session.explode }, id);
+    } else if (msg.t === 'section' && msg.s && typeof msg.s === 'object') {
+      session.section = {
+        enabled: !!msg.s.enabled,
+        axis: ['x', 'y', 'z'].includes(msg.s.axis) ? msg.s.axis : 'x',
+        offset: Number.isFinite(Number(msg.s.offset)) ? Number(msg.s.offset) : 0,
+        reversed: !!msg.s.reversed,
+      };
+      broadcast(session, { t: 'section', s: session.section }, id);
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {
       // Host kicks a viewer out of the session. Only the host may kick, and the
       // host can't kick itself. Close the target's socket; onGone removes them

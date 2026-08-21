@@ -229,6 +229,7 @@ let rotating = false;              // actively rotating
 let rotStartAngle = 0;             // pointer angle around axis at drag start
 let rotStartQuat = new THREE.Quaternion();   // node.quaternion at drag start
 let rotStartTransform = null;
+let rotStartGroup = null;
 let rotLocalAxis = new THREE.Vector3();      // rotation axis in node.parent's frame
 let rotCenter = new THREE.Vector3();         // world center of rotation (= node world pos)
 let rotAxisVec = new THREE.Vector3();        // world rotation axis unit vector
@@ -255,6 +256,20 @@ const measureClearBtn = document.getElementById('btn-measure-clear');
 const measureLabelEl = document.getElementById('measure-label');
 
 const measureListEl = document.getElementById('measure-list');
+
+const sectionOnChk = document.getElementById('section-on');
+const sectionAxisEl = document.getElementById('section-axis');
+const sectionOffsetEl = document.getElementById('section-offset');
+const sectionOffsetValEl = document.getElementById('section-offset-val');
+const sectionReverseBtn = document.getElementById('section-reverse');
+const sectionResetBtn = document.getElementById('section-reset');
+let sectionOn = false;
+let sectionAxis = 'x';
+let sectionOffset = 0;
+let sectionReversed = false;
+let sectionPlane = new THREE.Plane();
+let pendingRemoteSection = null;
+let applyingRemoteSection = false;
 
 let measureOn = false;
 
@@ -441,6 +456,7 @@ export const ctx = {
   rotStartAngle,
   rotStartQuat,
   rotStartTransform,
+  rotStartGroup,
   rotLocalAxis,
   rotCenter,
   rotAxisVec,
@@ -473,6 +489,19 @@ export const ctx = {
   MEASURE_TOL_PX,
   measureCornerCache,
   measureRay,
+  sectionOnChk,
+  sectionAxisEl,
+  sectionOffsetEl,
+  sectionOffsetValEl,
+  sectionReverseBtn,
+  sectionResetBtn,
+  sectionOn,
+  sectionAxis,
+  sectionOffset,
+  sectionReversed,
+  sectionPlane,
+  pendingRemoteSection,
+  applyingRemoteSection,
   partHoverTipEl,
   hoverKey,
   hoverRow,

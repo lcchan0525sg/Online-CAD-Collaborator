@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.85 · **URL:** http://localhost:8088/
+**Version:** v0.86 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -189,7 +189,7 @@ seconds).
 The sidebar shows you:
 
 - **Info** — generator, mesh/triangle counts, dimensions and units
-- **Assembly** — the part tree (see §4)
+- **Assembly** — the Assembly tree (see §4)
 - **Materials** — swatches of every colour in the model
 
 ---
@@ -202,7 +202,7 @@ top assembly plus its direct children); deeper levels are collapsed until you
 expand them. (The tree used to live in the sidebar; it now lives here so the
 sidebar stays uncluttered.)
 
-![Assembly tree with the part list](manual-shots/03-assembly-panel.png)
+![Assembly tree with the full assembly hierarchy](manual-shots/03-assembly-panel.png)
 
 ### Expand / collapse
 
@@ -719,4 +719,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.85 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.86 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

@@ -7,6 +7,8 @@ import { hidePartHover, hidePartMenu, highlightHoverRow, hoverPickKey, nodeAtPat
 import { resetExplode } from './explode.js';
 import { xferToast } from './session.js';
 
+let transformGroupSeq = 0;
+
 function clonePivot(pivot) { return pivot ? pivot.clone() : null; }
 
 export function captureTransform(node, path = movePathFor(node)) {
@@ -29,9 +31,9 @@ function currentMatches(node, snapshot, key) {
   return (!snapshot.pivot && !pivot) || (snapshot.pivot && pivot && snapshot.pivot.equals(pivot));
 }
 
-export function recordTransform(before, after, label) {
+export function recordTransform(before, after, label, groupId = null) {
   if (!before || !after || sameTransform(before, after)) return;
-  ctx.transformHistory.push({ path: [...after.path], before, after, label });
+  ctx.transformHistory.push({ path: [...after.path], before, after, label, groupId });
   const key = pivotPathKey(after.path);
   if (after.pivot) ctx.pivotByPath.set(key, after.pivot.clone());
   else ctx.pivotByPath.delete(key);
@@ -57,33 +59,41 @@ function applyTransformSnapshot(entry, snapshot) {
   return true;
 }
 
+function takeGrouped(stack) {
+  const last = stack[stack.length - 1];
+  if (!last?.groupId) return [last];
+  const out = [];
+  for (let i = stack.length - 1; i >= 0 && stack[i].groupId === last.groupId; i--) out.unshift(stack[i]);
+  return out;
+}
+
 export function undoTransform() {
   if (!ctx.model || !ctx.transformHistory.length) return false;
-  const entry = ctx.transformHistory[ctx.transformHistory.length - 1];
-  entry.expected = entry.after;
-  if (!applyTransformSnapshot(entry, entry.before)) {
+  const entries = takeGrouped(ctx.transformHistory);
+  for (const entry of entries) entry.expected = entry.after;
+  if (!entries.every((entry) => applyTransformSnapshot(entry, entry.before))) {
     xferToast('Cannot undo: part changed remotely');
     return false;
   }
-  ctx.transformHistory.pop();
-  ctx.transformRedo.push(entry);
+  ctx.transformHistory.splice(ctx.transformHistory.length - entries.length, entries.length);
+  ctx.transformRedo.push(...entries);
   updateUndoState();
-  xferToast(`Undid ${entry.label}`);
+  xferToast(`Undid ${entries.length > 1 ? `${entries.length} part transforms` : entries[0].label}`);
   return true;
 }
 
 export function redoTransform() {
   if (!ctx.model || !ctx.transformRedo.length) return false;
-  const entry = ctx.transformRedo[ctx.transformRedo.length - 1];
-  entry.expected = entry.before;
-  if (!applyTransformSnapshot(entry, entry.after)) {
+  const entries = takeGrouped(ctx.transformRedo);
+  for (const entry of entries) entry.expected = entry.before;
+  if (!entries.every((entry) => applyTransformSnapshot(entry, entry.after))) {
     xferToast('Cannot redo: part changed remotely');
     return false;
   }
-  ctx.transformRedo.pop();
-  ctx.transformHistory.push(entry);
+  ctx.transformRedo.splice(ctx.transformRedo.length - entries.length, entries.length);
+  ctx.transformHistory.push(...entries);
   updateUndoState();
-  xferToast(`Redid ${entry.label}`);
+  xferToast(`Redid ${entries.length > 1 ? `${entries.length} part transforms` : entries[0].label}`);
   return true;
 }
 
@@ -216,9 +226,9 @@ export function broadcastRot(path, quat) {
   try { ctx.session.ws.send(JSON.stringify({ t: 'rot', path, quat: [quat.x, quat.y, quat.z, quat.w] })); } catch {}
 }
 
-export function broadcastTransform(path, node) {
+export function broadcastTransform(path, node, pivotOverride = ctx.customPivot) {
   if (!ctx.session?.connected || !node) return;
-  const pivot = ctx.customPivot ? [ctx.customPivot.x, ctx.customPivot.y, ctx.customPivot.z] : null;
+  const pivot = pivotOverride ? [pivotOverride.x, pivotOverride.y, pivotOverride.z] : null;
   try {
     ctx.session.ws.send(JSON.stringify({
       t: 'transform', path,
@@ -454,18 +464,21 @@ ctx.renderer.domElement.addEventListener('pointercancel', endPivotDrag);
 ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || !ctx.rotateArc?.visible || !ctx.rotateMode || !ctx.moveOnChk.checked) return;
   if (!pickRotateArc(e)) return;
-  const node = movableNode();
+  const group = selectedMovableNodes();
+  const node = group[0]?.node;
   if (!node) return;
   ctx.rotating = true;
   ctx.controls.enabled = false;
-  ctx.rotStartTransform = captureTransform(node);
-  // Rotation is applied around the editable gizmo pivot, not automatically
-  // around the part's own centre.
-  ctx.rotCenter.copy(pivotWorld(node));
+  ctx.rotStartGroup = group.map(({ key, node: item }) => ({ key, node: item, worldMatrix: item.matrixWorld.clone(), before: captureTransform(item, key.split('.').map(Number)) }));
+  ctx.rotStartTransform = ctx.rotStartGroup[0].before;
+  const box = new THREE.Box3();
+  for (const item of group) box.expandByObject(item.node);
+  ctx.rotCenter.copy(box.getCenter(new THREE.Vector3()));
   ctx.rotStartWorldMatrix.copy(node.matrixWorld);
 
   if (ctx.moveAxis === 'x') ctx.rotAxisVec.set(1, 0, 0);
   else if (ctx.moveAxis === 'y') ctx.rotAxisVec.set(0, 1, 0);
+  else ctx.rotAxisVec.set(0, 0, 1);
   const cL = node.parent.worldToLocal(ctx.rotCenter.clone());
   const aL = node.parent.worldToLocal(ctx.rotCenter.clone().add(ctx.rotAxisVec));
   ctx.rotLocalAxis.copy(aL.sub(cL)).normalize();
@@ -477,21 +490,28 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   if (!ctx.rotating) return;
   const a = pointerAngle(e);
   if (a == null) return;
-  const node = movableNode();
-  if (!node) return;
   const delta = a - ctx.rotStartAngle;
-  // Build a world-space rotation about the custom pivot, then decompose back
-  // into the selected node's parent-local transform.
   const around = new THREE.Matrix4()
     .makeTranslation(ctx.rotCenter.x, ctx.rotCenter.y, ctx.rotCenter.z)
     .multiply(new THREE.Matrix4().makeRotationAxis(ctx.rotAxisVec, delta))
     .multiply(new THREE.Matrix4().makeTranslation(-ctx.rotCenter.x, -ctx.rotCenter.y, -ctx.rotCenter.z));
-  const world = around.multiply(ctx.rotStartWorldMatrix);
-  const local = node.parent.matrixWorld.clone().invert().multiply(world);
-  local.decompose(node.position, node.quaternion, node.scale);
-  node.updateMatrixWorld(true);
-  broadcastTransform(movePathFor(node), node);
-  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', value: delta } }));
+  if (ctx.rotStartGroup?.length > 1) {
+    for (const item of ctx.rotStartGroup) {
+      const world = around.clone().multiply(item.worldMatrix);
+      const local = item.node.parent.matrixWorld.clone().invert().multiply(world);
+      local.decompose(item.node.position, item.node.quaternion, item.node.scale);
+      item.node.updateMatrixWorld(true);
+      broadcastTransform(movePathFor(item.node), item.node, item.before.pivot);
+    }
+  } else {
+    const node = movableNode();
+    if (!node) return;
+    const world = around.multiply(ctx.rotStartWorldMatrix);
+    const local = node.parent.matrixWorld.clone().invert().multiply(world);
+    local.decompose(node.position, node.quaternion, node.scale);
+    node.updateMatrixWorld(true);
+    broadcastTransform(movePathFor(node), node);
+  }
 });
 
 export function endRotateDrag() {
@@ -500,7 +520,11 @@ export function endRotateDrag() {
   ctx.controls.enabled = true;
   window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', state: 'done' } }));
   const node = movableNode();
-  if (node && ctx.rotStartTransform) recordTransform(ctx.rotStartTransform, captureTransform(node), 'part rotation');
+  if (ctx.rotStartGroup?.length) {
+    const groupId = ctx.rotStartGroup.length > 1 ? ++transformGroupSeq : null;
+    for (const item of ctx.rotStartGroup) recordTransform(item.before, captureTransform(item.node, item.key.split('.').map(Number)), 'part rotation', groupId);
+  } else if (node && ctx.rotStartTransform) recordTransform(ctx.rotStartTransform, captureTransform(node), 'part rotation');
+  ctx.rotStartGroup = null;
   ctx.rotStartTransform = null;
 }
 
@@ -508,14 +532,24 @@ export function endRotateDrag() {
 // drag broadcasts intermediate rotations, so the restored value is broadcast.
 export function cancelRotateDrag() {
   if (!ctx.rotating) return;
-  const node = movableNode();
-  if (node) {
-    node.quaternion.copy(ctx.rotStartQuat);
-    node.updateMatrixWorld(true);
-    broadcastRot(movePathFor(node), node.quaternion);
+  if (ctx.rotStartGroup?.length) {
+    for (const item of ctx.rotStartGroup) {
+      item.node.position.copy(item.before.pos);
+      item.node.quaternion.copy(item.before.quat);
+      item.node.updateMatrixWorld(true);
+      broadcastTransform(item.key.split('.').map(Number), item.node, item.before.pivot);
+    }
+  } else {
+    const node = movableNode();
+    if (node) {
+      node.quaternion.copy(ctx.rotStartQuat);
+      node.updateMatrixWorld(true);
+      broadcastRot(movePathFor(node), node.quaternion);
+    }
   }
   ctx.rotating = false;
   ctx.controls.enabled = true;
+  ctx.rotStartGroup = null;
   ctx.rotStartTransform = null;
   window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', state: 'cancelled' } }));
 }
@@ -573,7 +607,8 @@ export function endMoveDrag() {
   ctx.controls.enabled = true;
   window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', state: 'done' } }));
   if (ctx.moveStartGroup?.length) {
-    for (const item of ctx.moveStartGroup) recordTransform(item.before, captureTransform(item.node, item.key.split('.').map(Number)), 'part movement');
+    const groupId = ctx.moveStartGroup.length > 1 ? ++transformGroupSeq : null;
+    for (const item of ctx.moveStartGroup) recordTransform(item.before, captureTransform(item.node, item.key.split('.').map(Number)), 'part movement', groupId);
   }
   ctx.moveStartGroup = null;
   ctx.moveStartTransform = null;
@@ -700,13 +735,14 @@ export function makeArrow(axis) {
 
 export function updateMoveGizmo() {
   buildPivotHandle();
-  const node = movableNode();
+  const group = selectedMovableNodes();
+  const node = group[0]?.node;
   const on = !!(ctx.moveOnChk?.checked && node);
   ctx.moveGizmo.visible = on;
   if (ctx.pivotHandle) ctx.pivotHandle.visible = on && ctx.pivotMode;
   if (!on) return;
   const p = node.getWorldPosition(new THREE.Vector3());
-  const pivot = pivotWorld(node);
+  const pivot = group.length > 1 ? group.reduce((box, item) => box.expandByObject(item.node), new THREE.Box3()).getCenter(new THREE.Vector3()) : pivotWorld(node);
   // Size the gizmo to ~1/8 of the viewport height at its depth, so it stays a
   // constant screen fraction: the bigger the zoom (closer camera), the smaller
   // the gizmo. World height visible at distance d = 2*d*tan(fov/2).

@@ -21,6 +21,29 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.86] — 2026-08-21
+
+### Added
+
+- Orthogonal Section View with X/Y/Z plane selection, mm offset, reverse direction,
+  reset, session synchronization, and late-joiner replay.
+- Collapsible floating **Assembly tree** panel on the right side of the viewport.
+- Grouped Move and Rotate operations for multi-selected parts.
+
+### Changed
+
+- Automatic model rotation is disabled by default.
+- Group Move/Rotate actions share one Undo/Redo history group.
+- Group gizmos use the selected group’s bounding-box centre.
+- Corrected grouped Z-axis rotation initialization.
+- Sidebar Assembly controls are labeled **MODEL CONTROL**.
+
+### Verification
+
+- Full two-client harness: **58 passed, 0 failed**.
+
+---
+
 ## [v0.85] — 2026-08-21
 
 ### Added
