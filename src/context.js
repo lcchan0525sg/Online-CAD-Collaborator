@@ -63,7 +63,7 @@ let partMenuHideTimer = null;
 
 const partMenuTransEl = document.getElementById('part-menu-trans');
 
-const TRANSPARENT_OPACITY = 0.25;
+const TRANSPARENT_OPACITY = 0.16;
 
 let transparentParts = new Set();        // pathKey -> currently transparent
 

@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.86 · **URL:** http://localhost:8088/
+**Version:** v0.87 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -250,7 +250,7 @@ viewport — to open a menu with five actions:
 | **Hide part** | Turns that part (and its subtree) off in the viewport |
 | **Move part** | Selects the part and arms the axis gizmo so you can move it (see §5) |
 | **Show me only** | Hides everything except that part and its children; ancestors stay visible so the isolated part still renders |
-| **Make transparent** | Renders the part at 25% opacity so you can see through it (see §8); the item reads **Make opaque** when the part is already transparent |
+| **Make transparent** | Renders the part at 16% opacity so you can see through it (see §8); the item reads **Make opaque** when the part is already transparent |
 | **Comment…** | Opens a small text box; type a note and press **Send** — it posts `[Part name] your note` into the session chat for everyone (see §13). A session is required. |
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
@@ -420,7 +420,7 @@ Make a part **transparent** so you can see through it to the geometry behind —
 great for inspecting a housing, cover, or how parts nest.
 
 1. **Right-click** a part (its name in the tree, or the part in the viewport).
-2. Choose **Make transparent**. The part renders at 25% opacity.
+2. Choose **Make transparent**. The part renders at 16% opacity.
 3. To restore it, right-click again and choose **Make opaque** (the menu item
    reflects the current state).
 
@@ -719,4 +719,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.86 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.87 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from './context.js';
 import './scene.js'; import './parts.js'; import './measure.js'; import './explode.js'; import './move.js'; import './session.js';
-import './interaction.js'; import './section.js';
+import './interaction.js'; import './section.js'; import './theme.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
 import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, partTransparent, selectPart, setPartTransparent, setPartVisible, showPartMenu } from './parts.js';
 import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';

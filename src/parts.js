@@ -281,7 +281,10 @@ export function applyMeshMaterial(o) {
   const sel = partIsSelected(key);
   let mats = base.map((m) => m.clone());   // always clone from the pristine base
   if (trans) mats.forEach((m) => {
-    m.transparent = true; m.opacity = ctx.TRANSPARENT_OPACITY; m.depthWrite = false; m.needsUpdate = true;
+    m.transparent = true;
+    m.opacity = ctx.TRANSPARENT_OPACITY;
+    m.depthWrite = false;
+    m.needsUpdate = true;
   });
   if (sel) mats.forEach((m) => {
     m.emissive = (m.emissive ? m.emissive.clone() : new THREE.Color()).set(ctx.HIGHLIGHT_COLOR);

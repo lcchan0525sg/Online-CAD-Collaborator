@@ -21,6 +21,25 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.87] — 2026-08-21
+
+### Added
+
+- Selectable viewport background schemes: Graphite, Navy, Light CAD, and Blueprint.
+- Persistent user background-scheme choice.
+
+### Changed
+
+- Blueprint theme is now a distinct light blue scheme rather than another dark blue.
+- Transparent parts preserve their original material colours and use a moderate 16% opacity.
+- Sidebar and floating Assembly tree controls refined for clearer model inspection.
+
+### Verification
+
+- Full two-client harness: **59 passed, 0 failed**.
+
+---
+
 ## [v0.86] — 2026-08-21
 
 ### Added
