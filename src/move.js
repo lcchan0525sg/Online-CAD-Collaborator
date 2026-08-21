@@ -23,28 +23,36 @@ function sameTransform(a, b) {
     && ((!a.pivot && !b.pivot) || (a.pivot && b.pivot && a.pivot.equals(b.pivot)));
 }
 
-function currentMatches(node, snapshot) {
+function currentMatches(node, snapshot, key) {
   if (!node || !snapshot || !node.position.equals(snapshot.pos) || !node.quaternion.equals(snapshot.quat)) return false;
-  const pivot = ctx.customPivot;
+  const pivot = ctx.pivotByPath.get(key) || null;
   return (!snapshot.pivot && !pivot) || (snapshot.pivot && pivot && snapshot.pivot.equals(pivot));
 }
 
 export function recordTransform(before, after, label) {
   if (!before || !after || sameTransform(before, after)) return;
   ctx.transformHistory.push({ path: [...after.path], before, after, label });
+  const key = pivotPathKey(after.path);
+  if (after.pivot) ctx.pivotByPath.set(key, after.pivot.clone());
+  else ctx.pivotByPath.delete(key);
   if (ctx.transformHistory.length > ctx.TRANSFORM_HISTORY_MAX) ctx.transformHistory.shift();
   ctx.transformRedo.length = 0;
   updateUndoState();
 }
 
 function applyTransformSnapshot(entry, snapshot) {
+  const key = pivotPathKey(snapshot.path);
   const node = nodeAtPath(ctx.model?.children[0], snapshot.path);
-  if (!node || ctx.selectedPartKey !== snapshot.path.join('.') || !currentMatches(node, entry.expected)) return false;
+  if (!node || !currentMatches(node, entry.expected, key)) return false;
   node.position.copy(snapshot.pos);
   node.quaternion.copy(snapshot.quat);
-  ctx.customPivot = clonePivot(snapshot.pivot);
+  if (snapshot.pivot) ctx.pivotByPath.set(key, snapshot.pivot.clone());
+  else ctx.pivotByPath.delete(key);
+  if (ctx.selectedPartKey === key) {
+    ctx.customPivot = clonePivot(snapshot.pivot);
+    updateMoveGizmo();
+  }
   node.updateMatrixWorld(true);
-  updateMoveGizmo();
   broadcastTransform(snapshot.path, node);
   return true;
 }
@@ -54,7 +62,7 @@ export function undoTransform() {
   const entry = ctx.transformHistory[ctx.transformHistory.length - 1];
   entry.expected = entry.after;
   if (!applyTransformSnapshot(entry, entry.before)) {
-    xferToast('Cannot undo: part changed remotely or is no longer selected');
+    xferToast('Cannot undo: part changed remotely');
     return false;
   }
   ctx.transformHistory.pop();
@@ -69,7 +77,7 @@ export function redoTransform() {
   const entry = ctx.transformRedo[ctx.transformRedo.length - 1];
   entry.expected = entry.before;
   if (!applyTransformSnapshot(entry, entry.after)) {
-    xferToast('Cannot redo: part changed remotely or is no longer selected');
+    xferToast('Cannot redo: part changed remotely');
     return false;
   }
   ctx.transformRedo.pop();
@@ -95,6 +103,13 @@ export function movableNode() {
   const root = ctx.model.children[0];
   // Move the highlighted node itself (not its whole assembly ancestor).
   return nodeAtPath(root, ctx.selectedPartKey.split('.').map(Number));
+}
+
+export function selectedMovableNodes() {
+  if (!ctx.model) return [];
+  const root = ctx.model.children[0];
+  const keys = ctx.selectedPartKeys.length ? ctx.selectedPartKeys : (ctx.selectedPartKey ? [ctx.selectedPartKey] : []);
+  return keys.map((key) => ({ key, node: nodeAtPath(root, key.split('.').map(Number)) })).filter((x) => x.node);
 }
 
 export function pivotWorld(node = movableNode()) {
@@ -144,11 +159,33 @@ export function setPivotMode(on) {
   }
 }
 
-export function resetPivot() {
+export function pivotPathKey(path = null) {
+  if (path) return Array.isArray(path) ? path.join('.') : path;
+  return ctx.selectedPartKey;
+}
+
+export function rememberActivePivot(path = ctx.selectedPartKey) {
+  if (!path) return;
+  if (ctx.customPivot) ctx.pivotByPath.set(pivotPathKey(path), ctx.customPivot.clone());
+  else ctx.pivotByPath.delete(pivotPathKey(path));
+}
+
+export function activatePivotForPart(key) {
+  ctx.customPivot = key && ctx.pivotByPath.has(key) ? ctx.pivotByPath.get(key).clone() : null;
+  setPivotMode(false);
+  updateMoveGizmo();
+}
+
+export function clearActivePivot() {
   ctx.customPivot = null;
   setPivotMode(false);
   updateMoveGizmo();
   window.dispatchEvent(new CustomEvent('viewer-pivot', { detail: { pivot: null } }));
+}
+
+export function resetPivot() {
+  if (ctx.selectedPartKey) ctx.pivotByPath.delete(ctx.selectedPartKey);
+  clearActivePivot();
 }
 
 export function setMoveAxis(a) {
@@ -199,8 +236,15 @@ export function applyRemoteTransform(msg) {
   node.position.set(msg.pos[0], msg.pos[1], msg.pos[2]);
   node.quaternion.set(msg.quat[0], msg.quat[1], msg.quat[2], msg.quat[3]);
   node.updateMatrixWorld(true);
-  if (Array.isArray(msg.pivot) && msg.pivot.length === 3) ctx.customPivot = new THREE.Vector3(...msg.pivot);
-  else ctx.customPivot = null;
+  const key = msg.path.join('.');
+  if (Array.isArray(msg.pivot) && msg.pivot.length === 3) {
+    ctx.pivotByPath.set(key, new THREE.Vector3(...msg.pivot));
+    if (ctx.selectedPartKey === key) ctx.customPivot = ctx.pivotByPath.get(key).clone();
+  } else {
+    ctx.pivotByPath.delete(key);
+    if (ctx.selectedPartKey === key) ctx.customPivot = null;
+  }
+  if (ctx.selectedPartKey === key) updateMoveGizmo();
 }
 
 export function applyRemoteRot(msg) {
@@ -221,7 +265,8 @@ export function applyRemoteMove(msg) {
 
 export function resetPartPositions() {
   if (!ctx.model) return;
-  resetPivot();
+  ctx.pivotByPath.clear();
+  clearActivePivot();
   // Collapse the exploded view first so parts return to their resting positions
   // before the baseline positions are restored.
   if (typeof resetExplode === 'function') resetExplode();
@@ -285,6 +330,7 @@ export function saveOriginalRotations() {
 
 export function setRotateMode(on) {
   ctx.rotateMode = !!on;
+  if (ctx.rotateMode) setPivotMode(false);
   if (ctx.rotateArc) ctx.rotateArc.material.opacity = ctx.rotateMode ? 1 : 0.4;
   if (ctx.rotateArcArrow) ctx.rotateArcArrow.material.opacity = ctx.rotateMode ? 1 : 0.4;
 }
@@ -486,10 +532,12 @@ ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
   // If rotate is armed and the click landed on the rotate arc, that's a rotate
   // gesture, not a move — don't start a move drag.
   if (ctx.rotateMode && pickRotateArc(e)) return;
-  const node = movableNode();
+  const group = selectedMovableNodes();
+  const node = group[0]?.node;
   if (!node) return;
   ctx.moveDragging = true;
-  ctx.moveStartTransform = captureTransform(node);
+  ctx.moveStartGroup = group.map(({ key, node: item }) => ({ key, node: item, world: item.getWorldPosition(new THREE.Vector3()), before: captureTransform(item) }));
+  ctx.moveStartTransform = ctx.moveStartGroup[0].before;
   ctx.moveStartWorld.copy(node.getWorldPosition(ctx._mv2));
   ctx.moveStartNodePos.copy(node.position);
   ctx.controls.enabled = false;   // move instead of orbit while dragging
@@ -503,20 +551,20 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   if (!ctx.moveDragging || !ctx.moveAxis) return;
   const pt = moveRayToPlane(e);
   if (!pt) return;
-  const node = movableNode();
-  if (!node) return;
+  const group = ctx.moveStartGroup || [];
+  if (!group.length) return;
   const axis = ctx.moveAxis === 'x' ? new THREE.Vector3(1, 0, 0)
     : ctx.moveAxis === 'y' ? new THREE.Vector3(0, 1, 0)
     : new THREE.Vector3(0, 0, 1);
-  const worldPos = ctx.moveStartWorld.clone();
   const delta = pt.sub(ctx.moveStartPlanePt).dot(axis);
-  worldPos.addScaledVector(axis, delta);
-  // convert world → node-local (handles model scale)
-  node.parent.worldToLocal(worldPos);
-  node.position.copy(worldPos);
-  node.updateMatrixWorld(true);
-  broadcastMove(movePathFor(node), node.position);
-  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', value: node.position.distanceTo(ctx.moveStartNodePos) } }));
+  for (const item of group) {
+    const worldPos = item.world.clone().addScaledVector(axis, delta);
+    item.node.parent.worldToLocal(worldPos);
+    item.node.position.copy(worldPos);
+    item.node.updateMatrixWorld(true);
+    broadcastTransform(movePathFor(item.node), item.node);
+  }
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', value: Math.abs(delta) } }));
 });
 
 export function endMoveDrag() {
@@ -524,22 +572,24 @@ export function endMoveDrag() {
   ctx.moveDragging = false;
   ctx.controls.enabled = true;
   window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', state: 'done' } }));
-  const node = movableNode();
-  if (node && ctx.moveStartTransform) {
-    recordTransform(ctx.moveStartTransform, captureTransform(node), 'part movement');
+  if (ctx.moveStartGroup?.length) {
+    for (const item of ctx.moveStartGroup) recordTransform(item.before, captureTransform(item.node, item.key.split('.').map(Number)), 'part movement');
   }
+  ctx.moveStartGroup = null;
   ctx.moveStartTransform = null;
 }
 
 // Abort an in-progress move and restore the drag-start position.
 export function cancelMoveDrag() {
   if (!ctx.moveDragging) return;
-  const node = movableNode();
-  if (node) {
-    node.position.copy(ctx.moveStartNodePos);
-    node.updateMatrixWorld(true);
-    broadcastMove(movePathFor(node), node.position);
+  if (ctx.moveStartGroup?.length) {
+    for (const item of ctx.moveStartGroup) {
+      item.node.position.copy(item.before.pos);
+      item.node.updateMatrixWorld(true);
+      broadcastMove(movePathFor(item.node), item.node.position);
+    }
   }
+  ctx.moveStartGroup = null;
   ctx.moveDragging = false;
   ctx.controls.enabled = true;
   ctx.moveStartTransform = null;

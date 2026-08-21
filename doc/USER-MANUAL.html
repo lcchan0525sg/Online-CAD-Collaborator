@@ -86,7 +86,7 @@
 <div class="page">
 <h1 id="cad-viewer--user-manual">CAD Viewer — User Manual</h1>
 
-<p><strong>Version:</strong> v0.83 · <strong>URL:</strong> http://localhost:8088/</p>
+<p><strong>Version:</strong> v0.85 · <strong>URL:</strong> http://localhost:8088/</p>
 
 <h2 id="table-of-contents">Table of Contents</h2>
 
@@ -317,8 +317,10 @@ together.</div>
 <p>   centre.</p>
 
 <p>The pivot is included in transform history and is synchronized atomically with</p>
-<p>the part position and rotation. The current pivot resets when the selection</p>
-<p>changes or the model is reloaded.</p>
+<p>the part position and rotation. Each part remembers its own pivot while the</p>
+<p>model is loaded, so switching selection restores that part's pivot. **Reset</p>
+<p>pivot<strong> clears only the selected part; the global </strong>Reset** clears every saved</p>
+<p>pivot, and reloading the model starts a fresh pivot map.</p>
 
 <h3 id="compact-interaction-toolbar">Compact interaction toolbar</h3>
 
@@ -643,7 +645,7 @@ together.</div>
 
 <hr>
 
-<p><em>CAD Viewer v0.83 — collaborative CAD viewing for the LAN. · <a href="CHANGELOG.md">Changelog</a></em></p>
+<p><em>CAD Viewer v0.85 — collaborative CAD viewing for the LAN. · <a href="CHANGELOG.md">Changelog</a></em></p>
 
 </div>
 </div>

@@ -88,6 +88,7 @@ export function clearModel() {
   if (typeof ctx.originalRotations !== 'undefined') ctx.originalRotations.clear();
   ctx.transformHistory.length = 0;
   ctx.transformRedo.length = 0;
+  ctx.pivotByPath.clear();
   if (ctx.rotateArc) { ctx.rotateArc.visible = false; ctx.rotateArcArrow.visible = false; }
   if (typeof ctx.moveGizmo !== 'undefined' && ctx.moveGizmo) ctx.moveGizmo.visible = false;
   ctx.scene.remove(ctx.model);

@@ -11,7 +11,7 @@ import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
-import { setPivotMode, setRotateMode, undoTransform, redoTransform } from './move.js';
+import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot } from './move.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -84,7 +84,9 @@ window.__viewer = {
   get rotateMode() { return ctx.rotateMode; },
   get pivotMode() { return ctx.pivotMode; },
   get pivot() { return ctx.customPivot ? [ctx.customPivot.x, ctx.customPivot.y, ctx.customPivot.z] : null; },
-  setPivot: (p) => { ctx.customPivot = p ? new THREE.Vector3(p[0], p[1], p[2]) : null; setPivotMode(!!p); updateMoveGizmo(); return window.__viewer.pivot; },
+  get pivotKeys() { return [...ctx.pivotByPath.keys()]; },
+  pivotFor: (key) => { const p = ctx.pivotByPath.get(key); return p ? [p.x, p.y, p.z] : null; },
+  setPivot: (p) => { ctx.customPivot = p ? new THREE.Vector3(p[0], p[1], p[2]) : null; rememberActivePivot(); setPivotMode(!!p); updateMoveGizmo(); return window.__viewer.pivot; },
   setRotate: (on) => setRotateMode(!!on),
   undoTransform: () => undoTransform(),
   redoTransform: () => redoTransform(),

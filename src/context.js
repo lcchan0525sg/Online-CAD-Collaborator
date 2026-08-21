@@ -80,6 +80,7 @@ let applyingRemoteTrans = false;
 let pendingRemoteTransKeys = [];
 
 let selectedPartKey = null;
+let selectedPartKeys = [];                 // normalized multi-selection, primary key first
 
 let applyingRemoteParts = false;
 
@@ -188,6 +189,7 @@ let moveDragging = false;
 let moveStartWorld = new THREE.Vector3();
 
 let moveStartNodePos = new THREE.Vector3();
+let moveStartGroup = null;
 let moveStartTransform = null;
 
 let movePlane = new THREE.Plane();
@@ -235,7 +237,8 @@ let rotateArc = null;                        // THREE.Line semi-circle
 let rotateArcArrow = null;                   // THREE cone at the arc end
 
 let pivotMode = false;                       // centre-handle editing mode
-let customPivot = null;                      // world-space pivot, or null = part centre
+let customPivot = null;                      // active world-space pivot, or null = part centre
+let pivotByPath = new Map();                 // path key -> saved world-space pivot
 let pivotDragging = false;
 let pivotStartWorld = new THREE.Vector3();
 let pivotStartPoint = new THREE.Vector3();
@@ -359,6 +362,7 @@ export const ctx = {
   applyingRemoteTrans,
   pendingRemoteTransKeys,
   selectedPartKey,
+  selectedPartKeys,
   applyingRemoteParts,
   pendingRemoteParts,
   applyingRemoteTree,
@@ -413,6 +417,7 @@ export const ctx = {
   moveDragging,
   moveStartWorld,
   moveStartNodePos,
+  moveStartGroup,
   moveStartTransform,
   movePlane,
   moveRay,
@@ -444,6 +449,7 @@ export const ctx = {
   rotateArcArrow,
   pivotMode,
   customPivot,
+  pivotByPath,
   pivotDragging,
   pivotStartWorld,
   pivotStartPoint,

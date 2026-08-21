@@ -31,8 +31,8 @@ ctx.renderer.domElement.addEventListener('pointerup', (e) => {
   const axis = pickGizmoAxis(e);
   if (axis) { setMoveAxis(axis); return; }
   const key = pickPartKey(e);
-  if (key) selectPart(key);              // select, or toggle off if already selected
-  else clearPartSelection();             // clicked empty space -> deselect
+  if (key) selectPart(key, false, e.ctrlKey || e.metaKey);              // select or Ctrl-toggle
+  else clearPartSelection();
 });
 
 ctx.scene.add(ctx.measureLayer);

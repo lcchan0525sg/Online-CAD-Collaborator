@@ -21,6 +21,29 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.85] — 2026-08-21
+
+### Added
+
+- Per-part custom pivot persistence across selection changes.
+- Ctrl-click multi-selection in the tree and viewport.
+- Selection synchronization with backward-compatible `keys` payloads.
+- Multi-part move deltas along the selected axis.
+
+### Changed
+
+- Undo/Redo now targets the recorded action directly; the affected part does
+  not need to remain selected.
+- Remote repeated selection messages are idempotent.
+- Global Reset clears the saved per-part pivot map; model reload also starts a
+  fresh pivot map.
+
+### Verification
+
+- Full two-client harness: **53 passed, 0 failed**.
+
+---
+
 ## [v0.83] — 2026-08-21
 
 ### Added

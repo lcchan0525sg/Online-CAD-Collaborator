@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ctx } from './context.js';
 
 import { refreshExplodeForVisibility, renderExplodeScope, rescopeExplode } from './explode.js';
-import { isPickVisible, pickPartKey, resetPivot, setMoveAxis } from './move.js';
+import { isPickVisible, pickPartKey, clearActivePivot, activatePivotForPart, setMoveAxis } from './move.js';
 import { xferToast, sendPartComment } from './session.js';
 
 export function clearPartsTree() {
@@ -75,7 +75,7 @@ export function buildPartsTree(root) {
         span.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
-          selectPart(key);
+          selectPart(key, false, e.ctrlKey || e.metaKey);
         });
         row.append(toggle, cb, span);
         row.addEventListener('contextmenu', (e) => {
@@ -270,7 +270,7 @@ export function partIsTransparent(key) {
 }
 
 export function partIsSelected(key) {
-  return !!ctx.selectedPartKey && (key === ctx.selectedPartKey || key.startsWith(ctx.selectedPartKey + '.'));
+  return ctx.selectedPartKeys.some((selected) => key === selected || key.startsWith(selected + '.'));
 }
 
 export function applyMeshMaterial(o) {
@@ -347,11 +347,14 @@ ctx.partMenuTransEl?.addEventListener('click', () => {
 });
 
 export function clearPartSelection(silent) {
-  resetPivot();
+  clearActivePivot();
   if (ctx.selectedPartKey) {
-    const prev = ctx.partRows.get(ctx.selectedPartKey);
-    if (prev) prev.row.classList.remove('sel');
+    for (const key of ctx.selectedPartKeys) {
+      const prev = ctx.partRows.get(key);
+      if (prev) prev.row.classList.remove('sel');
+    }
     ctx.selectedPartKey = null;
+    ctx.selectedPartKeys.length = 0;
     applyAllMaterials();
     if (typeof renderExplodeScope === 'function') renderExplodeScope();
     window.__selKey = null;   // dev/debug hook for headless inspection
@@ -359,16 +362,32 @@ export function clearPartSelection(silent) {
   }
 }
 
-export function selectPart(key, force) {
+export function selectPart(key, force, additive = false) {
   if (!ctx.model || !key) return;
-  if (key === ctx.selectedPartKey) {   // click again -> toggle off
-    clearPartSelection();
+  if (additive && !force) {
+    const keys = [...ctx.selectedPartKeys];
+    const at = keys.indexOf(key);
+    if (at >= 0) keys.splice(at, 1);
+    else keys.push(key);
+    if (!keys.length) { clearPartSelection(); return; }
+    clearActivePivot();
+    ctx.selectedPartKeys = keys;
+    ctx.selectedPartKey = keys[0];
+    for (const [rowKey, entry] of ctx.partRows) entry.row.classList.toggle('sel', keys.includes(rowKey));
+    applyAllMaterials();
+    if (!force) broadcastSel(ctx.selectedPartKey, keys);
+    return;
+  }
+  if (key === ctx.selectedPartKey) {
+    if (!force) clearPartSelection();
     return;
   }
   clearPartSelection(true);
   const node = nodeAtPath(ctx.model.children[0], key.split('.').map(Number));
   if (!node) return;
   ctx.selectedPartKey = key;
+  ctx.selectedPartKeys = [key];
+  activatePivotForPart(key);
   window.__selKey = key;   // dev/debug hook for headless inspection
   const row = ctx.partRows.get(key);
   if (row) row.row.classList.add('sel');
@@ -424,16 +443,22 @@ export function applyRemoteTree(msg) {
   } finally { ctx.applyingRemoteTree = false; }
 }
 
-export function broadcastSel(key) {   // key = pathKey or null (deselect)
+export function broadcastSel(key, keys = null) {
   if (!ctx.session?.connected) return;
-  try { ctx.session.ws.send(JSON.stringify({ t: 'sel', key })); } catch {}
+  try { ctx.session.ws.send(JSON.stringify({ t: 'sel', key, keys: keys || (key ? [key] : []) })); } catch {}
 }
 
 export function applyRemoteSel(msg) {
   ctx.applyingRemoteSel = true;
   try {
-    if (msg.key) selectPart(msg.key, true);
-    else clearPartSelection(true);
+    const keys = Array.isArray(msg.keys) && msg.keys.length ? msg.keys : (msg.key ? [msg.key] : []);
+    if (!keys.length) clearPartSelection(true);
+    else {
+      selectPart(keys[0], true);
+      ctx.selectedPartKeys = keys;
+      for (const [rowKey, entry] of ctx.partRows) entry.row.classList.toggle('sel', keys.includes(rowKey));
+      applyAllMaterials();
+    }
   } finally { ctx.applyingRemoteSel = false; }
 }
 

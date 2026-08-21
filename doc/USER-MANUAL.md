@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.83 · **URL:** http://localhost:8088/
+**Version:** v0.85 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -337,8 +337,10 @@ rotation centre away from the part's own centre:
    centre.
 
 The pivot is included in transform history and is synchronized atomically with
-the part position and rotation. The current pivot resets when the selection
-changes or the model is reloaded.
+the part position and rotation. Each part remembers its own pivot while the
+model is loaded, so switching selection restores that part's pivot. **Reset
+pivot** clears only the selected part; the global **Reset** clears every saved
+pivot, and reloading the model starts a fresh pivot map.
 
 ### Compact interaction toolbar
 
@@ -717,4 +719,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.83 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.85 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
