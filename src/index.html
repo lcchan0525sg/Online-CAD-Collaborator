@@ -29,6 +29,7 @@
         <div class="health-row">
           <span id="health-dot" class="health-dot" title="server status"></span>
           <span id="session-status" class="session-status">not in a session</span>
+          <span id="session-role" class="session-role" hidden></span>
         </div>
 
         <div id="session-controls">
@@ -124,12 +125,13 @@
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move part</span></label>
           <span id="move-axis" class="move-axis" title="press X / Y / Z to choose an axis, then drag to move">off</span>
-          <button class="btn" id="btn-move-undo" title="Undo last part movement" style="margin-left:auto">Undo</button>
+          <button class="btn" id="btn-move-undo" title="Undo the last part transform" style="margin-left:auto">Undo</button>
+          <button class="btn" id="btn-move-redo" title="Redo the last undone part transform">Redo</button>
           <button class="btn" id="btn-reset-pos" title="Reset all moved parts">Reset</button>
         </div>
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="measure-on"><span>Measure</span></label>
-          <span id="measure-status" class="measure-status" title="click a corner, then a second corner, to measure the distance">off</span>
+          <span id="measure-status" class="measure-status" title="Measure mode: click a first corner, then a second corner; press Esc to cancel the first point">off</span>
           <button class="btn" id="btn-measure-clear" title="Clear all measurements" style="margin-left:auto">Clear</button>
         </div>
         <div id="measure-list" class="mats" style="margin-top:4px"></div>
@@ -137,7 +139,8 @@
           <span class="tlabel explode-label">Explode</span>
           <input class="slider" type="range" id="explode-slider" min="0" max="500" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
           <span id="explode-val" class="move-axis">0 mm</span>
-          <button class="btn" id="btn-explode-reset" title="Reset the explosion and reframe the model">Reset</button>
+          <button class="btn" id="btn-explode-reset" title="Reset the explosion only">Reset</button>
+          <button class="btn" id="btn-explode-frame" title="Frame the whole model">Frame</button>
         </div>
         <div class="row toggle" style="margin-bottom:4px; align-items:center; gap:6px">
           <label class="tlabel" style="font-size:12px">Dir</label>
@@ -194,10 +197,39 @@
         <p>drag&nbsp;to orbit &middot; scroll&nbsp;to zoom &middot; right-drag&nbsp;to pan</p>
       </div>
 
+      <!-- Compact interaction toolbar: the sidebar controls remain available,
+           while this viewport affordance makes the active tool and next action
+           visible without opening a panel. -->
+      <div id="interaction-toolbar" class="interaction-toolbar" role="toolbar" aria-label="Interaction tools">
+        <div class="tool-buttons">
+          <button type="button" class="tool-btn active" data-tool="select" aria-pressed="true">Select</button>
+          <button type="button" class="tool-btn" data-tool="move" aria-pressed="false">Move</button>
+          <button type="button" class="tool-btn" data-tool="rotate" aria-pressed="false">Rotate</button>
+          <button type="button" class="tool-btn" data-tool="pivot" aria-pressed="false">Pivot</button>
+          <button type="button" class="tool-btn" data-tool="measure" aria-pressed="false">Measure</button>
+        </div>
+        <div class="tool-axis" aria-label="Transform axis">
+          <span class="tool-axis-label">Axis</span>
+          <button type="button" class="axis-btn x" data-axis="x" aria-pressed="false">X</button>
+          <button type="button" class="axis-btn y" data-axis="y" aria-pressed="false">Y</button>
+          <button type="button" class="axis-btn z" data-axis="z" aria-pressed="false">Z</button>
+        </div>
+        <span id="interaction-status" class="interaction-status" role="status" aria-live="polite">Select a part</span>
+        <span id="transform-readout" class="transform-readout" aria-live="polite"></span>
+        <div id="interaction-context" class="interaction-context" hidden>
+          <span id="selected-part-label" class="selected-part-label" title="Selected part"></span>
+          <button type="button" class="context-btn" data-part-action="hide">Hide</button>
+          <button type="button" class="context-btn" data-part-action="only">Isolate</button>
+          <button type="button" class="context-btn" data-part-action="transparent">Transparent</button>
+          <button type="button" class="context-btn" data-part-action="comment">Comment</button>
+          <button type="button" class="context-btn" data-part-action="reset-pivot">Reset pivot</button>
+        </div>
+      </div>
+
       <!-- Preset views: floating panel, top-right of the viewport -->
       <div id="view-presets" class="view-presets">
         <span class="vp-title">View</span>
-        <button type="button" class="vp-btn" data-view="iso" title="Isometric">Iso</button>
+        <button type="button" class="vp-btn" data-view="iso" aria-pressed="false" title="Isometric">Iso</button>
         <button type="button" class="vp-btn" data-view="front" title="Front">Front</button>
         <button type="button" class="vp-btn" data-view="back" title="Back">Back</button>
         <button type="button" class="vp-btn" data-view="left" title="Left">Left</button>

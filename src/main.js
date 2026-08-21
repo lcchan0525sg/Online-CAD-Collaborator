@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from './context.js';
 import './scene.js'; import './parts.js'; import './measure.js'; import './explode.js'; import './move.js'; import './session.js';
+import './interaction.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
 import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, partTransparent, selectPart, setPartTransparent, setPartVisible, showPartMenu } from './parts.js';
 import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';
@@ -10,7 +11,7 @@ import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
-import { setRotateMode } from './move.js';
+import { setPivotMode, setRotateMode, undoTransform, redoTransform } from './move.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -81,7 +82,14 @@ window.__viewer = {
   get moveAxis() { return ctx.moveAxis; },
   get gizmoVisible() { return ctx.moveGizmo.visible; },
   get rotateMode() { return ctx.rotateMode; },
+  get pivotMode() { return ctx.pivotMode; },
+  get pivot() { return ctx.customPivot ? [ctx.customPivot.x, ctx.customPivot.y, ctx.customPivot.z] : null; },
+  setPivot: (p) => { ctx.customPivot = p ? new THREE.Vector3(p[0], p[1], p[2]) : null; setPivotMode(!!p); updateMoveGizmo(); return window.__viewer.pivot; },
   setRotate: (on) => setRotateMode(!!on),
+  undoTransform: () => undoTransform(),
+  redoTransform: () => redoTransform(),
+  get transformHistoryLength() { return ctx.transformHistory.length; },
+  get transformRedoLength() { return ctx.transformRedo.length; },
   get rotateArcVisible() { return !!(ctx.rotateArc && ctx.rotateArc.visible); },
   rotateArcPoints: () => {
     const a = ctx.rotateArc;

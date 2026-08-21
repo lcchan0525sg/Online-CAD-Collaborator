@@ -164,16 +164,17 @@ export function setExplodeUi(gap) {
   ctx.explodeGap = Math.max(0, Number(gap) || 0);
   if (ctx.explodeSliderEl) ctx.explodeSliderEl.value = ctx.explodeGap;
   if (ctx.explodeValEl) ctx.explodeValEl.textContent = Math.round(ctx.explodeGap) + ' mm';
+  renderExplodeScope();
 }
 
 export function renderExplodeScope() {
   if (!ctx.explodeScopeEl) return;
   if (ctx.explodeNothing || !ctx.explodeScopeName || ctx.explodeScopeName === '—') {
-    ctx.explodeScopeEl.textContent = 'Exploding: nothing to spread (select an assembly)';
+    ctx.explodeScopeEl.textContent = 'Scope: nothing to spread · select an assembly';
     return;
   }
   const n = ctx.explodeTargets.length || (explodeScopeNode()?.children || []).filter((c) => c.name).length;
-  ctx.explodeScopeEl.textContent = `Exploding: ${ctx.explodeScopeName} — ${n} children`;
+  ctx.explodeScopeEl.textContent = `Scope: ${ctx.explodeScopeName} · ${n} children · gap ${Math.round(ctx.explodeGap)} mm · dir ${ctx.explodeDir.toUpperCase()}`;
 }
 
 export function resetExplode() {
@@ -211,9 +212,10 @@ ctx.explodeDirEl.addEventListener('change', () => {
 if (ctx.explodeResetEl) {
   ctx.explodeResetEl.addEventListener('click', () => {
     resetExplode();      // gap -> 0, restore all parts
-    frameModel();        // reframe the whole model (max view)
   });
 }
+
+document.getElementById('btn-explode-frame')?.addEventListener('click', () => frameModel());
 
 export function recomputeExplodeGap() {
   resetExplodeToResting();

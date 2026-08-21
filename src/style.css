@@ -151,6 +151,19 @@ body {
   font-size: 12px;
   color: var(--muted);
 }
+.session-status[data-state="connected"] { color: #7ee2a8; }
+.session-status[data-state="connecting"] { color: #ffd166; }
+.session-status[data-state="bad"] { color: #ff9b94; }
+.session-role {
+  margin-left: auto;
+  padding: 2px 6px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .06em;
+}
 .kick-btn {
   margin-left: auto;
   padding: 1px 7px;
@@ -480,6 +493,95 @@ body {
 #hud h1 { font-size: 18px; margin: 0; opacity: 0.92; }
 #hud p { font-size: 12px; color: var(--muted); margin: 3px 0 0; }
 
+/* Compact interaction toolbar. It is intentionally horizontal and low-profile:
+   the viewport remains the focus, while the current tool and next action stay
+   visible without forcing users back to the sidebar. */
+.interaction-toolbar {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 32px);
+  padding: 6px 8px;
+  border: 1px solid rgba(120, 140, 180, .35);
+  border-radius: 9px;
+  background: rgba(20, 24, 34, .88);
+  box-shadow: 0 5px 20px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(6px);
+  z-index: 4;
+  user-select: none;
+}
+.tool-buttons, .tool-axis { display: flex; align-items: center; gap: 4px; }
+.tool-axis { padding-left: 7px; border-left: 1px solid rgba(120, 140, 180, .35); }
+.tool-btn, .axis-btn {
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 12px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+.tool-btn:hover, .axis-btn:hover { border-color: rgba(124, 196, 255, .7); color: #fff; }
+.tool-btn.active { background: rgba(47, 125, 255, .88); border-color: #5a9cff; color: #fff; font-weight: 600; }
+.tool-axis-label { color: var(--muted); font-size: 11px; margin-right: 1px; }
+.axis-btn { min-width: 26px; padding-left: 5px; padding-right: 5px; font-weight: 700; }
+.axis-btn.x { color: #ff9b94; }
+.axis-btn.y { color: #9cf0bd; }
+.axis-btn.z { color: #9bd5ff; }
+.axis-btn.active { background: rgba(255, 255, 255, .14); border-color: currentColor; }
+.interaction-status {
+  min-width: 155px;
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.transform-readout {
+ min-width: 78px;
+ color: #ffd166;
+ font-size: 11px;
+ font-variant-numeric: tabular-nums;
+ text-align: right;
+ white-space: nowrap;
+}
+.transform-readout:empty { display: none; }
+.interaction-context {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 7px;
+  border-left: 1px solid rgba(120, 140, 180, .35);
+  min-width: 0;
+}
+.interaction-context[hidden] { display: none; }
+.selected-part-label {
+  max-width: 190px;
+  overflow: hidden;
+  color: #e7edf7;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.context-btn {
+  border: 1px solid rgba(120, 140, 180, .35);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .04);
+  color: #cbd5e1;
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.context-btn:hover { border-color: var(--accent); color: #fff; background: rgba(47, 125, 255, .24); }
+
 /* Scrollbar */
 #panel::-webkit-scrollbar { width: 10px; }
 #panel::-webkit-scrollbar-thumb { background: #2b3444; border-radius: 10px; }
@@ -578,6 +680,11 @@ body {
   #app { flex-direction: column; }
   #viewport { order: 1; height: 54vh; }
   #panel { order: 2; width: 100%; flex: 1; height: 46vh; border-right: none; border-top: 1px solid var(--line); }
+  .interaction-toolbar { bottom: 10px; gap: 4px; padding: 5px; }
+  .tool-btn, .axis-btn { padding: 5px 6px; }
+  .interaction-status { display: none; }
+  .selected-part-label { max-width: 110px; }
+  .context-btn { padding-left: 5px; padding-right: 5px; }
 }
 
 /* ---------- Floating panels over the viewport ---------- */
@@ -619,6 +726,7 @@ body {
   cursor: pointer;
 }
 #viewport .vp-btn:hover { background: rgba(37, 99, 235, 0.6); border-color: #2563eb; }
+#viewport .vp-btn.active { background: rgba(47, 125, 255, .82); border-color: #79b2ff; color: #fff; font-weight: 600; }
 
 /* Floating Parts panel (list of all parts with show/hide) */
 #viewport .floating-parts {

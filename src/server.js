@@ -336,7 +336,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, chat: [] };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, chat: [] };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -365,6 +365,8 @@ wss.on('connection', (ws, req, url) => {
   // Late joiner: replay part transparency state (key -> transparent).
   const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
   if (transKeys.length) send(ws, { t: 'trans-sync', keys: transKeys });
+  // Late joiner: replay the current part transforms, including custom pivots.
+  for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
   // Late joiner: replay the chat history.
   if (session.chat && session.chat.length) send(ws, { t: 'chat-sync', history: session.chat });
   // Let everyone else know a new member arrived (host uses this to offer its
@@ -407,6 +409,19 @@ wss.on('connection', (ws, req, url) => {
         loop: !!msg.s.loop, speed: Number(msg.s.speed),
       };
       broadcast(session, { t: 'anim', s: session.anim }, id);
+    } else if (msg.t === 'transform' && Array.isArray(msg.path)
+      && Array.isArray(msg.pos) && Array.isArray(msg.quat)) {
+      // Atomic part transform: position, rotation, and custom pivot travel
+      // together so guests never see an intermediate half-transform.
+      session.transforms = session.transforms || {};
+      const key = msg.path.join('.');
+      session.transforms[key] = {
+        path: msg.path,
+        pos: msg.pos,
+        quat: msg.quat,
+        pivot: Array.isArray(msg.pivot) ? msg.pivot : null,
+      };
+      broadcast(session, { t: 'transform', ...session.transforms[key] }, id);
     } else if (msg.t === 'move' && Array.isArray(msg.path) && Array.isArray(msg.pos)) {
       // Part move: relay the new position to the other members so everyone sees
       // the same part placement. No stored state needed (host Reset re-broadcasts).

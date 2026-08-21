@@ -7,11 +7,148 @@ import { hidePartHover, hidePartMenu, highlightHoverRow, hoverPickKey, nodeAtPat
 import { resetExplode } from './explode.js';
 import { xferToast } from './session.js';
 
+function clonePivot(pivot) { return pivot ? pivot.clone() : null; }
+
+export function captureTransform(node, path = movePathFor(node)) {
+  return {
+    path: [...path],
+    pos: node.position.clone(),
+    quat: node.quaternion.clone(),
+    pivot: clonePivot(ctx.customPivot),
+  };
+}
+
+function sameTransform(a, b) {
+  return a && b && a.pos.equals(b.pos) && a.quat.equals(b.quat)
+    && ((!a.pivot && !b.pivot) || (a.pivot && b.pivot && a.pivot.equals(b.pivot)));
+}
+
+function currentMatches(node, snapshot) {
+  if (!node || !snapshot || !node.position.equals(snapshot.pos) || !node.quaternion.equals(snapshot.quat)) return false;
+  const pivot = ctx.customPivot;
+  return (!snapshot.pivot && !pivot) || (snapshot.pivot && pivot && snapshot.pivot.equals(pivot));
+}
+
+export function recordTransform(before, after, label) {
+  if (!before || !after || sameTransform(before, after)) return;
+  ctx.transformHistory.push({ path: [...after.path], before, after, label });
+  if (ctx.transformHistory.length > ctx.TRANSFORM_HISTORY_MAX) ctx.transformHistory.shift();
+  ctx.transformRedo.length = 0;
+  updateUndoState();
+}
+
+function applyTransformSnapshot(entry, snapshot) {
+  const node = nodeAtPath(ctx.model?.children[0], snapshot.path);
+  if (!node || ctx.selectedPartKey !== snapshot.path.join('.') || !currentMatches(node, entry.expected)) return false;
+  node.position.copy(snapshot.pos);
+  node.quaternion.copy(snapshot.quat);
+  ctx.customPivot = clonePivot(snapshot.pivot);
+  node.updateMatrixWorld(true);
+  updateMoveGizmo();
+  broadcastTransform(snapshot.path, node);
+  return true;
+}
+
+export function undoTransform() {
+  if (!ctx.model || !ctx.transformHistory.length) return false;
+  const entry = ctx.transformHistory[ctx.transformHistory.length - 1];
+  entry.expected = entry.after;
+  if (!applyTransformSnapshot(entry, entry.before)) {
+    xferToast('Cannot undo: part changed remotely or is no longer selected');
+    return false;
+  }
+  ctx.transformHistory.pop();
+  ctx.transformRedo.push(entry);
+  updateUndoState();
+  xferToast(`Undid ${entry.label}`);
+  return true;
+}
+
+export function redoTransform() {
+  if (!ctx.model || !ctx.transformRedo.length) return false;
+  const entry = ctx.transformRedo[ctx.transformRedo.length - 1];
+  entry.expected = entry.before;
+  if (!applyTransformSnapshot(entry, entry.after)) {
+    xferToast('Cannot redo: part changed remotely or is no longer selected');
+    return false;
+  }
+  ctx.transformRedo.pop();
+  ctx.transformHistory.push(entry);
+  updateUndoState();
+  xferToast(`Redid ${entry.label}`);
+  return true;
+}
+
+export function updateUndoState() {
+  const undo = document.getElementById('btn-move-undo');
+  const redo = document.getElementById('btn-move-redo');
+  if (undo) undo.disabled = !(ctx.transformHistory && ctx.transformHistory.length);
+  if (redo) redo.disabled = !(ctx.transformRedo && ctx.transformRedo.length);
+}
+
+export function undoLastMove() { return undoTransform(); }
+
+export function redoLastMove() { return redoTransform(); }
+
 export function movableNode() {
   if (!ctx.model || !ctx.selectedPartKey) return null;
   const root = ctx.model.children[0];
   // Move the highlighted node itself (not its whole assembly ancestor).
   return nodeAtPath(root, ctx.selectedPartKey.split('.').map(Number));
+}
+
+export function pivotWorld(node = movableNode()) {
+  if (ctx.customPivot) return ctx.customPivot.clone();
+  return node ? node.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3();
+}
+
+export function buildPivotHandle() {
+  if (ctx.pivotHandle) return ctx.pivotHandle;
+  const handle = new THREE.Group();
+  handle.userData.kind = 'pivotHandle';
+  handle.renderOrder = 20;
+  const makeLine = (axis, color) => {
+    const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0)
+      : axis === 'y' ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      dir.clone().multiplyScalar(-0.14), dir.clone().multiplyScalar(0.14),
+    ]);
+    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.62, depthTest: false });
+    const line = new THREE.Line(geometry, material);
+    line.userData.pivotVisual = true;
+    line.renderOrder = 21;
+    handle.add(line);
+  };
+  makeLine('x', 0xff7b72);
+  makeLine('y', 0x7ee2a8);
+  makeLine('z', 0x7cc4ff);
+  const dot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.025, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.9, depthTest: false }));
+  dot.userData.pivotVisual = true;
+  dot.renderOrder = 22;
+  handle.add(dot);
+  handle.visible = false;
+  ctx.moveGizmo.add(handle);
+  ctx.pivotHandle = handle;
+  return handle;
+}
+
+export function setPivotMode(on) {
+  ctx.pivotMode = !!on;
+  if (!ctx.pivotMode) ctx.pivotDragging = false;
+  if (ctx.pivotHandle) {
+    ctx.pivotHandle.traverse((child) => {
+      if (child.material) child.material.opacity = ctx.pivotMode ? 0.9 : 0.35;
+    });
+  }
+}
+
+export function resetPivot() {
+  ctx.customPivot = null;
+  setPivotMode(false);
+  updateMoveGizmo();
+  window.dispatchEvent(new CustomEvent('viewer-pivot', { detail: { pivot: null } }));
 }
 
 export function setMoveAxis(a) {
@@ -42,6 +179,30 @@ export function broadcastRot(path, quat) {
   try { ctx.session.ws.send(JSON.stringify({ t: 'rot', path, quat: [quat.x, quat.y, quat.z, quat.w] })); } catch {}
 }
 
+export function broadcastTransform(path, node) {
+  if (!ctx.session?.connected || !node) return;
+  const pivot = ctx.customPivot ? [ctx.customPivot.x, ctx.customPivot.y, ctx.customPivot.z] : null;
+  try {
+    ctx.session.ws.send(JSON.stringify({
+      t: 'transform', path,
+      pos: [node.position.x, node.position.y, node.position.z],
+      quat: [node.quaternion.x, node.quaternion.y, node.quaternion.z, node.quaternion.w],
+      pivot,
+    }));
+  } catch {}
+}
+
+export function applyRemoteTransform(msg) {
+  if (!ctx.model || !Array.isArray(msg.path) || !Array.isArray(msg.pos) || !Array.isArray(msg.quat)) return;
+  const node = nodeAtPath(ctx.model.children[0], msg.path);
+  if (!node) return;
+  node.position.set(msg.pos[0], msg.pos[1], msg.pos[2]);
+  node.quaternion.set(msg.quat[0], msg.quat[1], msg.quat[2], msg.quat[3]);
+  node.updateMatrixWorld(true);
+  if (Array.isArray(msg.pivot) && msg.pivot.length === 3) ctx.customPivot = new THREE.Vector3(...msg.pivot);
+  else ctx.customPivot = null;
+}
+
 export function applyRemoteRot(msg) {
   if (!ctx.model || !Array.isArray(msg.path) || !Array.isArray(msg.quat)) return;
   const node = nodeAtPath(ctx.model.children[0], msg.path);
@@ -60,6 +221,7 @@ export function applyRemoteMove(msg) {
 
 export function resetPartPositions() {
   if (!ctx.model) return;
+  resetPivot();
   // Collapse the exploded view first so parts return to their resting positions
   // before the baseline positions are restored.
   if (typeof resetExplode === 'function') resetExplode();
@@ -83,9 +245,9 @@ export function resetPartPositions() {
     node.updateMatrixWorld(true);
     broadcastRot(path.split('.').map(Number), orig);
   }
-  // Reset also clears the undo history — positions/rotations back to baseline.
-  ctx.moveHistory.length = 0;
-  ctx.rotHistory.length = 0;
+  // Reset also clears the unified transform history.
+  ctx.transformHistory.length = 0;
+  ctx.transformRedo.length = 0;
   setRotateMode(false);
   updateUndoState();
   xferToast('Part positions reset');
@@ -190,6 +352,59 @@ function pointerAngle(e) {
   return Math.atan2(d.dot(v), d.dot(u));
 }
 
+export function pickPivotHandle(e) {
+  if (!ctx.pivotMode || !ctx.pivotHandle?.visible) return false;
+  const r = ctx.renderer.domElement.getBoundingClientRect();
+  const p = ctx.pivotHandle.getWorldPosition(new THREE.Vector3()).project(ctx.camera);
+  const sx = (p.x * 0.5 + 0.5) * r.width;
+  const sy = (-p.y * 0.5 + 0.5) * r.height;
+  return Math.hypot(e.clientX - r.left - sx, e.clientY - r.top - sy) < 22;
+}
+
+ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0 || !ctx.pivotMode || !pickPivotHandle(e)) return;
+  const node = movableNode();
+  if (!node) return;
+  ctx.pivotDragging = true;
+  ctx.pivotStartTransform = captureTransform(node);
+  ctx.controls.enabled = false;
+  ctx.pivotHandle.traverse((child) => { if (child.material) child.material.opacity = 1; });
+  ctx.pivotStartWorld.copy(pivotWorld(node));
+  ctx.movePlane.setFromNormalAndCoplanarPoint(
+    ctx.camera.getWorldDirection(new THREE.Vector3()).clone().negate(), ctx.pivotStartWorld);
+  moveRayToPlane(e, ctx.pivotStartPoint);
+});
+
+ctx.renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!ctx.pivotDragging) return;
+  const node = movableNode();
+  const pt = moveRayToPlane(e);
+  if (!node || !pt) return;
+  const delta = pt.clone().sub(ctx.pivotStartPoint);
+  if (ctx.moveAxis) {
+    const axis = ctx.moveAxis === 'x' ? new THREE.Vector3(1, 0, 0)
+      : ctx.moveAxis === 'y' ? new THREE.Vector3(0, 1, 0)
+      : new THREE.Vector3(0, 0, 1);
+    delta.copy(axis.multiplyScalar(delta.dot(axis)));
+  }
+  ctx.customPivot = ctx.pivotStartWorld.clone().add(delta);
+  updateMoveGizmo();
+  broadcastTransform(movePathFor(node), node);
+});
+
+export function endPivotDrag() {
+  if (!ctx.pivotDragging) return;
+  ctx.pivotDragging = false;
+  ctx.controls.enabled = true;
+  const node = movableNode();
+  if (node && ctx.pivotStartTransform) recordTransform(ctx.pivotStartTransform, captureTransform(node), 'pivot adjustment');
+  ctx.pivotStartTransform = null;
+  if (ctx.pivotHandle) ctx.pivotHandle.traverse((child) => { if (child.material) child.material.opacity = 0.9; });
+}
+
+ctx.renderer.domElement.addEventListener('pointerup', endPivotDrag);
+ctx.renderer.domElement.addEventListener('pointercancel', endPivotDrag);
+
 ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
   if (e.button !== 0 || !ctx.rotateArc?.visible || !ctx.rotateMode || !ctx.moveOnChk.checked) return;
   if (!pickRotateArc(e)) return;
@@ -197,9 +412,12 @@ ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
   if (!node) return;
   ctx.rotating = true;
   ctx.controls.enabled = false;
-  // Rotation axis in the node's parent-local frame (node rotates about its own center).
-  ctx.rotCenter.copy(node.getWorldPosition(new THREE.Vector3()));
-  ctx.rotAxisVec.set(0, 0, 1);
+  ctx.rotStartTransform = captureTransform(node);
+  // Rotation is applied around the editable gizmo pivot, not automatically
+  // around the part's own centre.
+  ctx.rotCenter.copy(pivotWorld(node));
+  ctx.rotStartWorldMatrix.copy(node.matrixWorld);
+
   if (ctx.moveAxis === 'x') ctx.rotAxisVec.set(1, 0, 0);
   else if (ctx.moveAxis === 'y') ctx.rotAxisVec.set(0, 1, 0);
   const cL = node.parent.worldToLocal(ctx.rotCenter.clone());
@@ -216,26 +434,44 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   const node = movableNode();
   if (!node) return;
   const delta = a - ctx.rotStartAngle;
-  // PRE-multiply the delta so it's applied in the part's parent frame (the axis
-  // rotLocalAxis is expressed there). Post-multiplying would rotate around the
-  // part's own tilted local frame, giving the wrong axis for already-rotated
-  // parts or parts under a rotated assembly.
-  node.quaternion.copy(new THREE.Quaternion().setFromAxisAngle(ctx.rotLocalAxis, delta))
-    .multiply(ctx.rotStartQuat);
+  // Build a world-space rotation about the custom pivot, then decompose back
+  // into the selected node's parent-local transform.
+  const around = new THREE.Matrix4()
+    .makeTranslation(ctx.rotCenter.x, ctx.rotCenter.y, ctx.rotCenter.z)
+    .multiply(new THREE.Matrix4().makeRotationAxis(ctx.rotAxisVec, delta))
+    .multiply(new THREE.Matrix4().makeTranslation(-ctx.rotCenter.x, -ctx.rotCenter.y, -ctx.rotCenter.z));
+  const world = around.multiply(ctx.rotStartWorldMatrix);
+  const local = node.parent.matrixWorld.clone().invert().multiply(world);
+  local.decompose(node.position, node.quaternion, node.scale);
   node.updateMatrixWorld(true);
-  broadcastRot(movePathFor(node), node.quaternion);
+  broadcastTransform(movePathFor(node), node);
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', value: delta } }));
 });
 
 export function endRotateDrag() {
   if (!ctx.rotating) return;
   ctx.rotating = false;
   ctx.controls.enabled = true;
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', state: 'done' } }));
   const node = movableNode();
-  if (node && ctx.moveHistory && !node.quaternion.equals(ctx.rotStartQuat)) {
-    ctx.moveHistory.push({ path: movePathFor(node), kind: 'rot', from: ctx.rotStartQuat.clone(), to: node.quaternion.clone() });
-    if (ctx.moveHistory.length > ctx.MOVE_HISTORY_MAX) ctx.moveHistory.shift();
-    updateUndoState();
+  if (node && ctx.rotStartTransform) recordTransform(ctx.rotStartTransform, captureTransform(node), 'part rotation');
+  ctx.rotStartTransform = null;
+}
+
+// Abort an in-progress rotation and restore its starting quaternion. The live
+// drag broadcasts intermediate rotations, so the restored value is broadcast.
+export function cancelRotateDrag() {
+  if (!ctx.rotating) return;
+  const node = movableNode();
+  if (node) {
+    node.quaternion.copy(ctx.rotStartQuat);
+    node.updateMatrixWorld(true);
+    broadcastRot(movePathFor(node), node.quaternion);
   }
+  ctx.rotating = false;
+  ctx.controls.enabled = true;
+  ctx.rotStartTransform = null;
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'rotate', state: 'cancelled' } }));
 }
 
 export function moveRayToPlane(e, out) {
@@ -246,13 +482,14 @@ export function moveRayToPlane(e, out) {
 }
 
 ctx.renderer.domElement.addEventListener('pointerdown', (e) => {
-  if (e.button !== 0 || !ctx.moveAxis || !ctx.moveOnChk.checked) return;
+  if (e.button !== 0 || ctx.pivotMode || !ctx.moveAxis || !ctx.moveOnChk.checked) return;
   // If rotate is armed and the click landed on the rotate arc, that's a rotate
   // gesture, not a move — don't start a move drag.
   if (ctx.rotateMode && pickRotateArc(e)) return;
   const node = movableNode();
   if (!node) return;
   ctx.moveDragging = true;
+  ctx.moveStartTransform = captureTransform(node);
   ctx.moveStartWorld.copy(node.getWorldPosition(ctx._mv2));
   ctx.moveStartNodePos.copy(node.position);
   ctx.controls.enabled = false;   // move instead of orbit while dragging
@@ -279,48 +516,34 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   node.position.copy(worldPos);
   node.updateMatrixWorld(true);
   broadcastMove(movePathFor(node), node.position);
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', value: node.position.distanceTo(ctx.moveStartNodePos) } }));
 });
 
 export function endMoveDrag() {
   if (!ctx.moveDragging) return;
   ctx.moveDragging = false;
   ctx.controls.enabled = true;
-  // Record this drag gesture as one movement (from the drag-start position).
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', state: 'done' } }));
   const node = movableNode();
-  if (node && ctx.moveHistory) {
-    const path = movePathFor(node);
-    const to = node.position.clone();
-    if (!to.equals(ctx.moveStartNodePos)) {
-      ctx.moveHistory.push({ path, kind: 'move', from: ctx.moveStartNodePos.clone(), to });
-      if (ctx.moveHistory.length > ctx.MOVE_HISTORY_MAX) ctx.moveHistory.shift();
-      updateUndoState();
-    }
+  if (node && ctx.moveStartTransform) {
+    recordTransform(ctx.moveStartTransform, captureTransform(node), 'part movement');
   }
+  ctx.moveStartTransform = null;
 }
 
-export function updateUndoState() {
-  const btn = document.getElementById('btn-move-undo');
-  if (btn) btn.disabled = !(ctx.moveHistory && ctx.moveHistory.length);
-}
-
-export function undoLastMove() {
-  if (!ctx.model || !ctx.moveHistory || !ctx.moveHistory.length) return;
-  const entry = ctx.moveHistory.pop();
-  const node = nodeAtPath(ctx.model.children[0], entry.path);
+// Abort an in-progress move and restore the drag-start position.
+export function cancelMoveDrag() {
+  if (!ctx.moveDragging) return;
+  const node = movableNode();
   if (node) {
-    if (entry.kind === 'rot') {
-      node.quaternion.copy(entry.from);
-      node.updateMatrixWorld(true);
-      broadcastRot(entry.path, node.quaternion);
-      xferToast('Undid part rotation');
-    } else {
-      node.position.copy(entry.from);
-      node.updateMatrixWorld(true);
-      broadcastMove(entry.path, node.position);
-      xferToast('Undid part movement');
-    }
+    node.position.copy(ctx.moveStartNodePos);
+    node.updateMatrixWorld(true);
+    broadcastMove(movePathFor(node), node.position);
   }
-  updateUndoState();
+  ctx.moveDragging = false;
+  ctx.controls.enabled = true;
+  ctx.moveStartTransform = null;
+  window.dispatchEvent(new CustomEvent('viewer-transform', { detail: { kind: 'move', state: 'cancelled' } }));
 }
 
 ctx.renderer.domElement.addEventListener('pointerup', endMoveDrag);
@@ -393,20 +616,22 @@ ctx.renderer.domElement.addEventListener('contextmenu', (e) => {
   else hidePartMenu();
 });
 
-document.addEventListener('keydown', (e) => {
-  if (!ctx.moveOnChk?.checked) return;
-  const k = e.key.toLowerCase();
-  if (k === 'x' || k === 'y' || k === 'z') { setMoveAxis(k); setRotateMode(false); }
-  else if (k === 'r') { setRotateMode(ctx.moveAxis ? !ctx.rotateMode : false); }
-});
-
 ctx.moveOnChk.addEventListener('change', () => {
   if (!ctx.moveOnChk.checked) { setMoveAxis(null); setRotateMode(false); }
 });
 
 document.getElementById('btn-reset-pos').addEventListener('click', resetPartPositions);
 
-document.getElementById('btn-move-undo').addEventListener('click', undoLastMove);
+document.getElementById('btn-move-undo').addEventListener('click', undoTransform);
+document.getElementById('btn-move-redo').addEventListener('click', redoTransform);
+
+document.addEventListener('keydown', (e) => {
+  const tag = e.target?.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || e.target?.isContentEditable) return;
+  if (!(e.ctrlKey || e.metaKey)) return;
+  if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undoTransform(); }
+  else if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { e.preventDefault(); redoTransform(); }
+});
 
 export function makeArrow(axis) {
   const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0)
@@ -424,20 +649,23 @@ export function makeArrow(axis) {
 }
 
 export function updateMoveGizmo() {
+  buildPivotHandle();
   const node = movableNode();
   const on = !!(ctx.moveOnChk?.checked && node);
   ctx.moveGizmo.visible = on;
+  if (ctx.pivotHandle) ctx.pivotHandle.visible = on && ctx.pivotMode;
   if (!on) return;
   const p = node.getWorldPosition(new THREE.Vector3());
+  const pivot = pivotWorld(node);
   // Size the gizmo to ~1/8 of the viewport height at its depth, so it stays a
   // constant screen fraction: the bigger the zoom (closer camera), the smaller
   // the gizmo. World height visible at distance d = 2*d*tan(fov/2).
-  const d = ctx.camera.position.distanceTo(p);
+  const d = ctx.camera.position.distanceTo(pivot);
   const visH = 2 * d * Math.tan(THREE.MathUtils.degToRad(ctx.camera.fov / 2));
   const base = visH / 8;   // 1/8 of screen height
   ['x', 'y', 'z'].forEach((axis) => {
     const arrow = ctx.moveGizmoArrows[axis];
-    arrow.position.copy(p);
+    arrow.position.copy(pivot);
     arrow.scale.setScalar(base / 0.5);
     arrow.visible = true;
     arrow.line.material.opacity = (ctx.moveAxis === axis) ? 1 : 0.35;
@@ -451,10 +679,10 @@ export function updateMoveGizmo() {
       : new THREE.Vector3(0, 0, 1);
     ctx.rotateArc.visible = true;
     ctx.rotateArc.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axisVec);
-    ctx.rotateArc.position.copy(p);
+    ctx.rotateArc.position.copy(pivot);
     ctx.rotateArc.scale.setScalar(base / 0.5);
     ctx.rotateArcArrow.visible = true;
-    ctx.rotateArcArrow.position.copy(new THREE.Vector3(0.5, 0, 0).applyQuaternion(ctx.rotateArc.quaternion)).add(p);
+    ctx.rotateArcArrow.position.copy(new THREE.Vector3(0.5, 0, 0).applyQuaternion(ctx.rotateArc.quaternion)).add(pivot);
     ctx.rotateArcArrow.quaternion.copy(ctx.rotateArc.quaternion)
       .multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2));
     ctx.rotateArcArrow.scale.setScalar(base / 0.5);
@@ -462,6 +690,8 @@ export function updateMoveGizmo() {
     ctx.rotateArc.visible = false;
     ctx.rotateArcArrow.visible = false;
   }
+  ctx.pivotHandle.position.copy(pivot);
+  ctx.pivotHandle.scale.setScalar(base / 0.5);
   ctx.moveGizmoActive = ctx.moveAxis;
 }
 

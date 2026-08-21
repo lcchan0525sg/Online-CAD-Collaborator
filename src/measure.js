@@ -44,7 +44,9 @@ export function setMeasureStatus(txt, active) {
 }
 
 export function updateMeasureStatus() {
-  setMeasureStatus(ctx.measureOn ? 'on' : 'off', ctx.measureOn);
+  if (!ctx.measureOn) setMeasureStatus('off', false);
+  else if (ctx.measureP1) setMeasureStatus('second point', true);
+  else setMeasureStatus('first point', true);
 }
 
 export function formatMm(v) {
@@ -64,8 +66,14 @@ export function measureDotSize() {
 ctx.measureOnChk.addEventListener('change', () => {
   ctx.measureOn = ctx.measureOnChk.checked;
   if (ctx.measureOn && ctx.moveOnChk.checked) { ctx.moveOnChk.checked = false; setMoveAxis(null); }
-  if (!ctx.measureOn) measureClear();
-  else measureEnsureVisuals();
+  // Leaving the tool cancels only an unfinished two-point operation. Completed
+  // measurements remain visible so switching to Select/Move does not destroy
+  // useful inspection results.
+  if (!ctx.measureOn) {
+    ctx.measureP1 = null;
+    if (ctx.measureP1Dot) ctx.measureP1Dot.visible = false;
+    clearHoverGlow();
+  } else measureEnsureVisuals();
   updateMeasureStatus();
 });
 
@@ -169,10 +177,28 @@ export function pickNearestCorner(clientX, clientY) {
 }
 
 export function makeMeasureDot(color, size) {
-  const g = new THREE.SphereGeometry(size, 12, 12);
-  const m = new THREE.MeshBasicMaterial({ color, depthTest: false });
-  const dot = new THREE.Mesh(g, m);
+  const dot = new THREE.Group();
+  dot.userData.kind = 'measureMarker';
   dot.renderOrder = 10;
+  const makeLine = (axis) => {
+    const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0)
+      : axis === 'y' ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
+    const geometry = new THREE.BufferGeometry().setFromPoints([
+      dir.clone().multiplyScalar(-size), dir.clone().multiplyScalar(size),
+    ]);
+    const material = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.52, depthTest: false });
+    const line = new THREE.Line(geometry, material);
+    line.renderOrder = 11;
+    dot.add(line);
+  };
+  makeLine('x');
+  makeLine('y');
+  makeLine('z');
+  const centre = new THREE.Mesh(
+    new THREE.SphereGeometry(Math.max(size * 0.18, 0.004), 8, 6),
+    new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.82, depthTest: false }));
+  centre.renderOrder = 12;
+  dot.add(centre);
   return dot;
 }
 
@@ -381,7 +407,7 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   ctx.measureGlow.visible = true;
   if (ctx.measureP1) {
     const mm = formatMm(ctx.measureP1.distanceTo(c));
-    ctx.measureLabelEl.textContent = mm;
+    ctx.measureLabelEl.textContent = 'Distance: ' + mm;
     const sp = c.clone().project(ctx.camera);
     const r = ctx.renderer.domElement.getBoundingClientRect();
     ctx.measureLabelEl.style.left = (r.left + (sp.x * 0.5 + 0.5) * r.width) + 'px';

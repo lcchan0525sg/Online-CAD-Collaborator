@@ -7,7 +7,7 @@ import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } fr
 import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync } from './measure.js';
 import { applyRemoteExplode } from './explode.js';
-import { applyRemoteMove, applyRemoteRot } from './move.js';
+import { applyRemoteMove, applyRemoteRot, applyRemoteTransform } from './move.js';
 
 export function onModelAck(from) {
   ctx.ackedSend.add(from);
@@ -34,7 +34,15 @@ export function sendModelAck(note) {
   if (ctx.session?.ws?.readyState === 1) { try { ctx.session.ws.send(JSON.stringify({ t: 'model-ack', note })); } catch {} }
 }
 
-export function setSessionStatus(text) { if (ctx.sessionStatusEl) ctx.sessionStatusEl.textContent = text; }
+export function setSessionStatus(text) {
+  if (!ctx.sessionStatusEl) return;
+  ctx.sessionStatusEl.textContent = text;
+  const state = /^connected/.test(text) ? 'connected'
+    : /^connecting/.test(text) ? 'connecting'
+      : /disconnected|could not|removed|left/.test(text) ? 'bad' : '';
+  if (state) ctx.sessionStatusEl.dataset.state = state;
+  else delete ctx.sessionStatusEl.dataset.state;
+}
 
 export function setHealth(state) {
   if (!ctx.healthDot) return;
@@ -190,6 +198,8 @@ export function showSessionUI(active, code) {
   if (!ctx.sessionControlsEl || !ctx.sessionActiveEl) return;
   ctx.sessionControlsEl.hidden = active;
   ctx.sessionActiveEl.hidden = !active;
+  const roleEl = document.getElementById('session-role');
+  if (roleEl && !active) { roleEl.hidden = true; roleEl.textContent = ''; }
   // The chat window opens by default when entering a session (create or join),
   // so members can talk immediately. It can be closed and reopened via the Chat
   // button / ✕.
@@ -302,6 +312,8 @@ export function onSessionMsg(msg) {
       ctx.session.connected = true;
       ctx.roster = msg.roster;
       setSessionStatus(`connected${msg.isHost ? ' · host' : ''}`);
+      const roleEl = document.getElementById('session-role');
+      if (roleEl) { roleEl.textContent = msg.isHost ? 'HOST' : 'GUEST'; roleEl.hidden = false; }
       showSessionUI(true, msg.session);
       renderRoster();
       // Host opened a model BEFORE the session existed (or while connecting):
@@ -360,6 +372,9 @@ export function onSessionMsg(msg) {
       break;
     case 'move':
       applyRemoteMove(msg);
+      break;
+    case 'transform':
+      applyRemoteTransform(msg);
       break;
     case 'rot':
       applyRemoteRot(msg);

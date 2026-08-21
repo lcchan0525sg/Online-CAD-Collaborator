@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { ctx } from './context.js';
 
 import { refreshExplodeForVisibility, renderExplodeScope, rescopeExplode } from './explode.js';
-import { isPickVisible, pickPartKey, setMoveAxis } from './move.js';
+import { isPickVisible, pickPartKey, resetPivot, setMoveAxis } from './move.js';
 import { xferToast, sendPartComment } from './session.js';
 
 export function clearPartsTree() {
@@ -347,6 +347,7 @@ ctx.partMenuTransEl?.addEventListener('click', () => {
 });
 
 export function clearPartSelection(silent) {
+  resetPivot();
   if (ctx.selectedPartKey) {
     const prev = ctx.partRows.get(ctx.selectedPartKey);
     if (prev) prev.row.classList.remove('sel');

@@ -188,6 +188,7 @@ let moveDragging = false;
 let moveStartWorld = new THREE.Vector3();
 
 let moveStartNodePos = new THREE.Vector3();
+let moveStartTransform = null;
 
 let movePlane = new THREE.Plane();
 
@@ -197,9 +198,10 @@ const _mv = new THREE.Vector3(), _mv2 = new THREE.Vector3();
 
 let originalPositions = new Map();   // path -> THREE.Vector3 (node.position at load)
 
-let moveHistory = [];                 // recent movements [{ path, from, to }] (cap 200)
+let transformHistory = [];            // committed local transforms, newest last
+let transformRedo = [];               // undone transforms available for redo
 
-const MOVE_HISTORY_MAX = 200;
+const TRANSFORM_HISTORY_MAX = 200;
 
 const _planePt = new THREE.Vector3();     // current ray/plane intersection
 
@@ -224,13 +226,22 @@ let rotateMode = false;            // R pressed — rotate armed
 let rotating = false;              // actively rotating
 let rotStartAngle = 0;             // pointer angle around axis at drag start
 let rotStartQuat = new THREE.Quaternion();   // node.quaternion at drag start
+let rotStartTransform = null;
 let rotLocalAxis = new THREE.Vector3();      // rotation axis in node.parent's frame
 let rotCenter = new THREE.Vector3();         // world center of rotation (= node world pos)
 let rotAxisVec = new THREE.Vector3();        // world rotation axis unit vector
 let originalRotations = new Map();           // path -> THREE.Quaternion (node.quaternion at load)
-let rotHistory = [];                         // [{ path, kind:'rot', from, to }] quaternions
 let rotateArc = null;                        // THREE.Line semi-circle
 let rotateArcArrow = null;                   // THREE cone at the arc end
+
+let pivotMode = false;                       // centre-handle editing mode
+let customPivot = null;                      // world-space pivot, or null = part centre
+let pivotDragging = false;
+let pivotStartWorld = new THREE.Vector3();
+let pivotStartPoint = new THREE.Vector3();
+let pivotStartTransform = null;
+let pivotHandle = null;
+let rotStartWorldMatrix = new THREE.Matrix4();
 
 const measureOnChk = document.getElementById('measure-on');
 
@@ -402,13 +413,15 @@ export const ctx = {
   moveDragging,
   moveStartWorld,
   moveStartNodePos,
+  moveStartTransform,
   movePlane,
   moveRay,
   _mv,
   _mv2,
   originalPositions,
-  moveHistory,
-  MOVE_HISTORY_MAX,
+  transformHistory,
+  transformRedo,
+  TRANSFORM_HISTORY_MAX,
   _planePt,
   moveStartPlanePt,
   pickRay,
@@ -422,13 +435,21 @@ export const ctx = {
   rotating,
   rotStartAngle,
   rotStartQuat,
+  rotStartTransform,
   rotLocalAxis,
   rotCenter,
   rotAxisVec,
   originalRotations,
-  rotHistory,
   rotateArc,
   rotateArcArrow,
+  pivotMode,
+  customPivot,
+  pivotDragging,
+  pivotStartWorld,
+  pivotStartPoint,
+  pivotStartTransform,
+  pivotHandle,
+  rotStartWorldMatrix,
   measureOnChk,
   measureStatusEl,
   measureClearBtn,

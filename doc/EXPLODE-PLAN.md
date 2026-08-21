@@ -1,6 +1,6 @@
 # Explode — Selection-Driven Scope (Plan)
 
-**Status:** Approved proposal — implement on next work session.
+**Status:** Historical plan — the Explode feature and the follow-up modularization have landed. Keep the implementation notes below as design history.
 **Scope constraint:** Touch **only** the explode code. Do not change any other
 feature (tree, selection, materials/transparency, measure, chat, sync plumbing).
 
@@ -181,5 +181,82 @@ block ports cleanly and we never refactor a moving target.
 
 ---
 
-*Plan for the next work session. Implement explode changes only; modularization
-(§11) is the follow-up.*
+*Historical plan. The implementation is now modular; the remaining interaction work is tracked below.*
+
+---
+
+## 12. Current development checkpoint — continue here
+
+### Working state
+
+- Project: `C:/Users/chan_/Projects/cad-viewer-web`
+- Branch: `custom-pivot-v084`
+- Changes are intentionally **uncommitted and unmerged** for user review.
+- The development server was stopped at the end of the last session.
+- Existing untracked CAD sample files under `cad-samples/` and `src/` are pre-existing
+  working files; do not stage or delete them without an explicit decision.
+
+### Completed interaction-polish work
+
+The current branch contains and has verified:
+
+- Unified Select / Move / Rotate / Pivot / Measure toolbar.
+- Esc cancellation and transform completion/cancellation feedback.
+- Contextual selected-part toolbar with Hide, Isolate, Transparent, Comment,
+  and Reset pivot.
+- Custom pivot editing with a lightweight crosshair marker.
+- Rotation around a custom pivot, including position + quaternion synchronization.
+- Atomic `transform` WebSocket messages and late-joiner transform replay.
+- Compact crosshair measurement markers with preserved corner snapping.
+- Explicit first-point / second-point measurement status and distance preview.
+- Explicit Explode scope, child count, gap, and direction readout.
+- Explode Reset separated from explicit camera Frame.
+- Active preset-view highlighting cleared by manual camera movement.
+- Session connection-state colors and HOST / GUEST badges.
+
+### Latest verification
+
+Run from the project directory:
+
+```bash
+for f in src/main.js src/context.js src/scene.js src/parts.js src/measure.js src/explode.js src/move.js src/session.js src/interaction.js src/server.js; do node --check "$f" || exit 1; done
+node _v082_test.cjs
+```
+
+Latest result: **39 passed, 0 failed**. Also run `git diff --check` before any
+commit.
+
+### Next-session startup
+
+1. Check the branch and working tree:
+
+   ```bash
+   git status --short --branch
+   git diff --check
+   ```
+
+2. Start the review server:
+
+   ```bash
+   node src/server.js cad/conv!
+   ```
+
+3. Open `http://localhost:8088/` and manually review:
+   - Pivot crosshair placement on small geometry.
+   - Rotate-around-pivot behavior and Reset pivot.
+   - Measurement crosshair and first/second-point workflow.
+   - Explode Reset versus Frame behavior.
+   - Active preset state after manual orbit.
+   - HOST/GUEST status badges in a two-client session.
+
+4. Collect user feedback before adding another feature. Do not update the manual
+   or release notes until the interaction design is accepted.
+
+### Likely next decisions
+
+- Accept the current interaction-polish branch and create one checkpoint commit, or
+  revise any marker/toolbar behavior found during manual testing.
+- Decide whether custom pivots should persist per part rather than resetting on
+  selection change.
+- Decide whether to add transform undo/redo coverage for custom-pivot rotations.
+- Only after those decisions, update `doc/CHANGELOG.md` and `doc/USER-MANUAL.md`.

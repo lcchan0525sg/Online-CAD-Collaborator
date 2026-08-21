@@ -86,7 +86,8 @@ export function clearModel() {
   if (typeof setRotateMode === 'function') setRotateMode(false);
   if (typeof ctx.originalPositions !== 'undefined') ctx.originalPositions.clear();
   if (typeof ctx.originalRotations !== 'undefined') ctx.originalRotations.clear();
-  ctx.moveHistory.length = 0;
+  ctx.transformHistory.length = 0;
+  ctx.transformRedo.length = 0;
   if (ctx.rotateArc) { ctx.rotateArc.visible = false; ctx.rotateArcArrow.visible = false; }
   if (typeof ctx.moveGizmo !== 'undefined' && ctx.moveGizmo) ctx.moveGizmo.visible = false;
   ctx.scene.remove(ctx.model);
@@ -126,6 +127,7 @@ export function frameModel() {
   ctx.camera.far = dist * 1000;
   ctx.camera.updateProjectionMatrix();
   ctx.controls.update();
+  setActivePreset(null);
 
   // grid + shadow light sized to the model
   const g = maxDim * 3;
@@ -136,6 +138,21 @@ export function frameModel() {
   ctx.key.shadow.camera.far = g * 6;
   ctx.key.shadow.camera.updateProjectionMatrix();
 }
+
+let presetApplying = false;
+const presetButtons = [...document.querySelectorAll('#view-presets .vp-btn')];
+
+function setActivePreset(view) {
+  for (const button of presetButtons) {
+    const active = !!view && button.dataset.view === view;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+}
+
+ctx.controls.addEventListener('change', () => {
+  if (!presetApplying) setActivePreset(null);
+});
 
 // Standard preset views (front/back/left/right/top/bottom/iso) around the model.
 export function setPresetView(view) {
@@ -156,7 +173,10 @@ export function setPresetView(view) {
   }
   ctx.camera.up.copy(up);
   ctx.camera.position.copy(pos);
+  presetApplying = true;
   ctx.controls.update();
+  presetApplying = false;
+  setActivePreset(view);
 }
 
 document.querySelectorAll('#view-presets .vp-btn').forEach((b) => {
