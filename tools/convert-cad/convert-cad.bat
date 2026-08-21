@@ -1,7 +1,7 @@
 @echo off
 rem convert-cad — Windows launcher for the standalone STEP/IGES/STL -> GLB/GLTF tool.
-rem Requires: node.exe on PATH. Docker is the default; use --backend native
-rem with a Python/OCP environment to run without Docker.
+rem Requires: node.exe on PATH and a Python/OCP environment. Set CAD_PYTHON
+rem or pass --python to select the native interpreter.
 rem
 rem Usage:
 rem   convert-cad.bat model.step out.glb

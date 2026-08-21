@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 // convert-cad — host-side launcher for the standalone CAD -> GLB/GLTF tool.
 //
-// Stages the input into a temp dir, mounts it together with the converter
-// into the `chair-cq:local` OpenCascade container, runs convert-cad.py inside,
-// copies the output back to where you asked, and verifies it landed.
+// Stages the input into a temp dir, runs the native OCP converter, copies the
+// output back to where you asked, and verifies it landed.
 //
 // Usage:
 //   node convert-cad.mjs <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]
 //
 // Options:
 //   -o, --out <path>      Output path (default: input dir / <stem>.<glb|gltf>)
-//   --container <img>     Docker image (default: chair-cq:local)
-//   --backend <mode>       docker|native (default: docker)
 //   --python <path>        Native Python executable (or CAD_PYTHON)
 //   --profile <name>      faithful|balanced|large|preview|custom (large default)
 //   --optimize            Use the selected mesh-quality settings (default)
@@ -36,8 +33,7 @@ const CONVERTER = join(__dirname, 'convert-cad.py');
 const SUPPORTED = { '.step': 'STEP', '.stp': 'STEP', '.igs': 'IGES', '.iges': 'IGES', '.stl': 'STL' };
 
 // Host-side glTF geometry compression (Draco) via the self-contained draco3d
-// compressor (draco-compress.mjs). Runs after the Docker conversion so the
-// container image stays untouched.
+// compressor (draco-compress.mjs). Runs after native conversion.
 async function compressGlb(glbPath, method, opts = {}) {
   const t0 = Date.now();
   const { compressGlb: doCompress } = await import('./draco-compress.mjs');
@@ -50,15 +46,13 @@ async function compressGlb(glbPath, method, opts = {}) {
 
 function usage() {
   console.log(
-`convert-cad — standalone STEP/IGES/STL -> GLB/GLTF converter (Docker/native OpenCascade)
+`convert-cad — standalone STEP/IGES/STL -> GLB/GLTF converter (native OpenCascade)
 
 Usage:
   node convert-cad.mjs <input> [out.glb|out.gltf] [opts]
 
 Options:
   -o, --out <path>    Output path (default: <input dir>/<stem>.<glb|gltf>)
-  --container <img>   Docker image (default: chair-cq:local)
-  --backend <mode>    docker|native (default: docker)
   --python <path>     Native Python executable (default: CAD_PYTHON or python)
   --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
   --level <n>         Draco compression level 0-10 (default 7)
@@ -91,13 +85,11 @@ async function main() {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, container = 'chair-cq:local', backend = 'docker', pythonExe = process.env.CAD_PYTHON || 'python', keep = false, compress = 'none', level = 7, appearance = 'preserve';
+  let out = null, pythonExe = process.env.CAD_PYTHON || 'python', keep = false, compress = 'none', level = 7, appearance = 'preserve';
   let profile = 'large', optimize = true, deflection = null, angular = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
-    else if (a === '--container') container = argv[++i];
-    else if (a === '--backend') backend = (argv[++i] || 'docker').toLowerCase();
     else if (a === '--python') pythonExe = argv[++i];
     else if (a === '--keep') keep = true;
     else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
@@ -109,8 +101,6 @@ async function main() {
     else if (a === '--angular') angular = Number(argv[++i]);
     else if (a === '--appearance') appearance = (argv[++i] || 'preserve').toLowerCase();
     else if (a.startsWith('--out=')) out = a.split('=')[1];
-    else if (a.startsWith('--container=')) container = a.split('=')[1];
-    else if (a.startsWith('--backend=')) backend = a.split('=')[1].toLowerCase();
     else if (a.startsWith('--python=')) pythonExe = a.split('=')[1];
     else if (a.startsWith('--compress=')) compress = a.split('=')[1].toLowerCase();
     else if (a.startsWith('--level=')) level = Number(a.split('=')[1]);
@@ -121,7 +111,6 @@ async function main() {
     else pos.push(a);
   }
   if (pos.length < 1 || pos.length > 2) die('expected <input> and optional [out]');
-  if (!['docker', 'native'].includes(backend)) die(`unknown --backend '${backend}' (use docker|native)`);
   if (!['preserve', 'colors'].includes(appearance)) die(`unknown --appearance '${appearance}' (use preserve|colors)`);
   const profiles = {
     faithful: { deflection: 0.2, angular: 0.5 },
@@ -146,22 +135,8 @@ async function main() {
   const wantExt = extname(outArg).toLowerCase();
   if (wantExt !== '.glb' && wantExt !== '.gltf') die(`output must end in .glb or .gltf, got '${wantExt}'`);
 
-  if (backend === 'docker') {
-    try {
-      execFileSync('docker', ['version', '--format', '{{.Server.Version}}'], { stdio: 'ignore' });
-    } catch { die('docker is not running. Start Docker Desktop first, or use --backend native.'); }
-    try {
-      execFileSync('docker', ['image', 'inspect', container], { stdio: 'ignore' });
-    } catch {
-      console.error(`convert-cad: image '${container}' not found.`);
-      console.error('  Build it from the cad-viewer-web Dockerfile:');
-      console.error('    docker build -t chair-cq:local .   (or run install-docker-opencascade.bat)');
-      process.exit(1);
-    }
-  } else {
-    try { execFileSync(pythonExe, ['-c', 'import OCP'], { stdio: 'ignore' }); }
-    catch { die(`native Python '${pythonExe}' cannot import OCP; set CAD_PYTHON or use --python <path>`); }
-  }
+  try { execFileSync(pythonExe, ['-c', 'import OCP'], { stdio: 'ignore' }); }
+  catch { die(`native Python '${pythonExe}' cannot import OCP; set CAD_PYTHON or use --python <path>`); }
 
   // Stage a temp work dir: model.<ext> + the converter.
   const work = mkdtempSync(join(tmpdir(), 'convert-cad-'));
@@ -173,7 +148,7 @@ async function main() {
   const workOut = join(work, 'model' + wantExt);
 
   if (ext === '.stl') {
-    // Pure mesh -> direct host-side writer (no Docker). The OCCT/B-rep path
+    // Pure mesh -> direct host-side writer. The OCCT/B-rep path
     // explodes STL to ~10x (one glTF primitive per facet); stl2glb.mjs writes a
     // single welded primitive, typically smaller than the source.
     if (wantExt !== '.glb') die('STL converts to GLB only; use a .glb output');
@@ -195,25 +170,11 @@ async function main() {
       CQ_DEFLECTION: String(deflection),
       CQ_ANGULAR: String(angular),
     };
-    const args = backend === 'docker' ? [
-      'run', '--rm',
-      '--env', `CQ_STEM=${stemSafe}`,
-      '--env', `CQ_OPTIMIZE=${optimize ? '1' : '0'}`,
-      '--env', `CQ_PROFILE=${profile}`,
-      '--env', `CQ_DEFLECTION=${deflection}`,
-      '--env', `CQ_ANGULAR=${angular}`,
-      '-v', `${work}:/w`,
-      '-v', `${dirname(CONVERTER)}:/tool:ro`,
-      '-w', '/w',
-      container,
-      'python', '/tool/convert-cad.py', `/w/${inName}`, `/w/${'model' + wantExt}`, `--stem=${stemSafe}`,
-    ] : [CONVERTER, ...converterArgs];
+    const args = [CONVERTER, ...converterArgs];
     console.log(`convert-cad: converting ${SUPPORTED[ext]} -> ${basename(outArg)} (${wantExt === '.glb' ? 'GLB' : 'GLTF'})`);
-    console.log(backend === 'docker'
-      ? `convert-cad: docker run ... ${container}`
-      : `convert-cad: native Python ... ${pythonExe}`);
+    console.log(`convert-cad: native Python ... ${pythonExe}`);
     try {
-      const { code, stdout, stderr } = await run(backend === 'docker' ? 'docker' : pythonExe, args, { env: backend === 'native' ? qualityEnv : undefined });
+      const { code, stdout, stderr } = await run(pythonExe, args, { env: qualityEnv });
       if (code !== 0) {
         if (keep) console.error('convert-cad: temp work dir kept at ' + work);
         die('conversion failed:\n' + stderr.slice(-2000));
@@ -221,7 +182,7 @@ async function main() {
       if (stderr.trim()) process.stderr.write(stderr.replace(/^/gm, '  '));
     } catch (e) {
       if (keep) console.error('convert-cad: temp work dir kept at ' + work);
-      die('docker error: ' + e.message);
+      die('native conversion error: ' + e.message);
     }
   }
 

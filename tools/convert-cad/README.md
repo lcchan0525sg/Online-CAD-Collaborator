@@ -1,15 +1,14 @@
 # convert-cad — standalone STEP / IGES / STL → GLB / GLTF converter
 
-**Version: v0.25** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.26** — native-only standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
 Three.js / Babylon / any glTF viewer.
 
-It runs the OpenCascade kernel inside the existing **`chair-cq:local`** Docker
-image (the same one the CAD Viewer web app uses) by default. On Windows, the
-CLI can also use a native Python environment containing the tested
-`cadquery-ocp` 7.9.3.1.1 wheel. It is **independent** of the web app — it does
+It runs the OpenCascade kernel through a native Windows Python environment
+containing the tested `cadquery-ocp` 7.9.3.1.1 wheel. It is **independent** of
+the web app — it does
 not import the `chair-3d-web/converters` modules, so it can never disturb a
 finished converter.
 
@@ -19,14 +18,14 @@ finished converter.
 |---|---|
 | `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
 | `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` (IGES usually has no names) |
-| `.stl` | Mesh (already triangulated); converted **host-side** by `stl2glb.mjs` (pure JS, **no Docker**) as a single welded primitive — typically *smaller* than the source. The OCCT/B-rep path is avoided because it blows STL up ~10x (one glTF primitive per facet). |
+| `.stl` | Mesh (already triangulated); converted **host-side** by `stl2glb.mjs` (pure JS) as a single welded primitive — typically *smaller* than the source. The OCCT/B-rep path is avoided because it blows STL up ~10x (one glTF primitive per facet). |
 
 > OBJ is intentionally **not** supported: it is a mesh-only format without B-rep
 > semantics, so it cannot represent CAD assemblies/collaboration faithfully.
 
-## STL is pure JS (no Docker)
+## STL is pure JS
 
-`.stl` does **not** go through the OCCT Docker converter. `stl2glb.mjs` parses
+`.stl` does **not** go through the OCCT converter. `stl2glb.mjs` parses
 ASCII/binary STL and writes a single-primitive GLB (welded vertices + computed
 normals + fallback colour) directly in Node — fast, tiny output, no container.
 Wired in both the web server (`convert-cad-server.mjs`) and CLI
@@ -48,12 +47,9 @@ binary file; `.gltf` → text JSON + a companion `.bin`.
 
 ## Requirements
 
-- **Docker Desktop** running.
-- The **`chair-cq:local`** image built (from the cad-viewer-web `Dockerfile`):
-  ```
-  docker build -t chair-cq:local .
-  ```
-  or run `install-docker-opencascade.bat` once.
+- **Python with OCP** installed. The tested environment uses
+  `cadquery-ocp 7.9.3.1.1`.
+- Set `CAD_PYTHON` to the native Python executable, or pass `--python`.
 - **Node.js** on PATH (for the launcher).
 
 ## Usage
@@ -65,9 +61,8 @@ node convert-cad-server.mjs          # or double-click convert-cad-web.bat
 # open http://localhost:8787
 ```
 
-Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, choose Docker or
-native Windows in **Backend**, then choose the appearance and mesh quality
-controls, hit **Convert**, then **Download**. After
+Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, choose the
+appearance and mesh quality controls, hit **Convert**, then **Download**. After
 converting you get a live **3D preview** of the model — drag to rotate, scroll
 to zoom, right-drag / two-finger to pan. Options: `--port <n>` and `--host <ip>`.
 
@@ -115,8 +110,6 @@ convert-cad.bat <input> [out.glb|out.gltf] [opts]
 | Option | Meaning |
 |---|---|
 | `-o, --out <path>` | Output path (default: `<input dir>/<stem>.glb`) |
-| `--container <img>` | Docker image (default `chair-cq:local`) |
-| `--backend docker|native` | Use Docker (default) or a native Python/OCP environment |
 | `--python <path>` | Native Python executable; defaults to `CAD_PYTHON` or `python` |
 | `--profile <name>` | `faithful`, `balanced`, `large` (default), `preview`, or `custom` |
 | `--optimize` / `--no-optimize` | Enable/disable selected OpenCascade mesh tuning |
@@ -136,23 +129,22 @@ node convert-cad.mjs Asm1.stp out.glb
 # IGES -> text GLTF (writes out.gltf + out.bin)
 node convert-cad.mjs Asm1.igs out.gltf
 
-# STL -> binary GLB (host-side JS writer, no Docker)
+# STL -> binary GLB (host-side JS writer)
 node convert-cad.mjs Eiffel_tower_sample.STL out.glb
 
 # STEP -> GLB using native Windows OCP (7.9.3.1.1)
 set CAD_PYTHON=C:\Users\you\venvs\cad-native\Scripts\python.exe
-node convert-cad.mjs Asm1.step out.glb --backend native
+node convert-cad.mjs Asm1.step out.glb
 ```
 
-Native mode requires a Python executable where `import OCP` succeeds. Docker
-remains the default and is unchanged by the native option.
+Native conversion requires a Python executable where `import OCP` succeeds.
 
 ## What it does
 
-1. **Pre-flights** — checks Docker is up and `chair-cq:local` exists.
+1. **Pre-flights** — checks the selected native Python can import `OCP`.
 2. **Stages** the input into a temp dir as `model.<ext>`.
-3. **Runs** `convert-cad.py` inside the container (mounted read-only) against
-   the staged file.
+3. **Runs** `convert-cad.py` with the native Python environment against the
+   staged file.
 4. **Post-processes** — renames part nodes to clean `Part1..N` (only junk
    source names, so STEP's real names survive) and names the root after the
    input stem.
@@ -165,29 +157,29 @@ remains the default and is unchanged by the native option.
 | Code | Meaning |
 |---|---|
 | 0 | Success (prints `RESULT_OK`) |
-| 1 | Conversion / verification / docker failure |
+| 1 | Conversion / verification / native runtime failure |
 | 2 | Usage error / unsupported extension |
 
 ## Files
 
-- `convert-cad.py` — the actual converter (runs inside the container)
-- `convert-cad.mjs` — Node host launcher (stages + runs Docker + copies back)
+- `convert-cad.py` — the actual converter (runs with native OCP)
+- `convert-cad.mjs` — Node host launcher (stages + runs native Python + copies back)
 - `convert-cad.bat` — Windows shortcut for the launcher
 - `convert-cad-server.mjs` — Node HTTP server for the drag & drop web UI
 - `index.html` — the drag & drop page (upload → Convert → Download → 3D preview)
 - `convert-cad-web.bat` — Windows shortcut to launch the web UI
-- `build-convert-cad-portable.mjs` — build the portable zip (`dist/convert-cad-portable-v0.23.zip`)
+- `build-convert-cad-portable.mjs` — build the native-only portable zip
 
 ## Portable zip
 
 ```bash
-node build-convert-cad-portable.mjs v0.23   # -> dist/convert-cad-portable-v0.23.zip
+set CAD_NATIVE_PYTHON=C:\Users\you\venvs\cad-native\Scripts\python.exe
+node build-convert-cad-portable.mjs v0.25   # -> dist/convert-cad-portable-v0.25.zip
 ```
 
-Bundles `node.exe`, the slimmed three.js modules, the CLI launcher, and the
-web UI. Unzip → double-click `start.bat` → the UI opens with a 3D preview.
-Independent of the CAD Viewer web app. Docker + the `chair-cq:local` image are
-still required at runtime for conversion (not bundled).
+Bundles `node.exe`, the slimmed three.js modules, the CLI launcher, the web UI,
+and the complete native Python/OCP runtime. Unzip → double-click `start.bat` →
+the UI opens with a 3D preview. No Docker or external CAD runtime is required.
 
 ## Testing
 

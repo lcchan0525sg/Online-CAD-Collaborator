@@ -11,8 +11,7 @@
 //   node build-convert-cad-portable.mjs             build dist/convert-cad-portable.zip
 //   node build-convert-cad-portable.mjs 0.1         build dist/convert-cad-portable-v0.1.zip
 //
-// Docker is the default runtime. Set CAD_NATIVE_PYTHON to bundle a complete
-// native Python/OCP runtime as well, allowing the UI to select Native Windows.
+// Set CAD_NATIVE_PYTHON to the native Python/OCP environment to bundle.
 import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -24,6 +23,10 @@ const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'convert-cad-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
 const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON || '';
+if (!NATIVE_PYTHON) {
+  console.error('CAD_NATIVE_PYTHON is required for the native-only portable build');
+  process.exit(2);
+}
 
 const versionArg = (process.argv[2] || '').replace(/^v/i, '') || '0.1';
 const zipName = `convert-cad-portable-v${versionArg}.zip`;
@@ -48,12 +51,6 @@ rmSync(join(APP, 'converters', '__pycache__'), { recursive: true, force: true })
 const html = readFileSync(join(APP, 'index.html'), 'utf8')
   .replace(/(convert-cad — drag & drop\s*<span class="ver">)v[0-9][^<]*/, `$1v${versionArg}`);
 writeFileSync(join(APP, 'index.html'), html);
-
-// Docker dependency: image-builder batch + Dockerfile for the target machine
-const installBat = join(ROOT, 'install-docker-opencascade.bat');
-if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
-const dockerFile = join(ROOT, 'Dockerfile');
-if (existsSync(dockerFile)) copyFileSync(dockerFile, join(APP, 'Dockerfile'));
 
 // ---- slim three.js (only what the preview imports) ----
 const T = join(ROOT, 'node_modules', 'three');
@@ -80,24 +77,20 @@ if (existsSync(DRACO_LIBS)) {
 if (existsSync(NODE_EXE)) copyFileSync(NODE_EXE, join(APP, 'node.exe'));
 else console.warn('WARNING: node.exe not found at', NODE_EXE, '- zip will not be self-contained');
 
-// ---- optional native Python/OCP runtime ----
-if (NATIVE_PYTHON) {
-  const info = execFileSync(NATIVE_PYTHON, ['-c',
-    'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
-    .trim().split(/\r?\n/);
-  // uv-managed Python installations may expose the base prefix as a Windows
-  // directory symlink. Resolve it so the ZIP contains real files and remains
-  // portable after extraction.
-  const basePython = realpathSync(info[0]);
-  const venvPython = realpathSync(info[1]);
-  const nativeRoot = join(APP, 'python');
-  mkdirSync(nativeRoot, { recursive: true });
-  cpSync(basePython, nativeRoot, { recursive: true });
-  cpSync(join(venvPython, 'Lib', 'site-packages'), join(nativeRoot, 'Lib', 'site-packages'), { recursive: true });
-  console.log('bundled native Python/OCP from', NATIVE_PYTHON);
-} else {
-  console.log('native runtime not bundled (set CAD_NATIVE_PYTHON to include it)');
-}
+// ---- bundled native Python/OCP runtime ----
+const info = execFileSync(NATIVE_PYTHON, ['-c',
+  'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
+  .trim().split(/\r?\n/);
+// uv-managed Python installations may expose the base prefix as a Windows
+// directory symlink. Resolve it so the ZIP contains real files and remains
+// portable after extraction.
+const basePython = realpathSync(info[0]);
+const venvPython = realpathSync(info[1]);
+const nativeRoot = join(APP, 'python');
+mkdirSync(nativeRoot, { recursive: true });
+cpSync(basePython, nativeRoot, { recursive: true });
+cpSync(join(venvPython, 'Lib', 'site-packages'), join(nativeRoot, 'Lib', 'site-packages'), { recursive: true });
+console.log('bundled native Python/OCP from', NATIVE_PYTHON);
 
 // ---- launchers (web UI is the primary surface) ----
 writeFileSync(join(APP, 'start.bat'), [
@@ -106,7 +99,7 @@ writeFileSync(join(APP, 'start.bat'), [
   'cd /d "%~dp0"',
   '',
   'set "PORT=8787"',
-  ...(NATIVE_PYTHON ? ['set "CAD_PYTHON=%~dp0python\\python.exe"'] : []),
+  'set "CAD_PYTHON=%~dp0python\\python.exe"',
   'if not "%~1"=="" set "PORT=%~1"',
   'if exist "port.txt" set /p PORT=<port.txt',
   '',
@@ -154,23 +147,10 @@ writeFileSync(join(APP, 'README.txt'), [
   'Command line (same conversion engine):',
   '  convert-cad.bat <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]',
   '  --compress draco   compress the GLB geometry (host-side, self-contained)',
-  ...(NATIVE_PYTHON ? [
-    '  Backend can be selected in the UI: Docker or Native Windows.',
-    '  Native Windows uses the bundled Python/OCP runtime.',
-  ] : []),
+  '  Native Windows uses the bundled Python/OCP runtime.',
   '  See README.md for full options.',
   '',
-  ...(NATIVE_PYTHON ? [
-    'Native Windows conversion is bundled and does not require Docker.',
-    'Docker remains available if Docker Desktop and chair-cq:local are installed.',
-  ] : [
-    'NOTE: conversion requires TWO external pieces that are NOT bundled:',
-    '  1. Docker Desktop (or another Docker runtime) installed on this PC, and',
-    '  2. the OpenCascade CAD converter image "chair-cq:local".',
-  ]),
-  '  Build the image once with install-docker-opencascade.bat (or:',
-  '  docker build -t chair-cq:local .  using the bundled Dockerfile).',
-  ...(NATIVE_PYTHON ? [] : ['  Without Docker, the UI loads but conversions show an error.']),
+  'Native Windows conversion is bundled and does not require Docker or any external CAD runtime.',
   '',
   'Port: 8787. Override with start.bat <port> or a port.txt file.',
   '',
