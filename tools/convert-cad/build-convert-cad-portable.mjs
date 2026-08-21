@@ -11,7 +11,8 @@
 //   node build-convert-cad-portable.mjs             build dist/convert-cad-portable.zip
 //   node build-convert-cad-portable.mjs 0.1         build dist/convert-cad-portable-v0.1.zip
 //
-// The zip needs Docker + the chair-cq:local image at RUNTIME (documented, not bundled).
+// Docker is the default runtime. Set CAD_NATIVE_PYTHON to bundle a complete
+// native Python/OCP runtime as well, allowing the UI to select Native Windows.
 import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,6 +23,7 @@ const ROOT = join(TOOL, '..', '..');                 // repo root (for node_modu
 const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'convert-cad-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
+const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON || '';
 
 const versionArg = (process.argv[2] || '').replace(/^v/i, '') || '0.1';
 const zipName = `convert-cad-portable-v${versionArg}.zip`;
@@ -35,12 +37,13 @@ mkdirSync(join(APP, 'node_modules', 'three', 'examples', 'jsm', 'utils'), { recu
 // ---- tool files (into the zip root) ----
 for (const f of ['convert-cad.py', 'convert-cad.mjs', 'convert-cad.bat',
                  'convert-cad-server.mjs', 'convert-cad-web.bat', 'index.html',
-                 'draco-compress.mjs', 'stl2glb.mjs', 'README.md']) {
+                 'draco-compress.mjs', 'stl2glb.mjs', 'appearance.mjs', 'README.md']) {
   copyFileSync(join(TOOL, f), join(APP, f));
 }
 // The modular per-format converters package (step2glb.py dispatcher +
 // convert_*.py + common.py) must ship alongside the wrapper.
 cpSync(join(TOOL, 'converters'), join(APP, 'converters'), { recursive: true });
+rmSync(join(APP, 'converters', '__pycache__'), { recursive: true, force: true });
 // Stamp the version into the copied index.html title
 const html = readFileSync(join(APP, 'index.html'), 'utf8')
   .replace(/(convert-cad — drag & drop\s*<span class="ver">)v[0-9][^<]*/, `$1v${versionArg}`);
@@ -77,6 +80,22 @@ if (existsSync(DRACO_LIBS)) {
 if (existsSync(NODE_EXE)) copyFileSync(NODE_EXE, join(APP, 'node.exe'));
 else console.warn('WARNING: node.exe not found at', NODE_EXE, '- zip will not be self-contained');
 
+// ---- optional native Python/OCP runtime ----
+if (NATIVE_PYTHON) {
+  const info = execFileSync(NATIVE_PYTHON, ['-c',
+    'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
+    .trim().split(/\r?\n/);
+  const basePython = info[0];
+  const venvPython = info[1];
+  const nativeRoot = join(APP, 'python');
+  mkdirSync(nativeRoot, { recursive: true });
+  cpSync(basePython, nativeRoot, { recursive: true });
+  cpSync(join(venvPython, 'Lib', 'site-packages'), join(nativeRoot, 'Lib', 'site-packages'), { recursive: true });
+  console.log('bundled native Python/OCP from', NATIVE_PYTHON);
+} else {
+  console.log('native runtime not bundled (set CAD_NATIVE_PYTHON to include it)');
+}
+
 // ---- launchers (web UI is the primary surface) ----
 writeFileSync(join(APP, 'start.bat'), [
   '@echo off',
@@ -84,6 +103,7 @@ writeFileSync(join(APP, 'start.bat'), [
   'cd /d "%~dp0"',
   '',
   'set "PORT=8787"',
+  ...(NATIVE_PYTHON ? ['set "CAD_PYTHON=%~dp0python\\python.exe"'] : []),
   'if not "%~1"=="" set "PORT=%~1"',
   'if exist "port.txt" set /p PORT=<port.txt',
   '',
@@ -126,19 +146,28 @@ writeFileSync(join(APP, 'README.txt'), [
   'Set Compress = Draco to shrink the GLB geometry (browser decodes it on load);',
   'it applies to converted GLB output and to passthrough .glb files.',
   '',
-  'The zip bundles node.exe, so NO installs are needed on Windows.',
+  'The zip bundles node.exe, so NO Node install is needed on Windows.',
   '',
   'Command line (same conversion engine):',
   '  convert-cad.bat <input.(step|stp|igs|iges|stl)> [out.glb|out.gltf] [opts]',
   '  --compress draco   compress the GLB geometry (host-side, self-contained)',
+  ...(NATIVE_PYTHON ? [
+    '  Backend can be selected in the UI: Docker or Native Windows.',
+    '  Native Windows uses the bundled Python/OCP runtime.',
+  ] : []),
   '  See README.md for full options.',
   '',
-  'NOTE: conversion requires TWO external pieces that are NOT bundled:',
-  '  1. Docker Desktop (or another Docker runtime) installed on this PC, and',
-  '  2. the OpenCascade CAD converter image "chair-cq:local".',
+  ...(NATIVE_PYTHON ? [
+    'Native Windows conversion is bundled and does not require Docker.',
+    'Docker remains available if Docker Desktop and chair-cq:local are installed.',
+  ] : [
+    'NOTE: conversion requires TWO external pieces that are NOT bundled:',
+    '  1. Docker Desktop (or another Docker runtime) installed on this PC, and',
+    '  2. the OpenCascade CAD converter image "chair-cq:local".',
+  ]),
   '  Build the image once with install-docker-opencascade.bat (or:',
   '  docker build -t chair-cq:local .  using the bundled Dockerfile).',
-  '  Without Docker, the UI loads but conversions show an error.',
+  ...(NATIVE_PYTHON ? [] : ['  Without Docker, the UI loads but conversions show an error.']),
   '',
   'Port: 8787. Override with start.bat <port> or a port.txt file.',
   '',

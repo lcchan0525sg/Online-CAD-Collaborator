@@ -1,15 +1,17 @@
 # convert-cad — standalone STEP / IGES / STL → GLB / GLTF converter
 
-**Version: v0.24** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.25** — a standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
 Three.js / Babylon / any glTF viewer.
 
 It runs the OpenCascade kernel inside the existing **`chair-cq:local`** Docker
-image (the same one the CAD Viewer web app uses), because OCP has no Windows
-wheels. It is **independent** of the web app — it does not import the
-`chair-3d-web/converters` modules, so it can never disturb a finished converter.
+image (the same one the CAD Viewer web app uses) by default. On Windows, the
+CLI can also use a native Python environment containing the tested
+`cadquery-ocp` 7.9.3.1.1 wheel. It is **independent** of the web app — it does
+not import the `chair-3d-web/converters` modules, so it can never disturb a
+finished converter.
 
 ## What it converts
 
@@ -63,8 +65,9 @@ node convert-cad-server.mjs          # or double-click convert-cad-web.bat
 # open http://localhost:8787
 ```
 
-Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, choose the
-appearance and mesh quality controls, hit **Convert**, then **Download**. After
+Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, choose Docker or
+native Windows in **Backend**, then choose the appearance and mesh quality
+controls, hit **Convert**, then **Download**. After
 converting you get a live **3D preview** of the model — drag to rotate, scroll
 to zoom, right-drag / two-finger to pan. Options: `--port <n>` and `--host <ip>`.
 
@@ -113,6 +116,8 @@ convert-cad.bat <input> [out.glb|out.gltf] [opts]
 |---|---|
 | `-o, --out <path>` | Output path (default: `<input dir>/<stem>.glb`) |
 | `--container <img>` | Docker image (default `chair-cq:local`) |
+| `--backend docker|native` | Use Docker (default) or a native Python/OCP environment |
+| `--python <path>` | Native Python executable; defaults to `CAD_PYTHON` or `python` |
 | `--profile <name>` | `faithful`, `balanced`, `large` (default), `preview`, or `custom` |
 | `--optimize` / `--no-optimize` | Enable/disable selected OpenCascade mesh tuning |
 | `--deflection <value>` | Override chordal deflection, clamped to `0.01–10` |
@@ -133,7 +138,14 @@ node convert-cad.mjs Asm1.igs out.gltf
 
 # STL -> binary GLB (host-side JS writer, no Docker)
 node convert-cad.mjs Eiffel_tower_sample.STL out.glb
+
+# STEP -> GLB using native Windows OCP (7.9.3.1.1)
+set CAD_PYTHON=C:\Users\you\venvs\cad-native\Scripts\python.exe
+node convert-cad.mjs Asm1.step out.glb --backend native
 ```
+
+Native mode requires a Python executable where `import OCP` succeeds. Docker
+remains the default and is unchanged by the native option.
 
 ## What it does
 

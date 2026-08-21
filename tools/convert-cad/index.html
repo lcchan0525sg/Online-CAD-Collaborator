@@ -80,8 +80,8 @@
 </style>
 </head>
 <body>
-  <h1>convert-cad — drag &amp; drop <span class="ver">v0.24</span></h1>
-  <div class="sub">STEP / IGES / STL → GLB / GLTF · Docker (OpenCascade)</div>
+  <h1>convert-cad — drag &amp; drop <span class="ver">v0.25</span></h1>
+  <div class="sub">STEP / IGES / STL → GLB / GLTF · Docker or native Windows OpenCascade</div>
 
   <div class="card">
     <div class="drop" id="drop">
@@ -98,6 +98,13 @@
         <select id="fmt">
           <option value="glb">.glb (binary)</option>
           <option value="gltf">.gltf (+ .bin)</option>
+        </select>
+      </label>
+      <label title="Choose the conversion runtime for STEP/IGES. Native uses the configured CAD_PYTHON OCP environment.">
+        Backend
+        <select id="backend">
+          <option value="docker" selected>Docker</option>
+          <option value="native">Native Windows</option>
         </select>
       </label>
       <label title="Colors only removes texture maps and keeps basic material/part colours; it applies to GLB output">
@@ -169,6 +176,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const file = document.getElementById('file');
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
+  const backendEl = document.getElementById('backend');
   const appearanceEl = document.getElementById('appearance');
   const compressSel = document.getElementById('compress');
   const dracoLevelEl = document.getElementById('draco-level');
@@ -414,6 +422,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     const isAlready = /\.(glb|gltf)$/i.test(model.name);
     // For already-GLB/GLTF files the output format is fixed; ignore the selector.
     const fmt = isAlready ? 'glb' : fmtSel.value;
+    const backend = backendEl.value;
     // Draco applies to GLB output — converted CAD or a passthrough .glb (but not .gltf).
     const wantCompress = (fmt === 'glb' && compressSel.value === 'draco');
     const appearance = appearanceEl.value;
@@ -426,6 +435,7 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     const fd = new FormData();
     fd.append('model', model.file, model.name);
     fd.append('fmt', fmt);
+    fd.append('backend', backend);
     fd.append('appearance', appearance);
     if (wantCompress) fd.append('compress', 'draco');
     fd.append('optimize', optimizeEl.checked ? '1' : '0');

@@ -7,7 +7,7 @@
 // and streams the converted .glb (or .gltf+.bin) back to the browser for download.
 //
 // Usage:
-//   node convert-cad-server.mjs [--port 8787] [--host 0.0.0.0]
+//   convert-cad-server.mjs [--port 8787] [--host 0.0.0.0] [--backend docker|native]
 import { execFileSync, execFile } from 'node:child_process';
 import { createServer } from 'node:http';
 import { readFileSync, mkdtempSync, writeFileSync, copyFileSync, rmSync,
@@ -47,15 +47,20 @@ const QUALITY_PROFILES = {
   preview: { deflection: 2.0, angular: 1.5 },
 };
 
-let PORT = 8787, HOST = '0.0.0.0';
+let PORT = 8787, HOST = '0.0.0.0', DEFAULT_BACKEND = 'docker', PYTHON_EXEC = process.env.CAD_PYTHON || 'python';
 const argv = process.argv.slice(2);
 for (let i=0;i<argv.length;i++){
   const a=argv[i];
   if(a==='--port')PORT=Number(argv[++i]);
   else if(a==='--host')HOST=argv[++i];
+  else if(a==='--backend')DEFAULT_BACKEND=(argv[++i]||'docker').toLowerCase();
+  else if(a==='--python')PYTHON_EXEC=argv[++i];
   else if(a.startsWith('--port='))PORT=Number(a.split('=')[1]);
   else if(a.startsWith('--host='))HOST=a.split('=')[1];
+  else if(a.startsWith('--backend='))DEFAULT_BACKEND=a.split('=')[1].toLowerCase();
+  else if(a.startsWith('--python='))PYTHON_EXEC=a.split('=')[1];
 }
+if(!['docker','native'].includes(DEFAULT_BACKEND)) throw new Error(`unknown --backend '${DEFAULT_BACKEND}' (use docker|native)`);
 
 function run(cmd,args,opts={}){
   return new Promise((res,rej)=>{
@@ -136,9 +141,11 @@ async function handleConvert(req,res){
   const model=parts.find(p=>p.name==='model'&&p.body.length>0);
   const fmt=field(parts, 'fmt', 'glb').toLowerCase()==='gltf'?'gltf':'glb';
   const compress=field(parts, 'compress', 'none').toLowerCase();
+  const backend=field(parts, 'backend', DEFAULT_BACKEND).toLowerCase();
   const appearance=field(parts, 'appearance', 'preserve').toLowerCase();
   const quality=qualitySettings(parts);
   if(!model)return sendErr(res,400,'no model file uploaded');
+  if(!['docker','native'].includes(backend))return sendErr(res,400,`unsupported backend '${backend}' (only 'docker' or 'native' is supported)`);
   if(!['preserve','colors'].includes(appearance))return sendErr(res,400,`unsupported appearance '${appearance}' (only 'preserve' or 'colors' is supported)`);
 
   const ext=extname(model.filename).toLowerCase();
@@ -227,9 +234,15 @@ async function handleConvert(req,res){
     }
   }
 
-  // pre-flight docker
-  try{ execFileSync('docker',['version','--format','{{.Server.Version}}'],{stdio:'ignore'}); }
-  catch{ return sendErr(res,503,'Docker is not running. Start Docker Desktop first.'); }
+  // Pre-flight only the selected backend. STL and GLB/GLTF passthrough do not
+  // need either backend.
+  if(backend==='docker'){
+    try{ execFileSync('docker',['version','--format','{{.Server.Version}}'],{stdio:'ignore'}); }
+    catch{ return sendErr(res,503,'Docker is not running. Start Docker Desktop or run the server with --backend native.'); }
+  } else {
+    try{ execFileSync(PYTHON_EXEC,['-c','import OCP'],{stdio:'ignore'}); }
+    catch{ return sendErr(res,503,`native Python '${PYTHON_EXEC}' cannot import OCP; set CAD_PYTHON or use --python`); }
+  }
 
   const work=mkdtempSync(join(tmpdir(),'convert-cad-web-'));
   try{
@@ -240,15 +253,25 @@ async function handleConvert(req,res){
     const outName='model.'+fmt;
     const toolHost = __dirname.split('\\').join('/');   // forward slashes for docker -v on Windows
     const workHost = work.split('\\').join('/');        // same for the temp work dir
-    const args=['run','--rm','--env',`CQ_STEM=${stem}`,
+    const dockerArgs=['run','--rm','--env',`CQ_STEM=${stem}`,
       '--env',`CQ_OPTIMIZE=${quality.optimize ? '1' : '0'}`,
       '--env',`CQ_PROFILE=${quality.profile}`,
       '--env',`CQ_DEFLECTION=${quality.deflection}`,
       '--env',`CQ_ANGULAR=${quality.angular}`,
       '-v',`${workHost}:/w`,'-v',`${toolHost}:/tool:ro`,'-w','/w',
       'chair-cq:local','python','/tool/convert-cad.py',`/w/${inName}`,`/w/${outName}`];
+    const nativeArgs=[CONVERTER,join(work,inName),join(work,outName),`--stem=${stem}`];
+    const command=backend==='docker'?'docker':PYTHON_EXEC;
+    const args=backend==='docker'?dockerArgs:nativeArgs;
 
-    const {code,stdout,stderr}=await run('docker',args);
+    const {code,stdout,stderr}=await run(command,args,{env:backend==='native'?{
+      ...process.env,
+      CQ_STEM:stem,
+      CQ_OPTIMIZE:quality.optimize?'1':'0',
+      CQ_PROFILE:quality.profile,
+      CQ_DEFLECTION:String(quality.deflection),
+      CQ_ANGULAR:String(quality.angular),
+    }:undefined});
     const log=[stderr.trim()];
     const outPath=join(work,outName);
     if(code!==0||!existsSync(outPath))return sendErr(res,500,(log.join('\n')||'conversion failed').slice(-4000));
@@ -335,5 +358,6 @@ const server=createServer(async(req,res)=>{
 server.listen(PORT,HOST,()=>{
   console.log(`convert-cad web UI running at http://localhost:${PORT}`);
   console.log(`  drag & drop a STEP/IGES/STL, pick GLB/GLTF, hit Convert, Download.`);
-  console.log(`  (requires Docker + chair-cq:local image)`);
+  console.log(`  default backend: ${DEFAULT_BACKEND}; UI can select Docker or native Python`);
+  console.log(`  native Python: ${PYTHON_EXEC}`);
 });

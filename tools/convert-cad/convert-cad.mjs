@@ -11,6 +11,8 @@
 // Options:
 //   -o, --out <path>      Output path (default: input dir / <stem>.<glb|gltf>)
 //   --container <img>     Docker image (default: chair-cq:local)
+//   --backend <mode>       docker|native (default: docker)
+//   --python <path>        Native Python executable (or CAD_PYTHON)
 //   --profile <name>      faithful|balanced|large|preview|custom (large default)
 //   --optimize            Use the selected mesh-quality settings (default)
 //   --no-optimize         Use faithful OpenCascade meshing settings
@@ -48,7 +50,7 @@ async function compressGlb(glbPath, method, opts = {}) {
 
 function usage() {
   console.log(
-`convert-cad — standalone STEP/IGES/STL -> GLB/GLTF converter (Docker/OpenCascade)
+`convert-cad — standalone STEP/IGES/STL -> GLB/GLTF converter (Docker/native OpenCascade)
 
 Usage:
   node convert-cad.mjs <input> [out.glb|out.gltf] [opts]
@@ -56,6 +58,8 @@ Usage:
 Options:
   -o, --out <path>    Output path (default: <input dir>/<stem>.<glb|gltf>)
   --container <img>   Docker image (default: chair-cq:local)
+  --backend <mode>    docker|native (default: docker)
+  --python <path>     Native Python executable (default: CAD_PYTHON or python)
   --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
   --level <n>         Draco compression level 0-10 (default 7)
   --profile <name>    faithful|balanced|large|preview|custom (large default)
@@ -87,12 +91,14 @@ async function main() {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7, appearance = 'preserve';
+  let out = null, container = 'chair-cq:local', backend = 'docker', pythonExe = process.env.CAD_PYTHON || 'python', keep = false, compress = 'none', level = 7, appearance = 'preserve';
   let profile = 'large', optimize = true, deflection = null, angular = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
     else if (a === '--container') container = argv[++i];
+    else if (a === '--backend') backend = (argv[++i] || 'docker').toLowerCase();
+    else if (a === '--python') pythonExe = argv[++i];
     else if (a === '--keep') keep = true;
     else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
     else if (a === '--level') level = Number.isFinite(Number(argv[++i])) ? Number(argv[i]) : 7;
@@ -104,6 +110,8 @@ async function main() {
     else if (a === '--appearance') appearance = (argv[++i] || 'preserve').toLowerCase();
     else if (a.startsWith('--out=')) out = a.split('=')[1];
     else if (a.startsWith('--container=')) container = a.split('=')[1];
+    else if (a.startsWith('--backend=')) backend = a.split('=')[1].toLowerCase();
+    else if (a.startsWith('--python=')) pythonExe = a.split('=')[1];
     else if (a.startsWith('--compress=')) compress = a.split('=')[1].toLowerCase();
     else if (a.startsWith('--level=')) level = Number(a.split('=')[1]);
     else if (a.startsWith('--profile=')) profile = a.split('=')[1].toLowerCase();
@@ -113,6 +121,7 @@ async function main() {
     else pos.push(a);
   }
   if (pos.length < 1 || pos.length > 2) die('expected <input> and optional [out]');
+  if (!['docker', 'native'].includes(backend)) die(`unknown --backend '${backend}' (use docker|native)`);
   if (!['preserve', 'colors'].includes(appearance)) die(`unknown --appearance '${appearance}' (use preserve|colors)`);
   const profiles = {
     faithful: { deflection: 0.2, angular: 0.5 },
@@ -137,21 +146,22 @@ async function main() {
   const wantExt = extname(outArg).toLowerCase();
   if (wantExt !== '.glb' && wantExt !== '.gltf') die(`output must end in .glb or .gltf, got '${wantExt}'`);
 
-  // Pre-flight: docker + image.
-  try {
-    execFileSync('docker', ['version', '--format', '{{.Server.Version}}'], { stdio: 'ignore' });
-  } catch { die('docker is not running. Start Docker Desktop first.'); }
-  let imgOk = false;
-  try {
-    execFileSync('docker', ['image', 'inspect', container], { stdio: 'ignore' });
-    imgOk = true;
-  } catch {
-    console.error(`convert-cad: image '${container}' not found.`);
-    console.error('  Build it from the cad-viewer-web Dockerfile:');
-    console.error('    docker build -t chair-cq:local .   (or run install-docker-opencascade.bat)');
-    process.exit(1);
+  if (backend === 'docker') {
+    try {
+      execFileSync('docker', ['version', '--format', '{{.Server.Version}}'], { stdio: 'ignore' });
+    } catch { die('docker is not running. Start Docker Desktop first, or use --backend native.'); }
+    try {
+      execFileSync('docker', ['image', 'inspect', container], { stdio: 'ignore' });
+    } catch {
+      console.error(`convert-cad: image '${container}' not found.`);
+      console.error('  Build it from the cad-viewer-web Dockerfile:');
+      console.error('    docker build -t chair-cq:local .   (or run install-docker-opencascade.bat)');
+      process.exit(1);
+    }
+  } else {
+    try { execFileSync(pythonExe, ['-c', 'import OCP'], { stdio: 'ignore' }); }
+    catch { die(`native Python '${pythonExe}' cannot import OCP; set CAD_PYTHON or use --python <path>`); }
   }
-  void imgOk;
 
   // Stage a temp work dir: model.<ext> + the converter.
   const work = mkdtempSync(join(tmpdir(), 'convert-cad-'));
@@ -176,7 +186,16 @@ async function main() {
       die('stl2glb conversion failed');
     }
   } else {
-    const args = [
+    const converterArgs = [inPath, workOut, `--stem=${stemSafe}`];
+    const qualityEnv = {
+      ...process.env,
+      CQ_STEM: stemSafe,
+      CQ_OPTIMIZE: optimize ? '1' : '0',
+      CQ_PROFILE: profile,
+      CQ_DEFLECTION: String(deflection),
+      CQ_ANGULAR: String(angular),
+    };
+    const args = backend === 'docker' ? [
       'run', '--rm',
       '--env', `CQ_STEM=${stemSafe}`,
       '--env', `CQ_OPTIMIZE=${optimize ? '1' : '0'}`,
@@ -187,12 +206,14 @@ async function main() {
       '-v', `${dirname(CONVERTER)}:/tool:ro`,
       '-w', '/w',
       container,
-      'python', '/tool/convert-cad.py', `/w/${inName}`, `/w/${'model' + wantExt}`,
-    ];
+      'python', '/tool/convert-cad.py', `/w/${inName}`, `/w/${'model' + wantExt}`, `--stem=${stemSafe}`,
+    ] : [CONVERTER, ...converterArgs];
     console.log(`convert-cad: converting ${SUPPORTED[ext]} -> ${basename(outArg)} (${wantExt === '.glb' ? 'GLB' : 'GLTF'})`);
-    console.log(`convert-cad: docker run ... ${container}`);
+    console.log(backend === 'docker'
+      ? `convert-cad: docker run ... ${container}`
+      : `convert-cad: native Python ... ${pythonExe}`);
     try {
-      const { code, stdout, stderr } = await run('docker', args);
+      const { code, stdout, stderr } = await run(backend === 'docker' ? 'docker' : pythonExe, args, { env: backend === 'native' ? qualityEnv : undefined });
       if (code !== 0) {
         if (keep) console.error('convert-cad: temp work dir kept at ' + work);
         die('conversion failed:\n' + stderr.slice(-2000));
