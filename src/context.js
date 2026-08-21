@@ -78,6 +78,7 @@ const HIGHLIGHT_INTENSITY = 0.55;
 let applyingRemoteTrans = false;
 
 let pendingRemoteTransKeys = [];
+let pendingRemoteTransforms = [];
 
 let selectedPartKey = null;
 let selectedPartKeys = [];                 // normalized multi-selection, primary key first
@@ -255,7 +256,7 @@ const measureClearBtn = document.getElementById('btn-measure-clear');
 
 const measureLabelEl = document.getElementById('measure-label');
 
-const measureListEl = document.getElementById('measure-list');
+const measureListEl = document.getElementById('floating-measure-list') || document.getElementById('measure-list');
 
 const sectionOnChk = document.getElementById('section-on');
 const sectionAxisEl = document.getElementById('section-axis');
@@ -274,6 +275,7 @@ let applyingRemoteSection = false;
 let measureOn = false;
 
 let measureP1 = null;                 // world Vector3 of the first corner, or null
+let measureP1Part = null;
 
 let measureLayer = new THREE.Group(); // glow + markers + committed dimension lines
 
@@ -376,6 +378,7 @@ export const ctx = {
   HIGHLIGHT_INTENSITY,
   applyingRemoteTrans,
   pendingRemoteTransKeys,
+  pendingRemoteTransforms,
   selectedPartKey,
   selectedPartKeys,
   applyingRemoteParts,
@@ -479,6 +482,7 @@ export const ctx = {
   measureListEl,
   measureOn,
   measureP1,
+  measureP1Part,
   measureLayer,
   measureGlow,
   measureP1Dot,

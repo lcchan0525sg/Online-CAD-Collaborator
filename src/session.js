@@ -5,15 +5,20 @@ import { ctx } from './context.js';
 
 import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } from './scene.js';
 import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
-import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync } from './measure.js';
+import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync, applyRemoteMeasureUpdate, broadcastMeasureAdd } from './measure.js';
 import { applySectionState, sectionState } from './section.js';
 import { applyRemoteExplode } from './explode.js';
-import { applyRemoteMove, applyRemoteRot, applyRemoteTransform } from './move.js';
+import { applyRemoteMove, applyRemoteRot, applyRemoteTransform, broadcastTransform } from './move.js';
 
 let reconnectCode = null;
 let reconnectCreate = false;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+
+export function requestSessionResync() {
+  if (!ctx.session?.connected) { xferToast('Join a session to resync'); return false; }
+  try { ctx.session.ws.send(JSON.stringify({ t: 'resync-request' })); setSessionStatus('resync requested…'); return true; } catch { return false; }
+}
 
 export function broadcastSection(s = sectionState()) {
   if (!ctx.session?.connected) return;
@@ -358,12 +363,22 @@ export function onSessionMsg(msg) {
       renderRoster();
       // Host opened a model BEFORE the session existed (or while connecting):
       // upload + offer it now so guests get it, without re-opening the file.
-      if (msg.isHost && ctx.lastLocalModel && !ctx.currentModel) {
+      if (msg.isHost && ctx.lastLocalModel) {
         shareBuffer(ctx.lastLocalModel.buf, ctx.lastLocalModel.filename, ctx.lastLocalModel.kind);
+        const sent = new Set();
+        for (const entry of ctx.transformHistory) {
+          const key = entry.path.join('.');
+          if (sent.has(key)) continue;
+          sent.add(key);
+          const node = ctx.model && nodeAtPath(ctx.model.children[0], entry.path);
+          if (node) broadcastTransform(entry.path, node, ctx.pivotByPath.get(key) || null);
+        }
+        for (const measurement of ctx.measureList) broadcastMeasureAdd(measurement);
       }
       // Guest deep-link: the server tells us the session already has a model —
       // fetch + load it (blocking overlay until it lands).
       if (msg.model && (!ctx.session.reconnect || !ctx.model)) loadSharedModel(msg.model);
+      if (!msg.isHost) setTimeout(() => requestSessionResync(), 1200);
       break;
     case 'roster':
       ctx.roster = msg.roster; renderRoster();
@@ -429,6 +444,10 @@ export function onSessionMsg(msg) {
     case 'trans-sync':
       applyRemoteTransSync(msg.keys);
       break;
+    case 'resync-done':
+      setSessionStatus(`connected${ctx.session?.isHost ? ' · host' : ''}`);
+      xferToast('Session state synchronized');
+      break;
     case 'chat':
       applyRemoteChat(msg);
       break;
@@ -437,6 +456,9 @@ export function onSessionMsg(msg) {
       break;
     case 'measure-add':
       applyRemoteMeasureAdd(msg);
+      break;
+    case 'measure-update':
+      applyRemoteMeasureUpdate(msg);
       break;
     case 'measure-del':
       applyRemoteMeasureDel(msg);
@@ -756,6 +778,8 @@ document.getElementById('btn-join-session').addEventListener('click', () => {
 ctx.joinCodeInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') document.getElementById('btn-join-session').click();
 });
+
+document.getElementById('btn-resync-session')?.addEventListener('click', requestSessionResync);
 
 document.getElementById('btn-reconnect-session')?.addEventListener('click', () => {
   if (!reconnectCode) return;

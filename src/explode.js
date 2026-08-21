@@ -215,7 +215,7 @@ if (ctx.explodeResetEl) {
   });
 }
 
-document.getElementById('btn-explode-frame')?.addEventListener('click', () => frameModel());
+
 
 export function recomputeExplodeGap() {
   resetExplodeToResting();

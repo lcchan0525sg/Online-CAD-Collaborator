@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from './context.js';
 
-import { clearPartSelection, selectPart } from './parts.js';
+import { clearPartSelection, selectPart, partNameForKey } from './parts.js';
 import { isPickVisible, pickGizmoAxis, pickPartKey, setMoveAxis } from './move.js';
 import { xferToast } from './session.js';
 
@@ -20,10 +20,11 @@ ctx.renderer.domElement.addEventListener('pointerup', (e) => {
     ctx.measureGlow.visible = true;
     if (!ctx.measureP1) {
       ctx.measureP1 = c.clone();
+      ctx.measureP1Part = c.userData || null;
       if (ctx.measureP1Dot) { ctx.measureP1Dot.position.copy(c); ctx.measureP1Dot.visible = true; }
       updateMeasureStatus();
     } else {
-      commitMeasurement(ctx.measureP1, c);
+      commitMeasurement(ctx.measureP1, c, ctx.measureP1Part, c.userData);
     }
     return;
   }
@@ -71,6 +72,7 @@ ctx.measureOnChk.addEventListener('change', () => {
   // useful inspection results.
   if (!ctx.measureOn) {
     ctx.measureP1 = null;
+  ctx.measureP1Part = null;
     if (ctx.measureP1Dot) ctx.measureP1Dot.visible = false;
     clearHoverGlow();
   } else measureEnsureVisuals();
@@ -173,6 +175,10 @@ export function pickNearestCorner(clientX, clientY) {
     const d = Math.hypot(clientX - sx, clientY - sy);
     if (d < bestD) { bestD = d; best = wc; }
   }
+  if (best) {
+    const key = ctx.meshPartKey.get(mesh) || '';
+    best.userData = { partKey: key, partName: key ? partNameForKey(key) : mesh.name || 'Unknown part' };
+  }
   return best;
 }
 
@@ -220,7 +226,7 @@ export function clearHoverGlow() { if (ctx.measureGlow) ctx.measureGlow.visible 
 
 export function broadcastMeasureAdd(entry) {
   if (!ctx.session?.connected) return;
-  try { ctx.session.ws.send(JSON.stringify({ t: 'measure-add', id: entry.id, p1: entry.p1, p2: entry.p2 })); } catch {}
+  try { ctx.session.ws.send(JSON.stringify({ t: 'measure-add', id: entry.id, label: entry.label, part1: entry.part1, part2: entry.part2, p1: entry.p1, p2: entry.p2 })); } catch {}
 }
 
 export function broadcastMeasureDel(id) {
@@ -233,18 +239,31 @@ export function broadcastMeasureClear() {
   try { ctx.session.ws.send(JSON.stringify({ t: 'measure-clear' })); } catch {}
 }
 
-export function makeMeasureEntry(p1, p2) {
+export function makeMeasureEntry(p1, p2, part1 = null, part2 = null) {
   const mm = p1.distanceTo(p2);
   const v = new THREE.Vector3().subVectors(p2, p1);
   const elevation = (mm > 1e-9) ? THREE.MathUtils.radToDeg(Math.asin(v.y / mm)) : 0;
   const azimuth = THREE.MathUtils.radToDeg(Math.atan2(v.z, v.x));
-  return { id: 'm' + (++ctx.measureSeq), p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth };
+  return { id: 'm' + (++ctx.measureSeq), label: `M${ctx.measureSeq}`, part1: part1?.partName || 'Unknown part', part2: part2?.partName || 'Unknown part', p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth };
 }
 
 export function addMeasurement(entry, broadcast) {
   ctx.measureList.push(entry);
   renderMeasureList();
   if (broadcast) broadcastMeasureAdd(entry);
+}
+
+export function broadcastMeasureUpdate(id, label) {
+  if (!ctx.session?.connected) return;
+  try { ctx.session.ws.send(JSON.stringify({ t: 'measure-update', id, label })); } catch {}
+}
+
+export function updateMeasurementLabel(id, label, broadcast = true) {
+  const m = ctx.measureList.find((entry) => entry.id === id);
+  if (!m) return;
+  m.label = (label || '').trim().slice(0, 80) || m.id.toUpperCase();
+  renderMeasureList();
+  if (broadcast && !ctx.applyingRemoteMeasure) broadcastMeasureUpdate(id, m.label);
 }
 
 export function removeMeasurement(id) {
@@ -257,9 +276,12 @@ export function removeMeasurement(id) {
 export function measureClear() {
   ctx.measureList = [];
   ctx.measureP1 = null;
+  ctx.measureP1Part = null;
   clearHoverGlow();
   rebuildMeasureLayer();
   if (ctx.measureListEl) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+  const panel = document.getElementById('floating-measurements');
+  if (panel) panel.hidden = true;
   if (!ctx.applyingRemoteMeasure) broadcastMeasureClear();
 }
 
@@ -271,8 +293,17 @@ export function applyRemoteMeasureAdd(msg) {
     const p1 = new THREE.Vector3(...msg.p1), p2 = new THREE.Vector3(...msg.p2);
     const entry = makeMeasureEntry(p1, p2);
     entry.id = msg.id;   // keep the sender's id so del matches
+    entry.label = msg.label || entry.id.toUpperCase();
+    entry.part1 = msg.part1 || 'Unknown part';
+    entry.part2 = msg.part2 || entry.part1;
     addMeasurement(entry, false);
   } finally { ctx.applyingRemoteMeasure = false; }
+}
+
+export function applyRemoteMeasureUpdate(msg) {
+  if (!msg?.id) return;
+  ctx.applyingRemoteMeasure = true;
+  try { updateMeasurementLabel(msg.id, msg.label, false); } finally { ctx.applyingRemoteMeasure = false; }
 }
 
 export function applyRemoteMeasureDel(msg) {
@@ -293,7 +324,7 @@ export function applyRemoteMeasureSync(measures) {
   ctx.applyingRemoteMeasure = true;
   try {
     ctx.measureList = measures.map((m) => ({
-      id: m.id, p1: m.p1, p2: m.p2,
+      id: m.id, label: m.label || m.id.toUpperCase(), part1: m.part1 || 'Unknown part', part2: m.part2 || m.part1 || 'Unknown part', p1: m.p1, p2: m.p2,
       mm: new THREE.Vector3(...m.p1).distanceTo(new THREE.Vector3(...m.p2)),
       elevation: m.elevation, azimuth: m.azimuth,
     }));
@@ -314,8 +345,8 @@ export function flushPendingMeasures() {
   }
 }
 
-export function commitMeasurement(p1, p2) {
-  const entry = makeMeasureEntry(p1, p2);
+export function commitMeasurement(p1, p2, part1 = null, part2 = null) {
+  const entry = makeMeasureEntry(p1, p2, part1, part2);
   const sz = measureDotSize();
   const line = new THREE.Line(
     new THREE.BufferGeometry().setFromPoints([p1.clone(), p2.clone()]),
@@ -326,6 +357,7 @@ export function commitMeasurement(p1, p2) {
   ctx.measureLayer.add(placeDot(p2, sz * 0.9));
   addMeasurement(entry, true);   // broadcast the committed measurement
   ctx.measureP1 = null;
+  ctx.measureP1Part = null;
   ctx.measureP1Dot.visible = false;
   updateMeasureStatus();
   xferToast('Measured ' + formatMm(entry.mm));
@@ -353,6 +385,8 @@ export function fmtAngle(deg) {
 }
 
 export function renderMeasureList() {
+  const panel = document.getElementById('floating-measurements');
+  if (panel) panel.hidden = !ctx.measureList.length;
   if (!ctx.measureListEl) return;
   ctx.measureListEl.innerHTML = '';
   ctx.measureList.forEach((m, i) => {
@@ -360,19 +394,25 @@ export function renderMeasureList() {
     item.className = 'ml-item';
     const head = document.createElement('div');
     head.className = 'ml-row';
+    const label = document.createElement('input');
+    label.className = 'ml-label';
+    label.value = m.label || `M${i + 1}`;
+    label.maxLength = 80;
+    label.title = 'Measurement label';
+    label.addEventListener('change', () => updateMeasurementLabel(m.id, label.value));
     const info = document.createElement('span');
     info.className = 'ml-mm';
-    info.textContent = `${formatMm(m.mm)} · ${fmtAngle(m.elevation)} el`;
+    info.textContent = `${formatMm(m.mm)} · el ${fmtAngle(m.elevation)} · az ${fmtAngle(m.azimuth)}`;
     const del = document.createElement('button');
     del.className = 'ml-del';
     del.textContent = '✕';
     del.title = 'Remove measurement ' + (i + 1);
     del.addEventListener('click', () => removeMeasurement(m.id));
-    head.append(info, del);
+    head.append(label, info, del);
     const pts = document.createElement('div');
     pts.className = 'ml-pts';
-    pts.innerHTML = `P1 ${fmtCoord(m.p1)}<br>P2 ${fmtCoord(m.p2)}<br>∠ az ${fmtAngle(m.azimuth)}`;
-    item.append(head, pts);
+    pts.innerHTML = `${m.part1 || 'Unknown part'}${m.part2 && m.part2 !== m.part1 ? ` ↔ ${m.part2}` : ''}<br>P1 ${fmtCoord(m.p1)}<br>P2 ${fmtCoord(m.p2)}`;
+    item.append(pts, head);
     ctx.measureListEl.appendChild(item);
   });
   if (!ctx.measureList.length) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
@@ -399,6 +439,15 @@ export function rebuildMeasureLayer() {
   updateMeasureStatus();
 }
 
+document.getElementById('fm-clear')?.addEventListener('click', measureClear);
+document.getElementById('fm-collapse')?.addEventListener('click', () => {
+  const list = document.getElementById('floating-measure-list');
+  const button = document.getElementById('fm-collapse');
+  const collapsed = !list.hidden;
+  list.hidden = collapsed;
+  button.textContent = collapsed ? '▸' : '▾';
+  button.setAttribute('aria-expanded', String(!collapsed));
+});
 ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   if (!ctx.measureOn) return;
   const c = pickNearestCorner(e.clientX, e.clientY);
@@ -419,6 +468,7 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && ctx.measureOn && ctx.measureP1) {
     ctx.measureP1 = null;
+  ctx.measureP1Part = null;
     if (ctx.measureP1Dot) ctx.measureP1Dot.visible = false;
     clearHoverGlow();
     updateMeasureStatus();

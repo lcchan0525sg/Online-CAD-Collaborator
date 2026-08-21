@@ -21,6 +21,27 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.89] — 2026-08-21
+
+### Added
+
+- Authoritative guest Resync session action.
+- Camera state replay for first join, reconnect, and manual Resync.
+- Floating scrollable/collapsible measurement panel with editable labels and part names.
+
+### Changed
+
+- Host pre-session transforms, pivots, and measurements are published when the session is created.
+- Guest transform state is buffered until the shared model finishes loading.
+- Measurement panel is positioned below the floating View controls.
+- Duplicate Explode Frame control removed; floating Fit remains the single framing action.
+
+### Verification
+
+- Full two-client harness: **65 passed, 0 failed**.
+
+---
+
 ## [v0.88] — 2026-08-21
 
 ### Added

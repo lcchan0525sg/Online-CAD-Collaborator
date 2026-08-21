@@ -240,7 +240,8 @@ export function broadcastTransform(path, node, pivotOverride = ctx.customPivot) 
 }
 
 export function applyRemoteTransform(msg) {
-  if (!ctx.model || !Array.isArray(msg.path) || !Array.isArray(msg.pos) || !Array.isArray(msg.quat)) return;
+  if (!Array.isArray(msg.path) || !Array.isArray(msg.pos) || !Array.isArray(msg.quat)) return;
+  if (!ctx.model) { ctx.pendingRemoteTransforms.push(msg); return; }
   const node = nodeAtPath(ctx.model.children[0], msg.path);
   if (!node) return;
   node.position.set(msg.pos[0], msg.pos[1], msg.pos[2]);
@@ -255,6 +256,13 @@ export function applyRemoteTransform(msg) {
     if (ctx.selectedPartKey === key) ctx.customPivot = null;
   }
   if (ctx.selectedPartKey === key) updateMoveGizmo();
+}
+
+export function flushPendingRemoteTransforms() {
+  if (!ctx.model || !ctx.pendingRemoteTransforms.length) return;
+  const pending = ctx.pendingRemoteTransforms;
+  ctx.pendingRemoteTransforms = [];
+  for (const msg of pending) applyRemoteTransform(msg);
 }
 
 export function applyRemoteRot(msg) {
@@ -717,6 +725,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key.toLowerCase() === 'z' && !e.shiftKey) { e.preventDefault(); undoTransform(); }
   else if (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey)) { e.preventDefault(); redoTransform(); }
 });
+
+window.addEventListener('viewer-model-loaded', flushPendingRemoteTransforms);
 
 export function makeArrow(axis) {
   const dir = axis === 'x' ? new THREE.Vector3(1, 0, 0)

@@ -358,6 +358,7 @@ wss.on('connection', (ws, req, url) => {
   }
   // Late joiner: replay lighting + animation state too.
   if (session.light) send(ws, { t: 'light', s: session.light });
+  if (session.camera) send(ws, { t: 'cam', pos: session.camera.pos, target: session.camera.target });
   if (session.anim) send(ws, { t: 'anim', s: session.anim });
   // Late joiner: replay the committed measurements + explode state.
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
@@ -378,6 +379,7 @@ wss.on('connection', (ws, req, url) => {
     let msg;
     try { msg = JSON.parse(data.toString()); } catch { return; }
     if (msg.t === 'cam' && Array.isArray(msg.pos) && Array.isArray(msg.target)) {
+      session.camera = { pos: msg.pos, target: msg.target };
       // Relay camera motion to every other member (not back to sender).
       broadcast(session, { t: 'cam', from: id, pos: msg.pos, target: msg.target }, id);
     } else if (msg.t === 'parts' && Array.isArray(msg.ops)) {
@@ -450,8 +452,13 @@ wss.on('connection', (ws, req, url) => {
       // Committed measurement: store (for late joiners) and relay to the others.
       session.measures = session.measures || [];
       if (session.measures.length >= 200) session.measures.shift();
-      session.measures.push({ id: msg.id, p1: msg.p1, p2: msg.p2 });
-      broadcast(session, { t: 'measure-add', id: msg.id, p1: msg.p1, p2: msg.p2 }, id);
+      session.measures.push({ id: msg.id, label: typeof msg.label === 'string' ? msg.label.slice(0, 80) : msg.id.toUpperCase(), part1: msg.part1 || 'Unknown part', part2: msg.part2 || msg.part1 || 'Unknown part', p1: msg.p1, p2: msg.p2 });
+      broadcast(session, { t: 'measure-add', id: msg.id, label: session.measures.at(-1).label, part1: session.measures.at(-1).part1, part2: session.measures.at(-1).part2, p1: msg.p1, p2: msg.p2 }, id);
+    } else if (msg.t === 'measure-update' && typeof msg.id === 'string') {
+      const label = typeof msg.label === 'string' ? msg.label.trim().slice(0, 80) || msg.id.toUpperCase() : msg.id.toUpperCase();
+      const measurement = (session.measures || []).find((m) => m.id === msg.id);
+      if (measurement) measurement.label = label;
+      broadcast(session, { t: 'measure-update', id: msg.id, label }, id);
     } else if (msg.t === 'measure-del' && typeof msg.id === 'string') {
       // Remove a measurement by id: drop it from state and relay.
       session.measures = (session.measures || []).filter((m) => m.id !== msg.id);
@@ -476,6 +483,19 @@ wss.on('connection', (ws, req, url) => {
         reversed: !!msg.s.reversed,
       };
       broadcast(session, { t: 'section', s: session.section }, id);
+    } else if (msg.t === 'resync-request') {
+      const ops = Object.entries(session.partsState || {}).map(([p, visible]) => ({ path: p.split('.').map(Number), visible }));
+      if (ops.length) send(ws, { t: 'parts', ops });
+      if (session.light) send(ws, { t: 'light', s: session.light });
+      if (session.camera) send(ws, { t: 'cam', pos: session.camera.pos, target: session.camera.target });
+      if (session.anim) send(ws, { t: 'anim', s: session.anim });
+      if (session.measures?.length) send(ws, { t: 'measure-sync', measures: session.measures });
+      if (session.explode) send(ws, { t: 'explode', ...session.explode });
+      if (session.section) send(ws, { t: 'section', s: session.section });
+      for (const key of Object.keys(session.trans || {}).filter((k) => session.trans[k])) send(ws, { t: 'trans', key, transparent: true });
+      for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
+      if (session.chat?.length) send(ws, { t: 'chat-sync', history: session.chat });
+      send(ws, { t: 'resync-done' });
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {
       // Host kicks a viewer out of the session. Only the host may kick, and the
       // host can't kick itself. Close the target's socket; onGone removes them

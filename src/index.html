@@ -53,6 +53,7 @@
           </div>
           <div id="roster" class="mats" style="margin-top:8px"></div>
           <button class="btn" id="btn-chat" style="margin-top:10px; width:100%">Chat</button>
+          <button class="btn" id="btn-resync-session" style="margin-top:10px">Resync session</button>
           <button class="btn" id="btn-reconnect-session" style="margin-top:10px" hidden>Reconnect</button>
           <button class="btn" id="btn-leave-session" style="margin-top:10px">Leave session</button>
         </div>
@@ -75,7 +76,6 @@
             </select>
           </label>
         </div>
-        <button class="btn" id="btn-frame">Frame model</button>
       </section>
 
       <section class="section" id="anim-section" style="display:none">
@@ -164,7 +164,7 @@
           <input class="slider" type="range" id="explode-slider" min="0" max="500" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
           <span id="explode-val" class="move-axis">0 mm</span>
           <button class="btn" id="btn-explode-reset" title="Reset the explosion only">Reset</button>
-          <button class="btn" id="btn-explode-frame" title="Frame the whole model">Frame</button>
+
         </div>
         <div class="row toggle" style="margin-bottom:4px; align-items:center; gap:6px">
           <label class="tlabel" style="font-size:12px">Dir</label>
@@ -201,7 +201,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.88 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.89 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -253,6 +253,7 @@
       <!-- Preset views: floating panel, top-right of the viewport -->
       <div id="view-presets" class="view-presets">
         <span class="vp-title">View</span>
+        <button type="button" class="vp-btn" id="vp-fit" title="Fit model without changing the current view direction">Fit</button>
         <button type="button" class="vp-btn" data-view="iso" aria-pressed="false" title="Isometric">Iso</button>
         <button type="button" class="vp-btn" data-view="front" title="Front">Front</button>
         <button type="button" class="vp-btn" data-view="back" title="Back">Back</button>
@@ -283,6 +284,10 @@
         </div>
       </div>
       <div id="xfer-toast" hidden></div>
+      <div id="floating-measurements" class="floating-measurements" hidden>
+        <div class="fm-head"><span>Measurements</span><button type="button" id="fm-collapse" aria-expanded="true">▾</button><button type="button" id="fm-clear">Clear</button></div>
+        <div id="floating-measure-list" class="fm-list"></div>
+      </div>
       <div id="measure-label" hidden></div>
       <div id="part-hover-tip" hidden></div>
       <div id="chat-window" hidden>

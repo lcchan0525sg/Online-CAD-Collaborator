@@ -247,6 +247,8 @@ body {
   line-height: 1.5;
 }
 #measure-list .ml-row:last-child { border-bottom: none; }
+#measure-list .ml-label { flex: 1 1 90px; min-width: 0; margin-right: 6px; padding: 2px 4px; border: 1px solid transparent; border-radius: 3px; background: transparent; color: var(--text); font-size: 11px; }
+#measure-list .ml-label:focus { border-color: var(--accent); background: var(--panel2); outline: none; }
 #measure-list .ml-mm { color: #ffd166; font-family: "SFMono-Regular", ui-monospace, Consolas, monospace; }
 #measure-list .ml-del {
   background: none; border: none; color: var(--muted); cursor: pointer; font-size: 13px; padding: 0 2px; line-height: 1;
@@ -691,6 +693,20 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
 }
 
 /* ---------- Floating panels over the viewport ---------- */
+#viewport .floating-measurements { position: absolute; right: 12px; top: 112px; bottom: auto; width: min(360px, calc(100% - 24px)); max-height: 42vh; z-index: 18; background: rgba(15,17,21,.92); border: 1px solid rgba(255,255,255,.16); border-radius: 8px; box-shadow: 0 6px 20px rgba(0,0,0,.35); backdrop-filter: blur(5px); color: #dfe6f0; }
+#viewport .fm-head { display:flex; align-items:center; gap:6px; padding:7px 8px; font-size:12px; font-weight:600; border-bottom:1px solid rgba(255,255,255,.12); }
+#viewport .fm-head span { flex:1; }
+#viewport .fm-head button { border:1px solid rgba(255,255,255,.15); background:rgba(255,255,255,.07); color:#dfe6f0; border-radius:4px; cursor:pointer; }
+#viewport .fm-list { max-height: calc(42vh - 36px); overflow-y:auto; padding:7px 8px; }
+#viewport .floating-measurements .ml-label { color:#fff; }
+#viewport .fm-list .ml-row { display:flex; align-items:center; gap:8px; font-size:12px; padding:2px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+#viewport .fm-list .ml-item { padding:3px 0; border-bottom:1px solid rgba(255,255,255,.1); }
+#viewport .fm-list .ml-item:last-child { border-bottom:none; }
+#viewport .fm-list .ml-label { flex:0 0 72px; width:72px; min-width:0; margin-right:2px; padding:2px 4px; border:1px solid transparent; border-radius:3px; background:transparent; color:#fff; font-size:11px; }
+#viewport .fm-list .ml-label:focus { border-color:var(--accent); background:rgba(255,255,255,.08); outline:none; }
+#viewport .fm-list .ml-mm { flex:0 1 auto; color:#ffd166; font-family:"SFMono-Regular",ui-monospace,Consolas,monospace; white-space:nowrap; }
+#viewport .fm-list .ml-del { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; padding:0 2px; line-height:1; }
+
 #viewport .view-presets {
   position: absolute;
   top: 12px;

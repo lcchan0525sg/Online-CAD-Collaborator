@@ -118,6 +118,21 @@ function framing() {
   return { center, maxDim, dist };
 }
 
+export function fitModelPreserveView() {
+  if (!ctx.model) return;
+  const { center, dist } = framing();
+  const direction = ctx.camera.position.clone().sub(ctx.controls.target);
+  if (direction.lengthSq() < 1e-8) direction.set(0.7, 0.55, 0.85);
+  direction.normalize();
+  ctx.controls.target.copy(center);
+  ctx.camera.position.copy(center).addScaledVector(direction, dist);
+  ctx.camera.near = dist / 1000;
+  ctx.camera.far = dist * 1000;
+  ctx.camera.updateProjectionMatrix();
+  ctx.controls.update();
+  setActivePreset(null);
+}
+
 export function frameModel() {
   if (!ctx.model) return;
   const { center, maxDim, dist } = framing();
@@ -180,7 +195,8 @@ export function setPresetView(view) {
   setActivePreset(view);
 }
 
-document.querySelectorAll('#view-presets .vp-btn').forEach((b) => {
+document.getElementById('vp-fit')?.addEventListener('click', fitModelPreserveView);
+document.querySelectorAll('#view-presets .vp-btn[data-view]').forEach((b) => {
   b.addEventListener('click', () => setPresetView(b.dataset.view));
 });
 
@@ -522,7 +538,7 @@ document.getElementById('file').addEventListener('change', (e) => {
   e.target.value = '';
 });
 
-document.getElementById('btn-frame').addEventListener('click', frameModel);
+
 
 export function bindLightSlider(id, key) {
   const el = document.getElementById(id);
