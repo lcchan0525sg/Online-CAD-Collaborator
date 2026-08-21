@@ -21,6 +21,40 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.83] — 2026-08-21
+
+### Added
+
+- **Unified interaction toolbar** with Select, Move, Rotate, Pivot, and Measure
+  modes, explicit active-axis state, contextual selected-part actions, and
+  Escape cancellation.
+- **Custom pivot editing** with a compact crosshair marker and rotation around
+  an arbitrary pivot.
+- **Unified transform history** for move, rotate, and pivot gestures.
+- **Redo support** through the Assembly panel and `Ctrl+Y` / `Ctrl+Shift+Z`.
+- **Transform completion/cancellation feedback** in the viewport toolbar.
+- **HOST/GUEST connection badges** and clearer session connection-state colors.
+- **Explicit Explode scope/readout** and separate Explode Reset and camera Frame
+  actions.
+
+### Changed
+
+- Undo now restores complete position, quaternion, and pivot state rather than
+  movement alone.
+- Undo/Redo broadcasts the resulting atomic transform to session members.
+- Stale Undo/Redo actions are refused when another user has changed the same
+  part, preventing accidental overwrites.
+- The measurement workflow now shows explicit first-point/second-point status
+  and compact corner markers.
+
+### Verification
+
+- Full headless two-client viewer harness: **47 passed, 0 failed**.
+- All client/server modules pass `node --check`.
+- `git diff --check` passes.
+
+---
+
 ## [v0.82] — 2026-08-20
 
 ### Added
@@ -244,7 +278,9 @@ One WebSocket per client at `/ws?<session>&<id>`. Messages are JSON
 | `parts` | all | `[{path, visible}]` | part visibility |
 | `tree` | all | `path, collapsed` | assembly-tree expand/collapse |
 | `sel` | all | `key` | part selection highlight |
-| `move` | all | `path, pos` | part move (X/Y/Z) |
+| `move` | all | `path, pos` | legacy part move sync |
+| `rot` | all | `path, quat` | legacy part rotation sync |
+| `transform` | all | `path, pos, quat, pivot` | atomic move/rotate/pivot sync and Undo/Redo |
 | `light` / `light-ambient` / `light-front` | all | levels | lighting sync |
 | `anim` | all | clip/play/loop/speed | animation sync |
 | `model` | host→server→guests | GLB bytes | model sharing |
@@ -264,8 +300,14 @@ to disk.
   clones** (so shared source materials aren't mutated).
 - **Move gizmo:** X/Y/Z arrows sized to ~1/8 of viewport height; **screen-space
   segment picking** lets a click on an arrow set the move axis. Drag translates
-  the part along that axis in a camera-facing plane; moves are recorded for
-  **Undo** (cap 200) and **Reset**.
+  the part along that axis in a camera-facing plane. Move, rotate, and custom
+  pivot drags are recorded in a unified history (cap 200) with Undo, Redo, and
+  Reset.
+- **Custom pivot:** a crosshair handle moves the world-space rotation centre;
+  rotation around the offset pivot stores and synchronizes position, quaternion,
+  and pivot atomically.
+- **Stale history protection:** an Undo/Redo command is applied only when the
+  selected part still matches the command's expected state.
 - **Part keys** are **paths** (child indices from the scene root), stable across
   every client that loads the same GLB — names can be empty/duplicated, so the
   path is used for sync.

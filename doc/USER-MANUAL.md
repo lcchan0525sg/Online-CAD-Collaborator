@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.82 · **URL:** http://localhost:8088/
+**Version:** v0.83 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -8,7 +8,7 @@
 2. [Starting the app](#2-starting-the-app)
 3. [Opening a model](#3-opening-a-model)
 4. [The Assembly panel — parts and visibility](#4-the-assembly-panel--parts-and-visibility)
-5. [Moving a part](#5-moving-a-part)
+5. [Moving and rotating parts](#5-moving-and-rotating-parts)
 6. [Measuring distances](#6-measuring-distances)
 7. [Exploded view](#7-exploded-view)
 8. [Part transparency](#8-part-transparency)
@@ -28,7 +28,7 @@
 ## 1. Welcome — why CAD Viewer?
 
 ::: hero
-![CAD Viewer — a shared 3D model rendered in the browser](manual-shots/17-hero.png)
+![GearBox CAD assembly — an exploded view rendered in CAD Viewer](manual-shots/17-hero.png)
 :::
 
 ::: callout
@@ -257,38 +257,53 @@ viewport — to open a menu with five actions:
 
 ---
 
-## 5. Moving a part
+## 5. Moving and rotating parts
 
-A part can be moved along the X, Y or Z axis using the axis gizmo, so you can
-reposition a component of an assembly.
+A selected part can be moved along the X, Y or Z axis, or rotated around an axis
+using the compact interaction toolbar and the viewport gizmo. The same toolbar
+also provides direct access to Pivot and Measure modes.
+
+![GearBox with the enhanced interaction toolbar, Assembly tree, move gizmo, and contextual part actions](manual-shots/24-moving-rotating-ui.png)
 
 ### Start a move
 
-1. **Select the part** — click its name in the tree, or click it directly in
-   the 3D viewport.
-2. **Right-click** it and choose **Move part**. The X/Y/Z axis gizmo appears at
-   the part.
-3. **Click the gizmo arrow** for the direction you want to move (X = red,
-   Y = green, Z = blue). That arrow glows to show it is armed.
+1. **Select the part** — click its name in the Assembly tree, or click it directly
+   in the 3D viewport.
+2. Click **Move** in the compact toolbar below the viewport. The selected part's
+   axis gizmo appears, and the contextual actions remain available on the right.
+3. Choose an axis by clicking **X**, **Y**, or **Z** in the toolbar, or click the
+   matching gizmo arrow. The active axis is highlighted.
+
+You can also right-click a part and choose **Move part**; this opens the same move
+mode for users who prefer the contextual menu.
 
 ### Drag to move
 
 With an axis chosen, **left-drag** in the viewport to slide the part along that
-axis. The selected **part moves by itself** — its siblings stay put. (You can
-also pick an axis from the sidebar's **Move part** checkbox + **X / Y / Z**
-keys, or click a different gizmo arrow to change direction mid-move.)
+axis. The selected **part moves by itself** — its siblings stay put. Press **Esc**
+to cancel an active move. A completed drag becomes one Undo history step.
 
 ### The gizmo
 
 The X/Y/Z arrows (red/green/blue) stay about **1/8 of the screen** at any zoom
-level — zoom in and they shrink to keep that size. The armed arrow glows
-brighter than the others.
+level — zoom in and they shrink to keep that size. The armed arrow glows brighter
+than the others. The toolbar status text explains the current mode and axis.
 
-### Undo & reset
+### Undo, redo & reset
 
-- **Undo** steps back through your last part movements (up to 200).
+Transform history covers **moves, rotations, and custom-pivot adjustments**. Each
+completed drag is one history step, up to 200 steps.
+
+- **Undo** reverses the most recent transform.
+- **Redo** reapplies the most recently undone transform.
+- Keyboard shortcuts: **Ctrl+Z** to undo, **Ctrl+Y** or **Ctrl+Shift+Z** to redo.
+- Starting a new transform after Undo clears the Redo history.
 - **Reset** returns all parts to their original positions, collapses the exploded
-  view, and clears the move history.
+  view, and clears both histories.
+
+In a session, Undo and Redo broadcast the resulting complete transform to the
+other members. If another user changed the same part in the meantime, the stale
+Undo or Redo is refused instead of overwriting the newer change.
 
 ### Rotate a part
 
@@ -305,10 +320,32 @@ Besides sliding, a part can be **rotated** around an axis using the same gizmo:
 Rotations share the same **Undo / Reset** as moves and sync to every member of a
 session.
 
-![A part moved along the X axis, with the axis gizmo visible](manual-shots/15-part-move.png)
+
 
 **In a session, part moves and rotations sync to every member** — move or rotate
 a part and the others watch it live, and can move/rotate it back.
+
+### Custom pivot
+
+Use the **Pivot** tool in the compact toolbar above the viewport to move the
+rotation centre away from the part's own centre:
+
+1. Select a part.
+2. Choose **Pivot** and drag the crosshair to the desired rotation centre.
+3. Choose **Rotate**, arm an axis, and drag the rotation arc.
+4. Use **Reset pivot** in the selected-part toolbar to return to the default
+   centre.
+
+The pivot is included in transform history and is synchronized atomically with
+the part position and rotation. The current pivot resets when the selection
+changes or the model is reloaded.
+
+### Compact interaction toolbar
+
+The toolbar above the viewport provides direct access to **Select**, **Move**,
+**Rotate**, **Pivot**, and **Measure**. It also shows the active axis, the next
+required action, transform completion/cancellation feedback, and contextual
+selected-part actions. Press **Esc** to cancel the active interaction.
 
 ---
 
@@ -357,15 +394,18 @@ own direction.
 
 ### Controls
 
-- **Explode** slider — drag from **0%** (assembled) to **100%** (spread apart).
-- **Dir** — choose **Radial** (outward from the centre) or an explicit **X / Y /
-  Z** axis. Parts on the + side move +, on the − side move −.
-- **Level** — **All parts** separates every individual part; **Top sub-assembly**
-  keeps each top-level sub-assembly together as a rigid unit.
+- **Explode** slider — drag from **0 mm** (assembled) upward to separate the
+  selected assembly's immediate children.
+- **Dir** — choose an explicit **X / Y / Z** world axis. Parts on the + side move
+  +, on the − side move −.
+- **Scope** — select an assembly in the Parts tree to explode its immediate
+  children. With nothing selected, the viewer uses the default top-level
+  assembly. Selecting a leaf part leaves the last valid assembly scope active.
+- The scope readout shows the assembly name, child count, gap, and direction.
 
-The explosion is **non-destructive**: sliding back to 0% returns every part
-exactly to where it was (even parts you've moved). Pressing **Reset** in the
-Move panel also collapses the explosion.
+The explosion is **non-destructive**: pressing **Explode Reset** returns every
+part exactly to its resting position. Use **Frame** separately when you want to
+reframe the whole model.
 
 **In a session, the explode state syncs to every member** — whoever moves the
 slider, everyone follows.
@@ -677,4 +717,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.82 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.83 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

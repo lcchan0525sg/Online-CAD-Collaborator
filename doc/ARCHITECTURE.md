@@ -14,7 +14,7 @@ preserved exactly** — this is a structural refactor, not a feature change.
 | `parts.js` | ~490 | Assembly tree build, visibility, selection, transparency, hover tooltip, part context menu — plus their WebSocket sync functions. |
 | `session.js` | ~720 | WebSocket client (`connectTo`/`onSessionMsg`/`onclose`), roster, chat, health, model transfer (`shareBuffer`/`loadSharedModel`/`sendModelToPeers` + the `xfer*` overlay), session buttons, `endSessionForGuest`, name prompt (`askName`/`ensureName`/`storedName`), camera/light/animation sync. |
 | `measure.js` | ~400 | Measure tool + its sync functions. |
-| `move.js` | ~290 | Part move + X/Y/Z axis gizmo + their sync functions. |
+| `move.js` | ~650 | Part move, rotate, custom-pivot editing, unified transform history, Undo/Redo, X/Y/Z gizmo, and transform sync functions. |
 | `explode.js` | ~275 | Explode tool + its sync functions. |
 | `main.js` | ~210 | Imports every module for its side effects, then only: the render loop, the boot sequence (`?s=` deep-link join), and the `window.__viewer` debug-hook object. |
 
