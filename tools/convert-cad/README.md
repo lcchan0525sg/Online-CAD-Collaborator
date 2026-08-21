@@ -1,6 +1,6 @@
 # convert-cad — standalone STEP / IGES / STL → GLB / GLTF converter
 
-**Version: v0.23** — a standalone tool, independent of the CAD Viewer web app.
+**Version: v0.24** — a standalone tool, independent of the CAD Viewer web app.
 
 A small, self-contained tool that converts one CAD file into a glTF asset
 (either a binary **`.glb`** or a text **`.gltf`** + sibling `.bin`), ready for
@@ -63,10 +63,37 @@ node convert-cad-server.mjs          # or double-click convert-cad-web.bat
 # open http://localhost:8787
 ```
 
-Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, hit **Convert**,
-then **Download**. After converting you get a live **3D preview** of the model —
-drag to rotate, scroll to zoom, right-drag / two-finger to pan. Options:
-`--port <n>` and `--host <ip>`.
+Drag a STEP/IGES/STL onto the page, pick **.glb** or **.gltf**, choose the
+appearance and mesh quality controls, hit **Convert**, then **Download**. After
+converting you get a live **3D preview** of the model — drag to rotate, scroll
+to zoom, right-drag / two-finger to pan. Options: `--port <n>` and `--host <ip>`.
+
+### Large-model quality controls
+
+The Web UI defaults to **Large assembly (recommended)** because the CAD Viewer
+is intended to receive a prepared GLB for large models. These controls affect
+the generated mesh before it reaches the viewer:
+
+| Control | Effect |
+|---|---|
+| **Optimize mesh** | On uses the selected OpenCascade mesh settings; off uses faithful `0.20` deflection / `0.50` angular settings. |
+| **Large assembly** | `1.00` deflection / `1.00` angular; fewer triangles and faster browser interaction, with less small-feature detail. |
+| **Viewer balanced** | `0.50` / `0.70`; middle ground between detail and performance. |
+| **CAD faithful** | `0.20` / `0.50`; more detail, larger output and heavier viewer load. |
+| **Fast preview** | `2.00` / `1.50`; fastest/lightest preview, but small features may disappear. |
+| **Deflection** | Chordal error in model units. Lower values preserve more geometric detail and increase triangles. |
+| **Angular** | Angular meshing tolerance in radians. Lower values preserve more curved-surface detail and increase triangles. |
+| **Draco** | Compresses GLB geometry bytes and reduces transfer/memory size. It does not reduce mesh/primitive draw-call count. |
+| **Draco level** | Higher levels generally reduce size further but take longer to encode. Range `0–10`, default `7`. |
+| **Colors only** | Removes GLB texture maps and UV attributes while keeping basic material/part colors. Recommended for large assemblies. |
+| **Preserve textures** | Keeps texture maps in existing GLB/GLTF inputs. |
+
+The quality profile and tuning values apply to STEP/IGES OpenCascade meshing.
+STL already uses the direct welded single-primitive writer; Draco still applies
+to STL GLB output. **Colors only** is applied to GLB output after conversion;
+for STEP/IGES/STL it is normally already the natural output because those paths
+use basic colors rather than texture maps. It is also useful for existing GLB
+passthrough files and future JT conversion output.
 
 ### Command line
 
@@ -86,6 +113,13 @@ convert-cad.bat <input> [out.glb|out.gltf] [opts]
 |---|---|
 | `-o, --out <path>` | Output path (default: `<input dir>/<stem>.glb`) |
 | `--container <img>` | Docker image (default `chair-cq:local`) |
+| `--profile <name>` | `faithful`, `balanced`, `large` (default), `preview`, or `custom` |
+| `--optimize` / `--no-optimize` | Enable/disable selected OpenCascade mesh tuning |
+| `--deflection <value>` | Override chordal deflection, clamped to `0.01–10` |
+| `--angular <value>` | Override angular tolerance, clamped to `0.05–5` |
+| `--appearance preserve|colors` | Keep textures or strip GLB textures/UVs and use basic colors; default `preserve` |
+| `--compress draco` | Compress GLB geometry after conversion |
+| `--level <0–10>` | Draco encoding level, default `7` |
 | `--keep` | Keep the temp work dir on failure (debugging) |
 
 ### Examples

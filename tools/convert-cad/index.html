@@ -39,8 +39,12 @@
   .chip .x:hover { color:var(--err); }
   .row { display:flex; gap:10px; margin-top:16px; flex-wrap:wrap; }
   .row label { display:flex; align-items:center; gap:8px; font-size:14px; }
-  select, button { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--border); }
+  select, input, button { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--border); }
   select { background:#fff; }
+  input[type=number] { width:82px; background:#fff; }
+  .quality-row { align-items:center; }
+  .quality-row label { white-space:nowrap; }
+  .quality-help { margin-top:8px; color:#667; font-size:12px; line-height:1.45; }
   button.run { background:var(--accent); color:#fff; border-color:var(--accent); font-weight:600;
                cursor:pointer; flex:1; min-width:180px; }
   button.run:disabled { opacity:.5; cursor:not-allowed; }
@@ -76,7 +80,7 @@
 </style>
 </head>
 <body>
-  <h1>convert-cad — drag &amp; drop <span class="ver">v0.23</span></h1>
+  <h1>convert-cad — drag &amp; drop <span class="ver">v0.24</span></h1>
   <div class="sub">STEP / IGES / STL → GLB / GLTF · Docker (OpenCascade)</div>
 
   <div class="card">
@@ -96,16 +100,47 @@
           <option value="gltf">.gltf (+ .bin)</option>
         </select>
       </label>
-      <label title="Draco-compress the GLB geometry (smaller file, browser decodes on load)">Compress
+      <label title="Colors only removes texture maps and keeps basic material/part colours; it applies to GLB output">
+        Appearance
+        <select id="appearance">
+          <option value="colors" selected>Colors only</option>
+          <option value="preserve">Preserve textures</option>
+        </select>
+      </label>
+      <label title="Draco-compress the GLB geometry (smaller file, browser decodes on load)">Draco
         <select id="compress">
           <option value="none">none</option>
           <option value="draco">Draco</option>
         </select>
       </label>
+      <label title="Draco quality level: higher usually compresses more but takes longer">Level
+        <input id="draco-level" type="number" min="0" max="10" step="1" value="7" aria-label="Draco compression level">
+      </label>
       <button class="run" id="run" disabled>Convert</button>
       <button class="dl" id="dl" disabled>Download</button>
     </div>
-    <div class="hint">Converted GLBs stream back for preview and download.</div>
+    <div class="row quality-row">
+      <label title="Use coarser meshing to reduce triangles and improve browser performance">
+        <input id="optimize" type="checkbox" checked> Optimize mesh
+      </label>
+      <label title="A profile fills the recommended mesh-tuning values; choose Custom to edit them directly">Profile
+        <select id="quality-profile">
+          <option value="large" selected>Large assembly (recommended)</option>
+          <option value="balanced">Viewer balanced</option>
+          <option value="faithful">CAD faithful</option>
+          <option value="preview">Fast preview</option>
+          <option value="custom">Custom</option>
+        </select>
+      </label>
+      <label title="Maximum chordal error in model units; lower = more geometric detail">Deflection
+        <input id="deflection" type="number" min="0.01" max="10" step="0.01" value="1.00" aria-label="Mesh deflection">
+      </label>
+      <label title="Angular mesh tolerance in radians; lower = more detail and more triangles">Angular
+        <input id="angular" type="number" min="0.05" max="5" step="0.05" value="1.00" aria-label="Angular mesh deflection">
+      </label>
+    </div>
+    <div class="quality-help" id="quality-help">Large assembly: 1.00 deflection / 1.00 angular. Fewer triangles and faster browser interaction, with less small-feature detail. Disable Optimize mesh for the faithful 0.20 / 0.50 settings.</div>
+    <div class="hint">Converted GLBs stream back for preview and download. Mesh optimization affects STEP/IGES; STL already uses a welded single-primitive writer.</div>
 
     <div class="status" id="status"></div>
 
@@ -134,9 +169,49 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
   const file = document.getElementById('file');
   const chips = document.getElementById('chips');
   const fmtSel = document.getElementById('fmt');
+  const appearanceEl = document.getElementById('appearance');
   const compressSel = document.getElementById('compress');
+  const dracoLevelEl = document.getElementById('draco-level');
+  const optimizeEl = document.getElementById('optimize');
+  const profileEl = document.getElementById('quality-profile');
+  const deflectionEl = document.getElementById('deflection');
+  const angularEl = document.getElementById('angular');
+  const qualityHelpEl = document.getElementById('quality-help');
   const statsEl = document.getElementById('stats');
   const statsGrid = document.getElementById('stats-grid');
+
+  const QUALITY_PROFILES = {
+    large: { deflection: 1.00, angular: 1.00, label: 'Large assembly', effect: 'Fewer triangles and faster browser interaction, with less small-feature detail.' },
+    balanced: { deflection: 0.50, angular: 0.70, label: 'Viewer balanced', effect: 'A middle ground between geometric detail and browser performance.' },
+    faithful: { deflection: 0.20, angular: 0.50, label: 'CAD faithful', effect: 'More edge and small-feature detail, with larger output and heavier viewer load.' },
+    preview: { deflection: 2.00, angular: 1.50, label: 'Fast preview', effect: 'Fastest conversion and lightest viewer load, but small features may disappear.' },
+  };
+
+  function clampNumber(el, min, max, fallback) {
+    const n = Number(el.value);
+    const value = Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
+    el.value = value.toFixed(2);
+    return value;
+  }
+
+  function updateQualityHelp() {
+    const p = QUALITY_PROFILES[profileEl.value];
+    const d = Number(deflectionEl.value);
+    const a = Number(angularEl.value);
+    const dText = Number.isFinite(d) ? d.toFixed(2) : '—';
+    const aText = Number.isFinite(a) ? a.toFixed(2) : '—';
+    qualityHelpEl.textContent = optimizeEl.checked
+      ? `${p?.label || 'Custom'}: ${dText} deflection / ${aText} angular. ${p?.effect || 'Custom mesh quality; lower values preserve more detail but increase triangles.'}`
+      : 'Optimize mesh off: faithful OpenCascade settings 0.20 deflection / 0.50 angular will be used. This preserves more detail but may produce a heavier browser asset.';
+  }
+
+  profileEl.addEventListener('change', () => {
+    const p = QUALITY_PROFILES[profileEl.value];
+    if (p) { deflectionEl.value = p.deflection.toFixed(2); angularEl.value = p.angular.toFixed(2); }
+    updateQualityHelp();
+  });
+  [optimizeEl, deflectionEl, angularEl].forEach(el => el.addEventListener('input', updateQualityHelp));
+  updateQualityHelp();
 
   // Render the conversion-statistics box. info = { inSize, outSize, log, gltf }
   function renderStats(info) {
@@ -159,6 +234,8 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     }
     cells.push(`<div class="stat">${compressCell}</div>`);
     if (timeCell) cells.push(timeCell);
+    const mesh = /mesh quality:\s*([^\n]+)/i.exec(info.log || '');
+    if (mesh) cells.push(`<div class="stat"><div class="k">Mesh quality</div><div class="v"><small>${escapeHtml(mesh[1])}</small></div></div>`);
     if (info.inSize>0 && info.outSize>0) {
       cells.push(`<div class="stat"><div class="k">Size saved</div><div class="v">−${saved.toFixed(1)}<small>%</small></div></div>`);
     }
@@ -339,13 +416,23 @@ import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
     const fmt = isAlready ? 'glb' : fmtSel.value;
     // Draco applies to GLB output — converted CAD or a passthrough .glb (but not .gltf).
     const wantCompress = (fmt === 'glb' && compressSel.value === 'draco');
+    const appearance = appearanceEl.value;
+    const deflection = clampNumber(deflectionEl, 0.01, 10, 1);
+    const angular = clampNumber(angularEl, 0.05, 5, 1);
+    const level = Math.round(clampNumber(dracoLevelEl, 0, 10, 7));
     runBtn.disabled = true; dlBtn.disabled = true; latest = null;
     if (statsEl) statsEl.hidden = true;
     setStatus([isAlready ? 'Loading (already converted - no conversion needed)...' : 'Uploading...']);
     const fd = new FormData();
     fd.append('model', model.file, model.name);
     fd.append('fmt', fmt);
+    fd.append('appearance', appearance);
     if (wantCompress) fd.append('compress', 'draco');
+    fd.append('optimize', optimizeEl.checked ? '1' : '0');
+    fd.append('profile', profileEl.value);
+    fd.append('deflection', String(deflection));
+    fd.append('angular', String(angular));
+    fd.append('level', String(level));
     try {
       const res = await fetch('/convert', { method:'POST', body:fd });
       const ct = res.headers.get('content-type')||'';

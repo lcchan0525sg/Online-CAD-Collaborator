@@ -11,9 +11,16 @@
 // Options:
 //   -o, --out <path>      Output path (default: input dir / <stem>.<glb|gltf>)
 //   --container <img>     Docker image (default: chair-cq:local)
+//   --profile <name>      faithful|balanced|large|preview|custom (large default)
+//   --optimize            Use the selected mesh-quality settings (default)
+//   --no-optimize         Use faithful OpenCascade meshing settings
+//   --deflection <mm>     Chordal mesh deflection, lower = more detail (0.01-10)
+//   --angular <rad>        Angular mesh deflection, lower = more detail (0.05-5)
+//   --appearance <mode>    preserve|colors (colors strips textures; GLB only)
 //   --keep                Keep the temp work dir on failure (for debugging)
 //
 // Output format is chosen by the output extension: .glb -> binary, .gltf -> text + .bin.
+import { colorsOnlyGlb } from './appearance.mjs';
 import { execFileSync, execFile } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, copyFileSync,
          writeFileSync, renameSync, rmSync, statSync } from 'node:fs';
@@ -51,6 +58,12 @@ Options:
   --container <img>   Docker image (default: chair-cq:local)
   --compress <m>      Compress the GLB host-side: draco (or none). Default: none.
   --level <n>         Draco compression level 0-10 (default 7)
+  --profile <name>    faithful|balanced|large|preview|custom (large default)
+  --optimize          Use selected mesh-quality settings (default)
+  --no-optimize       Use faithful OpenCascade meshing settings
+  --deflection <mm>   Chordal mesh deflection, lower = more detail (0.01-10)
+  --angular <rad>     Angular mesh deflection, lower = more detail (0.05-5)
+  --appearance <mode> preserve|colors (colors strips textures; GLB only)
   --keep              Keep the temp work dir on failure (for debugging)
 
 Examples:
@@ -74,21 +87,44 @@ async function main() {
   if (argv.length === 0 || argv.includes('-h') || argv.includes('--help')) { usage(); process.exit(0); }
 
   const pos = [];
-  let out = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7;
+  let out = null, container = 'chair-cq:local', keep = false, compress = 'none', level = 7, appearance = 'preserve';
+  let profile = 'large', optimize = true, deflection = null, angular = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '-o' || a === '--out') out = argv[++i];
     else if (a === '--container') container = argv[++i];
     else if (a === '--keep') keep = true;
     else if (a === '--compress') compress = (argv[++i] || 'none').toLowerCase();
-    else if (a === '--level') level = parseInt(argv[++i], 10) || 7;
+    else if (a === '--level') level = Number.isFinite(Number(argv[++i])) ? Number(argv[i]) : 7;
+    else if (a === '--profile') profile = (argv[++i] || 'large').toLowerCase();
+    else if (a === '--optimize') optimize = true;
+    else if (a === '--no-optimize') optimize = false;
+    else if (a === '--deflection') deflection = Number(argv[++i]);
+    else if (a === '--angular') angular = Number(argv[++i]);
+    else if (a === '--appearance') appearance = (argv[++i] || 'preserve').toLowerCase();
     else if (a.startsWith('--out=')) out = a.split('=')[1];
     else if (a.startsWith('--container=')) container = a.split('=')[1];
     else if (a.startsWith('--compress=')) compress = a.split('=')[1].toLowerCase();
-    else if (a.startsWith('--level=')) level = parseInt(a.split('=')[1], 10) || 7;
+    else if (a.startsWith('--level=')) level = Number(a.split('=')[1]);
+    else if (a.startsWith('--profile=')) profile = a.split('=')[1].toLowerCase();
+    else if (a.startsWith('--deflection=')) deflection = Number(a.split('=')[1]);
+    else if (a.startsWith('--angular=')) angular = Number(a.split('=')[1]);
+    else if (a.startsWith('--appearance=')) appearance = a.split('=')[1].toLowerCase();
     else pos.push(a);
   }
   if (pos.length < 1 || pos.length > 2) die('expected <input> and optional [out]');
+  if (!['preserve', 'colors'].includes(appearance)) die(`unknown --appearance '${appearance}' (use preserve|colors)`);
+  const profiles = {
+    faithful: { deflection: 0.2, angular: 0.5 },
+    balanced: { deflection: 0.5, angular: 0.7 },
+    large: { deflection: 1.0, angular: 1.0 },
+    preview: { deflection: 2.0, angular: 1.5 },
+  };
+  if (!profiles[profile] && profile !== 'custom') die(`unknown --profile '${profile}' (use faithful|balanced|large|preview|custom)`);
+  const q = profiles[profile] || profiles.large;
+  deflection = Number.isFinite(deflection) ? Math.max(0.01, Math.min(10, deflection)) : q.deflection;
+  angular = Number.isFinite(angular) ? Math.max(0.05, Math.min(5, angular)) : q.angular;
+  level = Number.isFinite(level) ? Math.max(0, Math.min(10, level)) : 7;
   const input = resolve(pos[0]);
   if (!existsSync(input)) die('input not found: ' + input);
   if (pos[1]) out = pos[1];   // positional output (also settable via -o/--out)
@@ -143,6 +179,10 @@ async function main() {
     const args = [
       'run', '--rm',
       '--env', `CQ_STEM=${stemSafe}`,
+      '--env', `CQ_OPTIMIZE=${optimize ? '1' : '0'}`,
+      '--env', `CQ_PROFILE=${profile}`,
+      '--env', `CQ_DEFLECTION=${deflection}`,
+      '--env', `CQ_ANGULAR=${angular}`,
       '-v', `${work}:/w`,
       '-v', `${dirname(CONVERTER)}:/tool:ro`,
       '-w', '/w',
@@ -167,6 +207,15 @@ async function main() {
   // Copy outputs back.
   const outGlb = join(work, 'model' + wantExt);
   if (!existsSync(outGlb)) { if (keep) console.error('kept work ' + work); die('output file not produced'); }
+  if (appearance === 'colors') {
+    if (wantExt === '.glb') {
+      const before = statSync(outGlb).size;
+      writeFileSync(outGlb, colorsOnlyGlb(readFileSync(outGlb)));
+      console.log(`convert-cad: appearance colors ${before} -> ${statSync(outGlb).size} bytes`);
+    } else {
+      console.warn('convert-cad: --appearance colors only applies to .glb output; preserving .gltf textures');
+    }
+  }
   copyFileSync(outGlb, outArg);
   if (wantExt === '.gltf') {
     const binIn = join(work, 'model.bin');

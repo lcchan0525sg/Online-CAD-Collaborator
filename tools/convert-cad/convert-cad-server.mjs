@@ -15,6 +15,7 @@ import { readFileSync, mkdtempSync, writeFileSync, copyFileSync, rmSync,
 import { join, dirname, extname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { colorsOnlyGlb } from './appearance.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CONVERTER = join(__dirname, 'convert-cad.py');
@@ -39,6 +40,12 @@ function threeFileFor(urlPath){
 const SUPPORTED = { '.step':'STEP','.stp':'STEP','.igs':'IGES','.iges':'IGES','.stl':'STL' };
 const PASSTHROUGH = { '.glb':'glb', '.gltf':'gltf' };   // already-converted: no Docker needed
 const MAX_BODY = 300 * 1024 * 1024; // 300 MB upload cap
+const QUALITY_PROFILES = {
+  faithful: { deflection: 0.2, angular: 0.5 },
+  balanced: { deflection: 0.5, angular: 0.7 },
+  large: { deflection: 1.0, angular: 1.0 },
+  preview: { deflection: 2.0, angular: 1.5 },
+};
 
 let PORT = 8787, HOST = '0.0.0.0';
 const argv = process.argv.slice(2);
@@ -94,6 +101,27 @@ async function compressGlbBuffer(glbBuf, level = 7) {
   return { buf: r.buf, ms: r.ms, inBytes: r.inBytes, outBytes: r.outBytes };
 }
 
+function field(parts, name, fallback = '') {
+  return (parts.find(p => p.name === name) || {}).body?.toString().trim() || fallback;
+}
+
+function qualitySettings(parts) {
+  const optimize = !['0', 'false', 'off', 'no'].includes(field(parts, 'optimize', '1').toLowerCase());
+  const profile = field(parts, 'profile', 'large').toLowerCase();
+  const base = QUALITY_PROFILES[profile] || QUALITY_PROFILES.large;
+  const number = (name, fallback, low, high) => {
+    const n = Number(field(parts, name, String(fallback)));
+    return Number.isFinite(n) ? Math.max(low, Math.min(high, n)) : fallback;
+  };
+  return {
+    optimize,
+    profile: QUALITY_PROFILES[profile] ? profile : 'custom',
+    deflection: optimize ? number('deflection', base.deflection, 0.01, 10) : 0.2,
+    angular: optimize ? number('angular', base.angular, 0.05, 5) : 0.5,
+    level: Math.round(number('level', 7, 0, 10)),
+  };
+}
+
 async function handleConvert(req,res){
   const ctype=req.headers['content-type']||'';
   const bm=/boundary=(.+)$/.exec(ctype);
@@ -106,9 +134,12 @@ async function handleConvert(req,res){
   let parts; try{ parts=parseMultipart(buf,bm[1]); }catch{ return sendErr(res,400,'bad multipart body'); }
 
   const model=parts.find(p=>p.name==='model'&&p.body.length>0);
-  const fmt=(parts.find(p=>p.name==='fmt')||{}).body?.toString().trim()==='gltf'?'gltf':'glb';
-  const compress=(parts.find(p=>p.name==='compress')||{}).body?.toString().trim().toLowerCase()||'none';
+  const fmt=field(parts, 'fmt', 'glb').toLowerCase()==='gltf'?'gltf':'glb';
+  const compress=field(parts, 'compress', 'none').toLowerCase();
+  const appearance=field(parts, 'appearance', 'preserve').toLowerCase();
+  const quality=qualitySettings(parts);
   if(!model)return sendErr(res,400,'no model file uploaded');
+  if(!['preserve','colors'].includes(appearance))return sendErr(res,400,`unsupported appearance '${appearance}' (only 'preserve' or 'colors' is supported)`);
 
   const ext=extname(model.filename).toLowerCase();
   const isPassthrough = ext in PASSTHROUGH;
@@ -123,9 +154,18 @@ async function handleConvert(req,res){
     const dlName=stem+'.'+ext.slice(1);
     let outBuf=model.body;
     const log=[];
+    if (appearance === 'colors') {
+      if (fmt === 'glb') {
+        const before = outBuf.length;
+        try { outBuf = colorsOnlyGlb(outBuf); log.push(`appearance colors ${before}->${outBuf.length} bytes`); }
+        catch (e) { return sendErr(res, 400, `colors-only appearance failed: ${e.message}`); }
+      } else {
+        log.push('appearance colors only applies to .glb output; preserving .gltf textures');
+      }
+    }
     if (fmt==='glb' && compress==='draco') {
       try {
-        const comp=await compressGlbBuffer(model.body);
+        const comp=await compressGlbBuffer(outBuf, quality.level);
         outBuf=comp.buf;
         log.push('draco '+comp.inBytes+'->'+comp.outBytes+' bytes in '+comp.ms+' ms');
       } catch (e) {
@@ -134,6 +174,7 @@ async function handleConvert(req,res){
     } else if (fmt==='gltf' && compress!=='none') {
       log.push('draco compression only applies to .glb output; skipping for .gltf');
     }
+    log.unshift(`mesh quality: passthrough; profile=${quality.profile} optimize=${quality.optimize ? 'on' : 'off'} dracoLevel=${quality.level}`);
     const headers={
       'Content-Type': fmt==='glb'?'model/gltf-binary':'model/gltf+json',
       'Content-Disposition':`attachment; filename="${dlName}"`,
@@ -160,12 +201,18 @@ async function handleConvert(req,res){
         { stdio: ['ignore', 'ignore', 'pipe'] });
       let fileBuf = readFileSync(outPath);
       const log = ['STL -> GLB (host-side, no Docker)'];
+      if (appearance === 'colors') {
+        const before = fileBuf.length;
+        fileBuf = colorsOnlyGlb(fileBuf);
+        log.push(`appearance colors ${before}->${fileBuf.length} bytes`);
+      }
       if (compress === 'draco') {
-        try { const comp = await compressGlbBuffer(fileBuf); fileBuf = comp.buf; log.push(`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`); }
+        try { const comp = await compressGlbBuffer(fileBuf, quality.level); fileBuf = comp.buf; log.push(`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`); }
         catch (e) { log.push('draco compression failed, returning uncompressed: ' + e.message); }
       } else if (compress !== 'none') {
         return sendErr(res, 400, `unsupported compress '${compress}' (only 'draco' is supported)`);
       }
+      log.unshift(`mesh quality: STL direct writer; profile=${quality.profile} optimize=${quality.optimize ? 'on' : 'off'} dracoLevel=${quality.level}`);
       res.writeHead(200, {
         'Content-Type': 'model/gltf-binary',
         'Content-Disposition': `attachment; filename="${stem}.glb"`,
@@ -194,6 +241,10 @@ async function handleConvert(req,res){
     const toolHost = __dirname.split('\\').join('/');   // forward slashes for docker -v on Windows
     const workHost = work.split('\\').join('/');        // same for the temp work dir
     const args=['run','--rm','--env',`CQ_STEM=${stem}`,
+      '--env',`CQ_OPTIMIZE=${quality.optimize ? '1' : '0'}`,
+      '--env',`CQ_PROFILE=${quality.profile}`,
+      '--env',`CQ_DEFLECTION=${quality.deflection}`,
+      '--env',`CQ_ANGULAR=${quality.angular}`,
       '-v',`${workHost}:/w`,'-v',`${toolHost}:/tool:ro`,'-w','/w',
       'chair-cq:local','python','/tool/convert-cad.py',`/w/${inName}`,`/w/${outName}`];
 
@@ -215,8 +266,20 @@ async function handleConvert(req,res){
         if(gltf.buffers&&gltf.buffers[0])gltf.buffers[0].uri='data:application/octet-stream;base64,'+b64;
         fileBuf=Buffer.from(JSON.stringify(gltf));
       }
+    } else if (appearance === 'colors') {
+      const before = fileBuf.length;
+      fileBuf = colorsOnlyGlb(fileBuf);
+      log.push(`appearance colors ${before}->${fileBuf.length} bytes`);
+      if (compress === 'draco') {
+        const comp=await compressGlbBuffer(fileBuf, quality.level);
+        fileBuf=comp.buf;
+        compNote=`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`;
+        log.push(compNote);
+      } else if (compress !== 'none') {
+        return sendErr(res,400,`unsupported compress '${compress}' (only 'draco' is supported)`);
+      }
     } else if (compress==='draco') {
-      const comp=await compressGlbBuffer(fileBuf0);
+      const comp=await compressGlbBuffer(fileBuf0, quality.level);
       fileBuf=comp.buf;
       compNote=`draco ${comp.inBytes}->${comp.outBytes} bytes in ${comp.ms} ms`;
       log.push(compNote);

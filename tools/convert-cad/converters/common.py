@@ -26,6 +26,7 @@ from OCP.TopAbs import TopAbs_SOLID
 
 FALLBACK = Quantity_Color(0.62, 0.66, 0.72, Quantity_TOC_RGB)
 MESH_DEFLECTION, MESH_ANGULAR, MESH_RUN_OUT = 0.2, 0.5, True
+_mesh_quality_logged = False
 
 
 def log(msg):
@@ -64,7 +65,20 @@ def collect_solids(shape, solids):
 
 
 def mesh(shape):
-    BRepMesh_IncrementalMesh(shape, MESH_DEFLECTION, False, MESH_ANGULAR, MESH_RUN_OUT)
+    global _mesh_quality_logged
+    def number(name, fallback, low, high):
+        try:
+            return max(low, min(high, float(os.environ.get(name, fallback))))
+        except (TypeError, ValueError):
+            return fallback
+    optimize = os.environ.get('CQ_OPTIMIZE', '1').lower() not in ('0', 'false', 'off', 'no')
+    deflection = number('CQ_DEFLECTION', MESH_DEFLECTION, 0.01, 10.0) if optimize else MESH_DEFLECTION
+    angular = number('CQ_ANGULAR', MESH_ANGULAR, 0.05, 5.0) if optimize else MESH_ANGULAR
+    if not _mesh_quality_logged:
+        profile = os.environ.get('CQ_PROFILE', 'faithful' if not optimize else 'custom')
+        log(f"mesh quality: {'optimized' if optimize else 'faithful'} profile={profile} deflection={deflection:g} angular={angular:g}")
+        _mesh_quality_logged = True
+    BRepMesh_IncrementalMesh(shape, deflection, False, angular, MESH_RUN_OUT)
 
 
 def add_shape(root, shapeTool, colorTool, shape):
