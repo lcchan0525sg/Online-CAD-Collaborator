@@ -826,3 +826,43 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
   cursor: pointer;
 }
 #part-menu .part-comment-box button.pc-cancel { background: rgba(255,255,255,0.08); color: #cfd8e3; }
+
+/* ---- Floating Model-corrections panel (bottom-left, default-collapsed) ---- */
+#viewport .floating-model {
+  position: absolute;
+  left: 12px;
+  bottom: 16px;
+  z-index: 30;
+  min-width: 236px;
+  max-width: min(320px, calc(100vw - 24px));
+  padding: 7px 8px;
+  background: rgba(15, 17, 21, .92);
+  border: 1px solid rgba(255, 255, 255, .16);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .35);
+  backdrop-filter: blur(5px);
+  color: #dfe6f0;
+  user-select: none;
+}
+#viewport .floating-model .fp-head { margin-bottom: 0; }
+#viewport .floating-model .fp-title { font-size: 12px; }
+#viewport .model-body { display: flex; flex-direction: column; gap: 7px; margin-top: 7px; }
+#viewport .m-row { display: flex; align-items: center; gap: 6px; }
+#viewport .m-label { flex: 0 0 46px; font-size: 11px; color: #9fb0c3; }
+#viewport .m-slider { flex: 1; min-width: 60px; accent-color: #5a9cff; }
+#viewport .m-val { flex: 0 0 44px; text-align: right; font-size: 11px; color: #e6ecf3; font-variant-numeric: tabular-nums; }
+#viewport .m-angle { width: 58px; padding: 2px 4px; font-size: 11px; border-radius: 5px; border: 1px solid rgba(255,255,255,.16); background: #141822; color: #e6ecf3; }
+#viewport .m-full { flex: 1; }
+#viewport .seg { display: inline-flex; gap: 2px; }
+#viewport .seg-btn {
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.07);
+  color: #cfd8e3;
+  font-size: 11px;
+  padding: 2px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+#viewport .seg-btn:hover { border-color: rgba(124,196,255,.7); color: #fff; }
+#viewport .seg-btn.active { background: rgba(47,125,255,.88); border-color: #5a9cff; color: #fff; font-weight: 600; }
+#viewport .floating-model[hidden] { display: none; }

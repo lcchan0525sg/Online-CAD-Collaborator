@@ -9,6 +9,7 @@ import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, 
 import { applySectionState, sectionState } from './section.js';
 import { applyRemoteExplode } from './explode.js';
 import { applyRemoteMove, applyRemoteRot, applyRemoteTransform, broadcastTransform } from './move.js';
+import { applyRemoteCorrections, correctionsState } from './model.js';
 
 let reconnectCode = null;
 let reconnectCreate = false;
@@ -23,6 +24,11 @@ export function requestSessionResync() {
 export function broadcastSection(s = sectionState()) {
   if (!ctx.session?.connected) return;
   try { ctx.session.ws.send(JSON.stringify({ t: 'section', s })); } catch {}
+}
+
+export function broadcastCorrections(s = correctionsState()) {
+  if (!ctx.session?.connected) return;
+  try { ctx.session.ws.send(JSON.stringify({ t: 'corr', s })); } catch {}
 }
 
 export function onModelAck(from) {
@@ -374,6 +380,12 @@ export function onSessionMsg(msg) {
           if (node) broadcastTransform(entry.path, node, ctx.pivotByPath.get(key) || null);
         }
         for (const measurement of ctx.measureList) broadcastMeasureAdd(measurement);
+        // Publish a pre-created section state (plane/axis/offset/reverse) the same
+        // way transforms + measurements are, so a guest that joins later receives
+        // it and the server stores it for resync / late-joiner replay.
+        if (ctx.sectionOn) broadcastSection(sectionState());
+        // Publish pre-created model corrections (units/scale/flip/rotate) too.
+        broadcastCorrections();
       }
       // Guest deep-link: the server tells us the session already has a model —
       // fetch + load it (blocking overlay until it lands).
@@ -434,6 +446,9 @@ export function onSessionMsg(msg) {
     case 'section':
       ctx.applyingRemoteSection = true;
       try { applySectionState(msg.s || msg, false); } finally { ctx.applyingRemoteSection = false; }
+      break;
+    case 'corr':
+      applyRemoteCorrections(msg.s);
       break;
     case 'rot':
       applyRemoteRot(msg);

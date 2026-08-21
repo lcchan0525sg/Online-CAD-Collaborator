@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.90 · **URL:** http://localhost:8088/
+**Version:** v0.91 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -13,15 +13,17 @@
 7. [Exploded view](#7-exploded-view)
 8. [Part transparency](#8-part-transparency)
 9. [Navigating the viewport](#9-navigating-the-viewport)
-10. [Lighting & animation](#10-lighting--animation)
-11. [Collaborative sessions (host)](#11-collaborative-sessions-host)
-12. [Joining a session (guest)](#12-joining-a-session-guest)
-13. [Session chat](#13-session-chat)
-14. [Leaving a session](#14-leaving-a-session)
-15. [Opening a STEP / IGES / STL file](#15-opening-a-step--iges--stl-file)
-16. [Standalone CAD converter (convert-cad)](#16-standalone-cad-converter-convert-cad)
-17. [Troubleshooting](#17-troubleshooting)
-18. [Sharing with external parties](#18-sharing-with-external-parties)
+10. [Section view (cut plane)](#10-section-view-cut-plane)
+11. [Model corrections (units, scale, flip, rotate)](#11-model-corrections-units-scale-flip-rotate)
+12. [Lighting & animation](#12-lighting--animation)
+13. [Collaborative sessions (host)](#13-collaborative-sessions-host)
+14. [Joining a session (guest)](#14-joining-a-session-guest)
+15. [Session chat](#15-session-chat)
+16. [Leaving a session](#16-leaving-a-session)
+17. [Opening a STEP / IGES / STL file](#17-opening-a-step--iges--stl-file)
+18. [Standalone CAD converter (convert-cad)](#18-standalone-cad-converter-convert-cad)
+19. [Troubleshooting](#19-troubleshooting)
+20. [Sharing with external parties](#20-sharing-with-external-parties)
 
 ---
 
@@ -251,7 +253,7 @@ viewport — to open a menu with five actions:
 | **Move part** | Selects the part and arms the axis gizmo so you can move it (see §5) |
 | **Show me only** | Hides everything except that part and its children; ancestors stay visible so the isolated part still renders |
 | **Make transparent** | Renders the part at 16% opacity so you can see through it (see §8); the item reads **Make opaque** when the part is already transparent |
-| **Comment…** | Opens a small text box; type a note and press **Send** — it posts `[Part name] your note` into the session chat for everyone (see §13). A session is required. |
+| **Comment…** | Opens a small text box; type a note and press **Send** — it posts `[Part name] your note` into the session chat for everyone (see §15). A session is required. |
 
 ![Right-click context menu with "Show me only"](manual-shots/13-show-me-only-menu.png)
 
@@ -461,7 +463,57 @@ presets too.
 
 ---
 
-## 10. Lighting & animation
+## 10. Section view (cut plane)
+
+The **Section** tool in the sidebar (under *MODEL CONTROL*) clips the model along
+a flat plane so you can inspect internal geometry — housings, channels, and how
+parts sit inside an assembly.
+
+| Control | What it does |
+|---|---|
+| **Section** checkbox | Turns the cut on / off |
+| **Axis** | Which way the cut plane faces (**X**, **Y** or **Z**) |
+| **Offset** | Slides the cut plane along that axis (shown in the current unit) |
+| **Reverse** | Keeps the opposite side of the cut |
+| **Reset** | Turns the cut off and restores the full model |
+
+### Cut-plane overlay
+
+While Section is on, the viewport shows two helpers so you can see exactly where
+the model is cut:
+
+- A **semi-transparent blue plane** positioned at the cut, sized to the model,
+  and drawn over the geometry so it is always visible.
+- **Orange contour lines** tracing where the plane cuts through the surfaces of
+  the visible parts — the cross-section silhouette.
+
+Drag the **Offset** slider and both the plane and the contours follow live, so
+you can sweep through the model to find a section of interest. The overlay is
+purely visual — the geometry is clipped only by the section plane itself.
+
+---
+
+## 11. Model corrections (units, scale, flip, rotate)
+
+A small **Model** panel floats at the **bottom-left** of the viewport (collapsed
+by default — click the **Model ▸** header to expand it). It lets you correct how
+a model is presented on the fly, without re-exporting from CAD:
+
+| Control | What it does |
+|---|---|
+| **Units** | Switches distance readouts between **mm** and **in** — affects measurement distances, point coordinates and the section offset |
+| **Scale** | A **0.1×–10×** multiplier on top of the automatic scale, to fix a mis-scaled model (**Reset** restores 1×) |
+| **Flip** | Mirrors the model along **X**, **Y** or **Z** to correct a wrong orientation |
+| **Rotate** | Pick an axis and an angle (degrees), then **Rotate** to spin the whole model around that axis |
+| **Reset corrections** | Clears the scale, flips and rotation in one click |
+
+**In a session the corrections are shared with every member** — change units,
+scale, flip or rotate on one viewer and the others update live, and a late joiner
+receives the current corrections too.
+
+---
+
+## 12. Lighting & animation
 
 ### Lighting
 
@@ -489,11 +541,11 @@ If the GLB you load contains **keyframe animation** (e.g. from Blender or a game
 
 ### Session sync
 
-In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse, selection, part moves, measurements, transparency and the exploded view sync as well (see §12).
+In a session, the **lighting levels (Ambient/Key/Fill/Front)** and the **animation state (clip, play/pause, loop, speed)** are shared with the other viewers, and late joiners receive the current settings. Camera, part visibility, tree expand/collapse, selection, part moves, measurements, transparency and the exploded view sync as well (see §14).
 
 ---
 
-## 11. Collaborative sessions (host)
+## 13. Collaborative sessions (host)
 
 Sessions let other people on your LAN view the same model and follow your
 camera and part visibility.
@@ -523,11 +575,11 @@ session" shows whether the server is reachable (green = up, red = down).
 ![Host view: guest connected in the roster](manual-shots/05-host-roster.png)
 
 The **chat window opens automatically** when you create or join a session (see
-§13) — just start typing.
+§15) — just start typing.
 
 ---
 
-## 12. Joining a session (guest)
+## 14. Joining a session (guest)
 
 On another computer (same network):
 
@@ -560,7 +612,7 @@ appears — same view, same parts, same visibility as the host.
 
 ---
 
-## 13. Session chat
+## 15. Session chat
 
 Every session has a built-in **chat window** so members can talk while they
 review. It opens automatically when you create or join a session.
@@ -586,7 +638,7 @@ review. It opens automatically when you create or join a session.
 
 ---
 
-## 14. Leaving a session
+## 16. Leaving a session
 
 Click **Leave session** to leave. What happens depends on your role:
 
@@ -603,7 +655,7 @@ Click **Leave session** to leave. What happens depends on your role:
 
 ---
 
-## 15. Opening a STEP / IGES / STL file
+## 17. Opening a STEP / IGES / STL file
 
 STEP, IGES and STL conversion happens through the OpenCascade kernel (Docker).
 The first time you open one you'll see the conversion overlay; when it finishes
@@ -617,7 +669,7 @@ conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 16. Standalone CAD converter (convert-cad)
+## 18. Standalone CAD converter (convert-cad)
 
 Besides the viewer, the distribution includes a **separate, standalone CAD
 converter** — **`convert-cad`** (v0.2) — that turns STEP / IGES / STL files into
@@ -668,7 +720,7 @@ It's the same "one compact file over the network" idea, applied offline.
 
 ---
 
-## 17. Troubleshooting
+## 19. Troubleshooting
 
 | Problem | Fix |
 |---|---|
@@ -682,7 +734,7 @@ It's the same "one compact file over the network" idea, applied offline.
 
 ---
 
-## 18. Sharing with external parties
+## 20. Sharing with external parties
 
 By default the viewer is meant for the **local network (LAN)**. To let someone
 outside your network view a session, you have two main options.
@@ -719,4 +771,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.90 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.91 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

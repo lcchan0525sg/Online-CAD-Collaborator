@@ -483,6 +483,16 @@ wss.on('connection', (ws, req, url) => {
         reversed: !!msg.s.reversed,
       };
       broadcast(session, { t: 'section', s: session.section }, id);
+    } else if (msg.t === 'corr' && msg.s && typeof msg.s === 'object') {
+      // Model corrections (units / scale / flip / rotate): store for late
+      // joiners and relay to the other members.
+      session.corr = {
+        units: msg.s.units === 'in' ? 'in' : 'mm',
+        scale: Number.isFinite(Number(msg.s.scale)) ? Number(msg.s.scale) : 1,
+        flip: { x: !!msg.s.flip?.x, y: !!msg.s.flip?.y, z: !!msg.s.flip?.z },
+        rot: { x: Number(msg.s.rot?.x) || 0, y: Number(msg.s.rot?.y) || 0, z: Number(msg.s.rot?.z) || 0 },
+      };
+      broadcast(session, { t: 'corr', s: session.corr }, id);
     } else if (msg.t === 'resync-request') {
       const ops = Object.entries(session.partsState || {}).map(([p, visible]) => ({ path: p.split('.').map(Number), visible }));
       if (ops.length) send(ws, { t: 'parts', ops });
@@ -492,6 +502,7 @@ wss.on('connection', (ws, req, url) => {
       if (session.measures?.length) send(ws, { t: 'measure-sync', measures: session.measures });
       if (session.explode) send(ws, { t: 'explode', ...session.explode });
       if (session.section) send(ws, { t: 'section', s: session.section });
+      if (session.corr) send(ws, { t: 'corr', s: session.corr });
       for (const key of Object.keys(session.trans || {}).filter((k) => session.trans[k])) send(ws, { t: 'trans', key, transparent: true });
       for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
       if (session.chat?.length) send(ws, { t: 'chat-sync', history: session.chat });

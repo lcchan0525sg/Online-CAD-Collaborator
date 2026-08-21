@@ -201,7 +201,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v0.90 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v0.91 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -261,6 +261,53 @@
         <button type="button" class="vp-btn" data-view="right" title="Right">Right</button>
         <button type="button" class="vp-btn" data-view="top" title="Top">Top</button>
         <button type="button" class="vp-btn" data-view="bottom" title="Bottom">Bottom</button>
+      </div>
+
+      <!-- Floating Model-corrections panel: Units / Scale / Flip / Rotate.
+           Local, per-viewer corrections applied on top of the auto-scale. -->
+      <div id="floating-model" class="floating-model">
+        <div class="fp-head">
+          <span class="fp-title">Model</span>
+          <button type="button" class="fp-btn" id="model-collapse" aria-expanded="false" title="Collapse Model corrections">▸</button>
+        </div>
+        <div id="model-body" class="model-body" hidden>
+          <div class="m-row">
+            <span class="m-label">Units</span>
+            <div class="seg" id="unit-seg">
+              <button type="button" class="seg-btn active" data-unit="mm">mm</button>
+              <button type="button" class="seg-btn" data-unit="in">in</button>
+            </div>
+          </div>
+          <div class="m-row">
+            <span class="m-label">Scale</span>
+            <input type="range" id="model-scale" class="m-slider" min="0.1" max="10" step="0.05" value="1" aria-label="Model scale multiplier">
+            <span class="m-val" id="model-scale-val">1.00×</span>
+            <button type="button" class="fp-btn" id="model-scale-reset" title="Reset scale to 1×">Reset</button>
+          </div>
+          <div class="m-row">
+            <span class="m-label">Flip</span>
+            <div class="seg" id="flip-seg">
+              <button type="button" class="seg-btn" data-flip-axis="x">X</button>
+              <button type="button" class="seg-btn" data-flip-axis="y">Y</button>
+              <button type="button" class="seg-btn" data-flip-axis="z">Z</button>
+            </div>
+          </div>
+          <div class="m-row">
+            <span class="m-label">Rotate</span>
+            <div class="seg" id="rot-axis-seg">
+              <button type="button" class="seg-btn active" data-rot-axis="x">X</button>
+              <button type="button" class="seg-btn" data-rot-axis="y">Y</button>
+              <button type="button" class="seg-btn" data-rot-axis="z">Z</button>
+            </div>
+            <input type="number" id="model-rot-angle" class="m-angle" min="-360" max="360" step="5" value="90" aria-label="Rotation angle (degrees)">
+            <span class="m-val" id="model-rot-angle-val">90°</span>
+            <button type="button" class="fp-btn" id="model-rot-apply" title="Rotate the model around the selected axis">Rotate</button>
+          </div>
+          <div class="m-row">
+            <span class="m-label"></span>
+            <button type="button" class="fp-btn m-full" id="model-corrections-reset">Reset corrections</button>
+          </div>
+        </div>
       </div>
 
       <!-- Floating Parts side-menu: lists all parts with show/hide -->

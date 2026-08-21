@@ -9,10 +9,12 @@ import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, part
 import { commitMeasurement, measureClear, pickNearestCorner, updateMeasureStatus } from './measure.js';
 import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
-import { applyRemoteCamera, askName, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
+import { applyRemoteCamera, askName, broadcastCorrections, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
 import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot } from './move.js';
 import { applySectionState, resetSection, sectionState } from './section.js';
+import { applyModelCorrections, resetModelCorrections, applyUnits } from './model.js';
+import { formatMm } from './measure.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -92,6 +94,46 @@ window.__viewer = {
   sectionState: () => sectionState(),
   setSection: (state) => { applySectionState(state); return sectionState(); },
   resetSection: () => { resetSection(); return sectionState(); },
+  get sectionVisualsVisible() { return !!(ctx.sectionVisuals && ctx.sectionVisuals.visible); },
+  get sectionContourCount() {
+    const g = ctx.sectionContours && ctx.sectionContours.geometry;
+    if (!g || !g.attributes || !g.attributes.position) return 0;
+    return (g.attributes.position.count / 2) | 0; // segments = points / 2
+  },
+  sectionContourPoints: (max = 8) => {
+    const g = ctx.sectionContours && ctx.sectionContours.geometry;
+    const pos = g && g.attributes && g.attributes.position;
+    if (!pos) return [];
+    const out = [];
+    for (let i = 0; i < pos.count && out.length < max * 2; i++) {
+      out.push([+pos.getX(i).toFixed(3), +pos.getY(i).toFixed(3), +pos.getZ(i).toFixed(3)]);
+    }
+    return out;
+  },
+  get sectionPlaneColor() {
+    return ctx.sectionPlaneMesh && ctx.sectionPlaneMesh.material
+      ? '#' + ctx.sectionPlaneMesh.material.color.getHexString() : null;
+  },
+  sectionPlaneCenter: () => {
+    const g = ctx.sectionVisuals;
+    if (!g) return null;
+    const p = g.getWorldPosition(new THREE.Vector3());
+    return [+p.x.toFixed(4), +p.y.toFixed(4), +p.z.toFixed(4)];
+  },
+  lightIntensity: (k) => (ctx.LIGHTS[k] ? ctx.LIGHTS[k].obj.intensity : null),
+  get units() { return ctx.units; },
+  setUnits: (u) => { applyUnits(u); return ctx.units; },
+  formatDist: (v) => formatMm(v),
+  modelCorrections: () => ({ scale: ctx.modelScaleMult, flip: { ...ctx.modelFlip }, rot: { ...ctx.modelRot } }),
+  setModelCorrections: (c) => {
+    if (c && c.scale != null) ctx.modelScaleMult = c.scale;
+    if (c && c.flip) ctx.modelFlip = { ...ctx.modelFlip, ...c.flip };
+    if (c && c.rot) ctx.modelRot = { ...ctx.modelRot, ...c.rot };
+    applyModelCorrections();
+    broadcastCorrections();
+    return { scale: ctx.modelScaleMult, flip: { ...ctx.modelFlip }, rot: { ...ctx.modelRot } };
+  },
+  resetModelCorrections: () => resetModelCorrections(),
   undoTransform: () => undoTransform(),
   redoTransform: () => redoTransform(),
   get transformHistoryLength() { return ctx.transformHistory.length; },

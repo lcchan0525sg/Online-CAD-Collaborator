@@ -50,8 +50,16 @@ export function updateMeasureStatus() {
   else setMeasureStatus('first point', true);
 }
 
+const MM_PER_IN = 25.4;
+
 export function formatMm(v) {
   const mm = Math.abs(v) * 1000;            // scene is normalized mm->m, so 1 unit = 1000 mm
+  if (ctx.units === 'in') {
+    const inch = mm / MM_PER_IN;
+    if (inch >= 100) return inch.toFixed(0) + ' in';
+    if (inch >= 10) return inch.toFixed(1) + ' in';
+    return inch.toFixed(2) + ' in';
+  }
   if (mm >= 100) return mm.toFixed(0) + ' mm';
   if (mm >= 10) return mm.toFixed(1) + ' mm';
   return mm.toFixed(2) + ' mm';
@@ -375,8 +383,11 @@ export function fmtCoord(p) {   // show a point in mm
 
 export function fmtNum(v) {
   const mm = v * 1000;
-  const s = (mm >= 100 ? mm.toFixed(0) : mm >= 10 ? mm.toFixed(1) : mm.toFixed(2));
-  return s;
+  if (ctx.units === 'in') {
+    const inch = mm / MM_PER_IN;
+    return inch >= 100 ? inch.toFixed(0) : inch >= 10 ? inch.toFixed(1) : inch.toFixed(2);
+  }
+  return mm >= 100 ? mm.toFixed(0) : mm >= 10 ? mm.toFixed(1) : mm.toFixed(2);
 }
 
 export function fmtAngle(deg) {

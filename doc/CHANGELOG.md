@@ -21,6 +21,42 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.91] — 2026-08-21
+
+### Added
+
+- Section cut-plane overlay: a semi-transparent reference plane at the cut plus
+  orange surface-intersection contour lines that track the offset slider live.
+- Floating **Model** corrections panel (bottom-left, collapsed by default):
+  **Units** (mm/in), **Scale** (0.1×–10×), **Flip** (X/Y/Z), **Rotate**
+  (axis + angle), and **Reset corrections**.
+- Model corrections are session-shared state — a new `corr` wire message syncs
+  units/scale/flip/rotate to every member, and the server replays them on resync
+  and to late joiners.
+- A pre-created Section state now transfers to a guest that joins later
+  (alongside transforms and measurements).
+
+### Changed
+
+- Front light now defaults to 1.0 for clearer section views.
+- The section plane quad is centred on the model's in-plane bounding-box centre
+  (it was anchored at the world origin, so it overhung lopsidedly).
+
+### Fixed
+
+- Model corrections now compose on top of the model's auto-orientation instead of
+  overwriting it — flip/rotate behaved in the wrong frame on Z-up models.
+- The Model panel's flip/rotate-axis buttons were being disabled by the
+  interaction toolbar's global `[data-axis]` manager; they now use
+  `data-flip-axis` / `data-rot-axis`.
+
+### Verification
+
+- Full two-client harness: **91 passed, 0 failed** (section overlay, pre-session
+  section sync, model-corrections panel, and corrections sync/resync covered).
+
+---
+
 ## [v0.90] — 2026-08-21
 
 ### Added

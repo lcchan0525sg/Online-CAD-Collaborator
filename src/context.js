@@ -22,13 +22,13 @@ const key = new THREE.DirectionalLight(0xffffff, 2.4);
 
 const fill = new THREE.DirectionalLight(0x8fb2ff, 0.6);
 
-const front = new THREE.DirectionalLight(0xffffff, 0.0);
+const front = new THREE.DirectionalLight(0xffffff, 1.0);
 
 const LIGHTS = {
   ambient: { label: 'Ambient', obj: hemi,  def: 0.9 },
   key:     { label: 'Key',     obj: key,   def: 2.4 },
   fill:    { label: 'Fill',    obj: fill,  def: 0.6 },
-  front:   { label: 'Front',   obj: front, def: 0.0 },
+  front:   { label: 'Front',   obj: front, def: 1.0 },
 };
 
 let grid = null;
@@ -273,6 +273,39 @@ let sectionPlane = new THREE.Plane();
 let pendingRemoteSection = null;
 let applyingRemoteSection = false;
 
+// Section-view visual overlay: a transparent reference plane at the cut plus the
+// orange surface-intersection contour lines. Lives in the scene; shown only when
+// the section is enabled and a model is loaded.
+let sectionVisuals = new THREE.Group();
+scene.add(sectionVisuals);
+let sectionPlaneMesh = null;      // transparent reference plane at the cut
+let sectionContours = null;       // thick orange contour line layer (Line2)
+let sectionPlaneSize = 0;         // cached in-plane side length (world units)
+let sectionContourTimer = null;   // throttle handle for live contour rebuild
+
+// Model-correction controls (Units / Scale / Flip / Rotate) — local, per-viewer.
+// They apply on top of the auto-scale, never sync to the session.
+const unitSegEl = document.getElementById('unit-seg');
+const modelScaleEl = document.getElementById('model-scale');
+const modelScaleValEl = document.getElementById('model-scale-val');
+const modelScaleResetEl = document.getElementById('model-scale-reset');
+const flipSegEl = document.getElementById('flip-seg');
+const rotAxisSegEl = document.getElementById('rot-axis-seg');
+const modelRotAngleEl = document.getElementById('model-rot-angle');
+const modelRotAngleValEl = document.getElementById('model-rot-angle-val');
+const modelRotApplyEl = document.getElementById('model-rot-apply');
+const modelCorrectionsResetEl = document.getElementById('model-corrections-reset');
+const modelPanelEl = document.getElementById('floating-model');
+const modelCollapseBtn = document.getElementById('model-collapse');
+const modelBodyEl = document.getElementById('model-body');
+let units = 'mm';
+let modelScaleMult = 1;
+let modelFlip = { x: false, y: false, z: false };
+let modelRot = { x: 0, y: 0, z: 0 };
+// Base orientation that orientModel applies to the model root (e.g. Z-up -> Y-up).
+// Corrections compose ON TOP of this rather than overwriting it.
+let modelBaseRot = new THREE.Quaternion();
+
 let measureOn = false;
 
 let measureP1 = null;                 // world Vector3 of the first corner, or null
@@ -508,6 +541,29 @@ export const ctx = {
   sectionPlane,
   pendingRemoteSection,
   applyingRemoteSection,
+  sectionVisuals,
+  sectionPlaneMesh,
+  sectionContours,
+  sectionPlaneSize,
+  sectionContourTimer,
+  unitSegEl,
+  modelScaleEl,
+  modelScaleValEl,
+  modelScaleResetEl,
+  flipSegEl,
+  rotAxisSegEl,
+  modelRotAngleEl,
+  modelRotAngleValEl,
+  modelRotApplyEl,
+  modelCorrectionsResetEl,
+  modelPanelEl,
+  modelCollapseBtn,
+  modelBodyEl,
+  units,
+  modelScaleMult,
+  modelFlip,
+  modelRot,
+  modelBaseRot,
   partHoverTipEl,
   hoverKey,
   hoverRow,

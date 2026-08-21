@@ -9,6 +9,7 @@ import { flushPendingMeasures, measureClear } from './measure.js';
 import { applyExplodeGap, computeExplodeDirs, renderExplodeScope, resetExplode } from './explode.js';
 import { buildRotateArc, makeArrow, saveOriginalPositions, saveOriginalRotations, setMoveAxis, setRotateMode, updateUndoState } from './move.js';
 import { applyRemoteAnim, broadcastAnim, broadcastLight, esc, setHealth, shareBuffer, streamBytes, xferBegin, xferDone, xferError, xferProgress } from './session.js';
+import { applyModelCorrections } from './model.js';
 
 ctx.scene.background = new THREE.Color(0x141822);
 
@@ -106,6 +107,7 @@ export function clearModel() {
   if (ctx.mixer) { ctx.mixer.stopAllAction(); ctx.mixer = null; }
   clearPartsTree();
   clearPartSelection();
+  window.dispatchEvent(new Event('viewer-model-cleared'));
 }
 
 // Common framing math: returns { center, maxDim, dist } for the current model.
@@ -288,10 +290,12 @@ export function loadFromGltf(gltf) {
     if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; }
   });
   orientModel(ctx.model);
+  ctx.modelBaseRot.setFromEuler(ctx.model.rotation);   // preserve the auto-orientation
   // rebase onto the ground plane (grid sits at y=0)
   const box2 = new THREE.Box3().setFromObject(ctx.model);
   ctx.model.position.y -= box2.min.y;
   ctx.scene.add(ctx.model);
+  applyModelCorrections();   // apply per-viewer scale / flip / rotate corrections
   setupAnimation(gltf, root);
   // In a session, push the current animation + lighting state so every viewer
   // (including ones that joined mid-load) converges on the same settings.
