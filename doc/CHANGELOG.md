@@ -43,6 +43,8 @@ versioning follows `v0.x`.
 - Fixed translated text inside primary Load model and Create session buttons
   inheriting muted sidebar span styling and becoming difficult to read.
 - Fixed dynamic backend status text remaining in English after switching locale.
+- Fixed backend startup to discover bundled or user-installed native OCP Python
+  before probing the generic `python` command.
 - Added flexible wrapping and bounded toolbar sizing for longer translated
   labels at 1280, 1024, and 768 pixel viewports.
 

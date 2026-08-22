@@ -84,7 +84,15 @@ const CQ = resolveConverter();
 // --backend native/docker (or CAD_BACKEND) to force one path, and --python (or
 // CAD_PYTHON) to select the native Python executable explicitly.
 let BACKEND_REQUEST = String(process.env.CAD_BACKEND || 'auto').toLowerCase();
-let NATIVE_PYTHON = process.env.CAD_PYTHON || 'python';
+function defaultNativePython() {
+  const candidates = [
+    join(ROOT, 'python', 'python.exe'),
+    process.env.USERPROFILE ? join(process.env.USERPROFILE, 'venvs', 'cad-native', 'Scripts', 'python.exe') : '',
+    process.env.HOME ? join(process.env.HOME, 'venvs', 'cad-native', 'Scripts', 'python.exe') : '',
+  ].filter(Boolean);
+  return candidates.find((candidate) => existsSync(candidate)) || 'python';
+}
+let NATIVE_PYTHON = process.env.CAD_PYTHON || defaultNativePython();
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
   if (a === '--backend' && process.argv[i + 1]) BACKEND_REQUEST = process.argv[++i].toLowerCase();
