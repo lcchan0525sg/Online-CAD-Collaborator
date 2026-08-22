@@ -2,6 +2,7 @@
 // listeners run), then the render loop, boot, and the debug hooks.
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { availableLocales, currentLocale, setLocale, t } from './ui-i18n.js';
 import './scene.js'; import './parts.js'; import './measure.js'; import './explode.js'; import './move.js'; import './session.js';
 import './interaction.js'; import './section.js'; import './theme.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
@@ -37,6 +38,10 @@ window.__viewer = {
   get THREE() { return THREE; },
   get session() { return ctx.session; },
   get userName() { return ctx.userName; },
+  get locale() { return currentLocale(); },
+  availableLocales: () => availableLocales(),
+  setLocale: (locale) => setLocale(locale),
+  t: (key, params) => t(key, params),
   get roster() { return ctx.roster; },
   get controls() { return ctx.controls; },
   get xferLog() { return ctx.xferLog.slice(); },

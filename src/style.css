@@ -58,7 +58,7 @@ body {
 .section h2[title] { cursor: help; }
 
 /* View toggles laid out horizontally */
-.view-toggles { justify-content: flex-start; gap: 14px; }
+.view-toggles { justify-content: flex-start; gap: 14px; flex-wrap: wrap; }
 .view-toggles .tlabel { white-space: nowrap; }
 
 /* Collapsible sections (Info, Materials) */
@@ -75,7 +75,8 @@ body {
   cursor: pointer;
   font-size: 13px;
 }
-.toggle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; min-width: 0; }
+.row.toggle { flex-wrap: wrap; justify-content: flex-start; gap: 6px 10px; }
 .toggle input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 
 /* control rows (animation + lighting sliders) */
@@ -95,6 +96,8 @@ body {
 .row .slider { flex: 1; min-width: 0; accent-color: var(--accent); height: 4px; cursor: pointer; }
 .row span { font-size: 12px; color: var(--muted); width: 34px; text-align: right; }
 .row .tlabel select + span, .row .tlabel .slider + span { width: auto; }
+.row .tlabel > span:first-child { width: auto; flex: 0 1 auto; text-align: left; white-space: nowrap; }
+.language-row .tlabel { flex-wrap: wrap; }
 /* Explode label is a bare span (not wrapping the slider); keep it from being
    squeezed to the generic 34px row-span width, which overlapped the slider. */
 .row .explode-label { width: auto; white-space: nowrap; font-size: 13px; }
@@ -114,6 +117,7 @@ body {
 .btn:hover { border-color: var(--accent); }
 .btn:active { transform: translateY(1px); }
 .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn span[data-ui] { color: inherit; width: auto; font-size: inherit; text-align: inherit; }
 .btn.primary:hover { filter: brightness(1.08); }
 
 .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px; }
@@ -478,6 +482,7 @@ body {
 /* ---------- Viewport ---------- */
 #viewport {
   flex: 1;
+  min-width: 0;
   position: relative;
   background:
     radial-gradient(120% 90% at 50% 20%, #232b3a 0%, #141822 55%, #0c0e13 100%);
@@ -510,6 +515,8 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
   align-items: center;
   gap: 8px;
   max-width: calc(100% - 32px);
+  min-width: 0;
+  overflow-x: auto;
   padding: 6px 8px;
   border: 1px solid rgba(120, 140, 180, .35);
   border-radius: 9px;

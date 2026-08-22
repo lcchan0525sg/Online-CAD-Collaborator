@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { t as translate } from './ui-i18n.js';
 
 import { hidePartHover, hidePartMenu, highlightHoverRow, hoverPickKey, nodeAtPath, partNameForKey, showPartHoverTip, showPartMenu } from './parts.js';
 import { resetExplode } from './explode.js';
@@ -74,7 +75,7 @@ export function undoTransform() {
   for (const entry of entries) {
     if (!applyTransformSnapshot(entry, entry.before)) {
       const actor = ctx.partLastActor.get(entry.key);
-      xferToast(actor ? `Cannot undo: ${actor} changed this part` : 'Cannot undo: part changed remotely');
+      xferToast(actor ? `Cannot undo: ${actor} changed this part` : translate('ui.cannot.undo.part.changed.remotely'));
       return false;
     }
   }
@@ -92,7 +93,7 @@ export function redoTransform() {
   for (const entry of entries) {
     if (!applyTransformSnapshot(entry, entry.after)) {
       const actor = ctx.partLastActor.get(entry.key);
-      xferToast(actor ? `Cannot redo: ${actor} changed this part` : 'Cannot redo: part changed remotely');
+      xferToast(actor ? `Cannot redo: ${actor} changed this part` : translate('ui.cannot.redo.part.changed.remotely'));
       return false;
     }
   }
@@ -331,7 +332,7 @@ export function resetPartPositions() {
   ctx.transformRedo.length = 0;
   setRotateMode(false);
   updateUndoState();
-  xferToast('Part positions reset');
+  xferToast(translate('ui.part.positions.reset'));
 }
 
 export function saveOriginalPositions() {

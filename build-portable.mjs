@@ -20,6 +20,9 @@ const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'cad-viewer-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
 const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON || '';
+const LANGUAGE_SOURCE = process.env.CAD_LANGUAGE_SOURCE || '';
+const LANGUAGE_LOCALES = ['zh-Hant', 'zh-Hans'];
+const ALLOW_UNREVIEWED_LANGUAGES = process.env.CAD_ALLOW_UNREVIEWED_LANGUAGES === '1';
 // Converter source: CQ_DIR env (a folder of per-format modules) -> legacy
 // CQ_SCRIPT env (single step2glb.py) -> dev-machine default folder. The
 // server resolves the same layout at runtime, so a folder and a legacy file
@@ -71,8 +74,8 @@ function buildFrom(src, version, zipName) {
   // Newer source trees keep the app in src/; older tags are flat. Handle both.
   const SRC = existsSync(join(src, 'src', 'server.js')) ? join(src, 'src') : src;
   for (const f of ['server.js', 'main.js', 'index.html', 'style.css', 'stl2glb.mjs',
-                   'context.js', 'scene.js', 'parts.js', 'measure.js', 'explode.js', 'move.js', 'session.js', 'interaction.js', 'section.js', 'model.js', 'theme.js']) {
-    copyFileSync(join(SRC, f), join(APP, f));
+                   'context.js', 'scene.js', 'parts.js', 'measure.js', 'explode.js', 'move.js', 'session.js', 'interaction.js', 'section.js', 'model.js', 'theme.js', 'ui-english.js', 'ui-i18n.js']) {
+    if (existsSync(join(SRC, f))) copyFileSync(join(SRC, f), join(APP, f));
   }
   // package files sit at the source root (node resolution for ws/three imports)
   for (const f of ['package.json', 'package-lock.json']) {
@@ -119,6 +122,27 @@ function buildFrom(src, version, zipName) {
   // the server (repo root in dev, zip root here), so copy the whole folder.
   if (existsSync(join(src, 'doc'))) {
     cpSync(join(src, 'doc'), join(APP, 'doc'), { recursive: true });
+  }
+  // Reviewed UI language add-ons are external to the source repository. Only
+  // the two approved locale filenames are copied into a release archive.
+  if (LANGUAGE_SOURCE) {
+    mkdirSync(join(APP, 'languages'), { recursive: true });
+    for (const locale of LANGUAGE_LOCALES) {
+      const file = join(LANGUAGE_SOURCE, `${locale}.json`);
+      if (!existsSync(file)) {
+        console.warn(`WARNING: reviewed language file missing: ${file}`);
+        continue;
+      }
+      const data = JSON.parse(readFileSync(file, 'utf8'));
+      if (data?.locale !== locale || !data?.strings || typeof data.strings !== 'object') {
+        throw new Error(`invalid language add-on: ${file}`);
+      }
+      if (data.humanReviewed !== true && !ALLOW_UNREVIEWED_LANGUAGES) {
+        throw new Error(`language add-on is not human-reviewed: ${file}`);
+      }
+      if (data.humanReviewed !== true) console.warn(`WARNING: packaging unreviewed language draft: ${file}`);
+      copyFileSync(file, join(APP, 'languages', `${locale}.json`));
+    }
   }
   // Third-party license notices (OCCT/OCP/CadQuery/three.js/ws licensing)
   if (existsSync(join(src, 'THIRD-PARTY-NOTICES.txt'))) {

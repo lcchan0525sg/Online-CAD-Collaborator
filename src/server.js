@@ -1,5 +1,5 @@
 import http from 'node:http';
-import { readFile, writeFile, unlink, rmdir, mkdir, stat } from 'node:fs/promises';
+import { readFile, writeFile, unlink, rmdir, mkdir, stat, readdir } from 'node:fs/promises';
 import { execFile, execFileSync } from 'node:child_process';
 import { extname, join, normalize, dirname } from 'node:path';
 import { tmpdir, networkInterfaces } from 'node:os';
@@ -202,6 +202,48 @@ const MIME = {
   '.ico': 'image/x-icon',
 };
 
+const LANGUAGE_FILE_RE = /^([A-Za-z0-9_-]+)\.json$/;
+function languageDirs() {
+  const dirs = [];
+  if (process.env.CAD_LANGUAGE_DIR) dirs.push(process.env.CAD_LANGUAGE_DIR);
+  dirs.push(join(WEB, 'languages'), join(ROOT, 'languages'));
+  return [...new Set(dirs.map((dir) => normalize(dir)))];
+}
+async function languageFile(locale) {
+  if (!/^[A-Za-z0-9_-]+$/.test(locale) || locale.length > 32) return null;
+  for (const dir of languageDirs()) {
+    const file = normalize(join(dir, `${locale}.json`));
+    if (!file.startsWith(dir)) continue;
+    try {
+      const data = JSON.parse(await readFile(file, 'utf8'));
+      if (data?.locale !== locale || !data?.strings || typeof data.strings !== 'object') continue;
+      return { data, file };
+    } catch { /* optional language files are fail-closed */ }
+  }
+  return null;
+}
+async function availableLanguageFiles() {
+  const found = new Map();
+  for (const dir of languageDirs()) {
+    let names = [];
+    try { names = await readdir(dir); } catch { continue; }
+    for (const name of names) {
+      const match = LANGUAGE_FILE_RE.exec(name);
+      if (!match || found.has(match[1]) || match[1] === 'en') continue;
+      const entry = await languageFile(match[1]);
+      if (!entry) continue;
+      const { data } = entry;
+      found.set(match[1], {
+        locale: match[1],
+        displayName: typeof data.displayName === 'string' ? data.displayName : match[1],
+        viewerVersion: typeof data.viewerVersion === 'string' ? data.viewerVersion : '',
+        humanReviewed: data.humanReviewed === true,
+      });
+    }
+  }
+  return [...found.values()];
+}
+
 const httpServer = http
   .createServer(async (req, res) => {
     const url = new URL(req.url, 'http://x');
@@ -217,6 +259,20 @@ const httpServer = http
         fallback: BACKEND_FALLBACK || null,
         docker: ACTIVE_BACKEND === 'docker',
       }));
+      return;
+    }
+    // ---- API: optional external UI language add-ons ----
+    if (req.method === 'GET' && url.pathname === '/languages') {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify({ languages: await availableLanguageFiles() }));
+      return;
+    }
+    const languageMatch = url.pathname.match(/^\/languages\/([A-Za-z0-9_-]+)\.json$/);
+    if (languageMatch) {
+      const entry = req.method === 'GET' ? await languageFile(languageMatch[1]) : null;
+      if (!entry) { res.writeHead(404).end('language not found'); return; }
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' });
+      res.end(JSON.stringify(entry.data));
       return;
     }
     // ---- API: LAN addresses (for sharing the join link) ----

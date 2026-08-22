@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { t } from './ui-i18n.js';
 
 import { refreshExplodeForVisibility, renderExplodeScope, rescopeExplode } from './explode.js';
 import { isPickVisible, pickPartKey, clearActivePivot, activatePivotForPart, setMoveAxis } from './move.js';
@@ -10,7 +11,7 @@ import { xferToast, sendPartComment } from './session.js';
 export function clearPartsTree() {
   if (!ctx.partsEl) return;
   const title = document.querySelector('#floating-parts .fp-title');
-  if (title) title.textContent = 'Assembly tree';
+  if (title) title.textContent = t('ui.assembly.tree');
   ctx.partsEl.innerHTML = '<span class="hint">—</span>';
   ctx.partRows.clear();
   ctx.allPartRows.length = 0;
@@ -109,7 +110,7 @@ export function buildPartsTree(root) {
   renderCollapseState();
   if (!count) ctx.partsEl.innerHTML = '<span class="hint">—</span>';
   const title = document.querySelector('#floating-parts .fp-title');
-  if (title) title.textContent = count ? `Assembly tree (${count} parts)` : 'Assembly tree';
+  if (title) title.textContent = count ? t('ui.assembly.tree.count', { count }) : t('ui.assembly.tree');
   setFloatingPartsVisible(count > 0);
 }
 
@@ -155,7 +156,7 @@ export function showPartMenu(x, y, key) {
   ctx.partMenuKey = key;
   // Reflect the part's current transparency in the menu item label.
   const transEl = document.getElementById('part-menu-trans');
-  if (transEl) transEl.textContent = partTransparent(key) ? 'Make opaque' : 'Make transparent';
+  if (transEl) transEl.textContent = partTransparent(key) ? t('ui.make.opaque') : t('ui.make.transparent');
   ctx.partMenuEl.style.left = `${x}px`;
   ctx.partMenuEl.style.top = `${y}px`;
   ctx.partMenuEl.hidden = false;
@@ -231,7 +232,7 @@ ctx.partMenuMoveEl?.addEventListener('click', () => {
   if (ctx.selectedPartKey !== key) selectPart(key, true);
   ctx.moveOnChk.checked = true;
   setMoveAxis(null);        // no axis chosen yet — wait for a gizmo-arrow click
-  xferToast('Click an axis arrow to set the move direction');
+  xferToast(t('ui.click.an.axis.arrow.to.set.the.move.direction'));
 });
 
 // ---- Part comment -> session chat ----

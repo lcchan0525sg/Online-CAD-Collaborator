@@ -10,6 +10,7 @@
 // while the offset slider is dragged, and immediately on release / axis change.
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { t } from './ui-i18n.js';
 import { broadcastSection, broadcastSectionPresets } from './session.js';
 
 const PLANE_COLOR = 0x5aa0ff;        // soft blue reference plane
@@ -458,7 +459,7 @@ function renderSectionPresets() {
     const del = document.createElement('button');
     del.className = 'sp-del';
     del.textContent = '✕';
-    del.title = 'Delete preset';
+    del.title = t('ui.delete.preset');
     del.addEventListener('click', (e) => { e.stopPropagation(); removeSectionPreset(p.id); });
     chip.append(name, del);
     chip.addEventListener('click', () => applySectionState({ enabled: true, axis: p.axis, offset: p.offset, reversed: p.reversed }));
@@ -540,9 +541,9 @@ function drawingBounds(segs) {
 }
 
 export function exportSectionSvg() {
-  if (!ctx.sectionOn || !ctx.model) { xferToast('Enable Section view to export a cut'); return null; }
+  if (!ctx.sectionOn || !ctx.model) { xferToast(t('ui.enable.section.view.to.export.a.cut')); return null; }
   const { segs, unit, label } = projectSectionDrawing();
-  if (!segs.length) { xferToast('No geometry intersects this section'); return null; }
+  if (!segs.length) { xferToast(t('ui.no.geometry.intersects.this.section')); return null; }
   const { minX, minY, maxX, maxY, spanX, spanY, margin } = drawingBounds(segs);
   const w = spanX + 2 * margin, h = spanY + 2 * margin;
   let d = '';
@@ -566,9 +567,9 @@ export function exportSectionSvg() {
 }
 
 export function exportSectionPng() {
-  if (!ctx.sectionOn || !ctx.model) { xferToast('Enable Section view to export a cut'); return null; }
+  if (!ctx.sectionOn || !ctx.model) { xferToast(t('ui.enable.section.view.to.export.a.cut')); return null; }
   const { segs, unit, label } = projectSectionDrawing();
-  if (!segs.length) { xferToast('No geometry intersects this section'); return null; }
+  if (!segs.length) { xferToast(t('ui.no.geometry.intersects.this.section')); return null; }
   const { minX, maxY, spanX, spanY, margin } = drawingBounds(segs);
   const scale = 8;   // pixels per display unit
   const W = Math.ceil((spanX + 2 * margin) * scale);

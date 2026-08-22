@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { GridHelper } from 'three';
 import { ctx } from './context.js';
+import { t } from './ui-i18n.js';
 
 import { buildPartsTree, captureMeshBases, clearPartSelection, clearPartsTree, clearTransparency, flushPendingParts, flushPendingTrans } from './parts.js';
 import { flushPendingMeasures, measureClear } from './measure.js';
@@ -369,7 +370,7 @@ export function refreshAnimUI() {
     clipSel.value = ctx.animState.clip;
   }
   const playBtn = document.getElementById('anim-play');
-  if (playBtn) playBtn.textContent = ctx.animState.playing ? '⏸ Pause' : '▶ Play';
+  if (playBtn) playBtn.textContent = ctx.animState.playing ? t('ui.pause') : t('ui.play');
   document.getElementById('anim-loop').checked = ctx.animState.loop;
   document.getElementById('anim-speed').value = ctx.animState.speed;
   document.getElementById('anim-speed-val').textContent = `${ctx.animState.speed.toFixed(1)}×`;
@@ -385,7 +386,7 @@ export function loadUrl(url) {
     (ev) => { if (ev.total) console.log('progress', (ev.loaded / ev.total * 100).toFixed(0) + '%'); },
     (err) => {
       console.error(err);
-      document.getElementById('info').textContent = 'load failed: ' + (err.message ?? err);
+      document.getElementById('info').textContent = t('ui.load.failed') + ' ' + (err.message ?? err);
     });
 }
 
@@ -404,7 +405,7 @@ export function loadFile(file, afterLoad) {
       };
       if (file.name.toLowerCase().endsWith('.glb')) {
         ctx.loader.parse(buf, '', (gltf) => { if (isCurrentGen(gen)) { loadFromGltf(gltf); finish(true); } else resolve(false); }, (e) => {
-          document.getElementById('info').textContent = 'parse failed: ' + e.message;
+          document.getElementById('info').textContent = t('ui.parse.failed') + ' ' + e.message;
           finish(false, e.message);
         });
       } else {
@@ -412,11 +413,11 @@ export function loadFile(file, afterLoad) {
         try {
           const json = JSON.parse(new TextDecoder().decode(buf));
           ctx.loader.parse(json, '', (gltf) => { if (isCurrentGen(gen)) { loadFromGltf(gltf); finish(true); } else resolve(false); }, (e) => {
-            document.getElementById('info').textContent = 'parse failed: ' + e.message;
+            document.getElementById('info').textContent = t('ui.parse.failed') + ' ' + e.message;
             finish(false, e.message);
           });
         } catch (e) {
-          document.getElementById('info').textContent = 'invalid GLTF: ' + e.message;
+          document.getElementById('info').textContent = t('ui.invalid.gltf') + ' ' + e.message;
           finish(false, e.message);
         }
       }
@@ -460,7 +461,7 @@ export async function importStep(file) {
     }
     // Conversion done — stream the GLB back with byte-level progress, then load.
     const total = parseInt(res.headers.get('content-length') || '0', 10) || 0;
-    xferBegin('Transferring model…', `receiving ${file.name}`, total);
+    xferBegin(t('ui.transferring.model.ellipsis'), `receiving ${file.name}`, total);
     xferProgress(0, total);
     const buf = await streamBytes(res, (r, t) => xferProgress(r, t || total));
 
@@ -475,8 +476,8 @@ export async function importStep(file) {
         loadFromGltf(gltf);
       } catch (err) {
         if (!isCurrentGen(gen)) return;
-        infoEl.textContent = 'model load error: ' + (err?.message ?? err);
-        xferError('model load error: ' + (err?.message ?? err));
+        infoEl.textContent = t('ui.model.load.error') + ' ' + (err?.message ?? err);
+        xferError(t('ui.model.load.error') + ' ' + (err?.message ?? err));
         return;
       }
       let srcLine = `source: ${file.name} (converted to GLB in ${dt}s)`;
@@ -492,12 +493,12 @@ export async function importStep(file) {
       }
     }, (e) => {
       if (!isCurrentGen(gen)) return;
-      infoEl.textContent = 'converted GLB parse failed: ' + e.message;
+      infoEl.textContent = t('ui.converted.glb.parse.failed') + ' ' + e.message;
       xferError(e.message);
     });
   } catch (e) {
     if (!isCurrentGen(gen)) return;
-    infoEl.textContent = 'CAD conversion failed:\n' + (e.message ?? e);
+    infoEl.textContent = t('ui.cad.conversion.failed') + '\\n' + (e.message ?? e);
     xferError(e.message);
   }
 }

@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { t } from './ui-i18n.js';
 
 import { clearPartSelection, selectPart, partNameForKey } from './parts.js';
 import { isPickVisible, pickGizmoAxis, pickPartKey, setMoveAxis } from './move.js';
@@ -45,9 +46,9 @@ export function setMeasureStatus(txt, active) {
 }
 
 export function updateMeasureStatus() {
-  if (!ctx.measureOn) setMeasureStatus('off', false);
-  else if (ctx.measureP1) setMeasureStatus('second point', true);
-  else setMeasureStatus('first point', true);
+  if (!ctx.measureOn) setMeasureStatus(t('ui.off'), false);
+  else if (ctx.measureP1) setMeasureStatus(t('ui.second.point'), true);
+  else setMeasureStatus(t('ui.first.point'), true);
 }
 
 const MM_PER_IN = 25.4;
@@ -185,7 +186,7 @@ export function pickNearestCorner(clientX, clientY) {
   }
   if (best) {
     const key = ctx.meshPartKey.get(mesh) || '';
-    best.userData = { partKey: key, partName: key ? partNameForKey(key) : mesh.name || 'Unknown part' };
+    best.userData = { partKey: key, partName: key ? partNameForKey(key) : mesh.name || t('ui.unknown.part') };
   }
   return best;
 }
@@ -252,7 +253,7 @@ export function makeMeasureEntry(p1, p2, part1 = null, part2 = null) {
   const v = new THREE.Vector3().subVectors(p2, p1);
   const elevation = (mm > 1e-9) ? THREE.MathUtils.radToDeg(Math.asin(v.y / mm)) : 0;
   const azimuth = THREE.MathUtils.radToDeg(Math.atan2(v.z, v.x));
-  return { id: 'm' + (++ctx.measureSeq), label: `M${ctx.measureSeq}`, part1: part1?.partName || 'Unknown part', part2: part2?.partName || 'Unknown part', p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth };
+  return { id: 'm' + (++ctx.measureSeq), label: `M${ctx.measureSeq}`, part1: part1?.partName || t('ui.unknown.part'), part2: part2?.partName || t('ui.unknown.part'), p1: [p1.x, p1.y, p1.z], p2: [p2.x, p2.y, p2.z], mm, elevation, azimuth };
 }
 
 export function addMeasurement(entry, broadcast) {
@@ -290,7 +291,7 @@ export function measureClear() {
   clearHoverGlow();
   rebuildMeasureLayer();
   rebuildDimensionLayer();
-  if (ctx.measureListEl) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+  if (ctx.measureListEl) ctx.measureListEl.innerHTML = `<span class="hint">${t('ui.no.measurements')}</span>`;
   const panel = document.getElementById('floating-measurements');
   if (panel) panel.hidden = true;
   if (!ctx.applyingRemoteMeasure) broadcastMeasureClear();
@@ -305,7 +306,7 @@ export function applyRemoteMeasureAdd(msg) {
     const entry = makeMeasureEntry(p1, p2);
     entry.id = msg.id;   // keep the sender's id so del matches
     entry.label = msg.label || entry.id.toUpperCase();
-    entry.part1 = msg.part1 || 'Unknown part';
+    entry.part1 = msg.part1 || t('ui.unknown.part');
     entry.part2 = msg.part2 || entry.part1;
     addMeasurement(entry, false);
   } finally { ctx.applyingRemoteMeasure = false; }
@@ -335,7 +336,7 @@ export function applyRemoteMeasureSync(measures) {
   ctx.applyingRemoteMeasure = true;
   try {
     ctx.measureList = measures.map((m) => ({
-      id: m.id, label: m.label || m.id.toUpperCase(), part1: m.part1 || 'Unknown part', part2: m.part2 || m.part1 || 'Unknown part', p1: m.p1, p2: m.p2,
+      id: m.id, label: m.label || m.id.toUpperCase(), part1: m.part1 || t('ui.unknown.part'), part2: m.part2 || m.part1 || t('ui.unknown.part'), p1: m.p1, p2: m.p2,
       mm: new THREE.Vector3(...m.p1).distanceTo(new THREE.Vector3(...m.p2)),
       elevation: m.elevation, azimuth: m.azimuth,
     }));
@@ -372,7 +373,7 @@ export function commitMeasurement(p1, p2, part1 = null, part2 = null) {
   ctx.measureP1Part = null;
   ctx.measureP1Dot.visible = false;
   updateMeasureStatus();
-  xferToast('Measured ' + formatMm(entry.mm));
+  xferToast(t('ui.measured', { value: formatMm(entry.mm) }));
 }
 
 export function placeDot(world, size) {
@@ -417,7 +418,7 @@ export function renderMeasureList() {
     label.className = 'ml-label';
     label.value = m.label || `M${i + 1}`;
     label.maxLength = 80;
-    label.title = 'Measurement label';
+    label.title = t('ui.measurement.label');
     label.addEventListener('change', () => updateMeasurementLabel(m.id, label.value));
     const info = document.createElement('span');
     info.className = 'ml-mm';
@@ -425,16 +426,16 @@ export function renderMeasureList() {
     const del = document.createElement('button');
     del.className = 'ml-del';
     del.textContent = '✕';
-    del.title = 'Remove measurement ' + (i + 1);
+    del.title = t('ui.remove.measurement') + ' ' + (i + 1);
     del.addEventListener('click', () => removeMeasurement(m.id));
     head.append(label, info, del);
     const pts = document.createElement('div');
     pts.className = 'ml-pts';
-    pts.innerHTML = `${m.part1 || 'Unknown part'}${m.part2 && m.part2 !== m.part1 ? ` ↔ ${m.part2}` : ''}<br>P1 ${fmtCoord(m.p1)}<br>P2 ${fmtCoord(m.p2)}`;
+    pts.innerHTML = `${m.part1 || t('ui.unknown.part')}${m.part2 && m.part2 !== m.part1 ? ` ↔ ${m.part2}` : ''}<br>P1 ${fmtCoord(m.p1)}<br>P2 ${fmtCoord(m.p2)}`;
     item.append(pts, head);
     ctx.measureListEl.appendChild(item);
   });
-  if (!ctx.measureList.length) ctx.measureListEl.innerHTML = '<span class="hint">no measurements</span>';
+  if (!ctx.measureList.length) ctx.measureListEl.innerHTML = `<span class="hint">${t('ui.no.measurements')}</span>`;
 }
 
 // ---- Screen-space dimension annotations (crisp arrowheads + edge-snapped labels) ----
@@ -570,7 +571,7 @@ ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   ctx.measureGlow.visible = true;
   if (ctx.measureP1) {
     const mm = formatMm(ctx.measureP1.distanceTo(c));
-    ctx.measureLabelEl.textContent = 'Distance: ' + mm;
+    ctx.measureLabelEl.textContent = t('ui.distance', { value: mm });
     const sp = c.clone().project(ctx.camera);
     const r = ctx.renderer.domElement.getBoundingClientRect();
     ctx.measureLabelEl.style.left = (r.left + (sp.x * 0.5 + 0.5) * r.width) + 'px';

@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.97 · **URL:** http://localhost:8088/
+**Version:** v0.98 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -144,6 +144,19 @@ The default port is **8088**. Any of these overrides it:
 Precedence: command-line argument → `port.txt` → env `PORT` → default 8088.
 The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
+
+### Changing the language
+
+The viewer starts in English. To change the interface language, scroll to the
+**About** section at the bottom of the left sidebar and use the **Language**
+selector. Choose **繁體中文** or **简体中文**; the choice is remembered in the
+browser. English is always available as the fallback for missing or invalid
+individual translations.
+
+Chinese language add-ons are external UTF-8 JSON files. In a source checkout,
+set `CAD_LANGUAGE_DIR` to the folder containing `zh-Hant.json` and
+`zh-Hans.json`; portable builds place reviewed files under `languages/` next to
+`server.js`. See `doc/TRANSLATION-WORKFLOW.md` for validation and packaging.
 
 > **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) use the local
 > OpenCascade/OCP 7.9.3 runtime when configured, and fall back to Docker if it

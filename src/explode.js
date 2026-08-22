@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { t } from './ui-i18n.js';
 
 import { frameModel } from './scene.js';
 import { nodeAtPath } from './parts.js';
@@ -55,7 +56,7 @@ export function explodeScopeInfo() {
   if (!scope) { ctx.explodeScopeKey = null; ctx.explodeScopeName = '—'; ctx.explodeNothing = true; return []; }
   const kids = (scope.children || []).filter((c) => c.name && nodeHasMeshes(c));
   ctx.explodeScopeKey = scope === ctx.model.children[0] && !ctx.partRows.has('') ? null : scopeKeyOf(scope);
-  ctx.explodeScopeName = scope.name || 'Assembly';
+  ctx.explodeScopeName = scope.name || t('ui.assembly');
   ctx.explodeNothing = kids.length <= 1;
   return kids;
 }
@@ -170,11 +171,16 @@ export function setExplodeUi(gap) {
 export function renderExplodeScope() {
   if (!ctx.explodeScopeEl) return;
   if (ctx.explodeNothing || !ctx.explodeScopeName || ctx.explodeScopeName === '—') {
-    ctx.explodeScopeEl.textContent = 'Scope: nothing to spread · select an assembly';
+    ctx.explodeScopeEl.textContent = t('ui.scope.nothing.to.spread.select.an.assembly');
     return;
   }
   const n = ctx.explodeTargets.length || (explodeScopeNode()?.children || []).filter((c) => c.name).length;
-  ctx.explodeScopeEl.textContent = `Scope: ${ctx.explodeScopeName} · ${n} children · gap ${Math.round(ctx.explodeGap)} mm · dir ${ctx.explodeDir.toUpperCase()}`;
+  ctx.explodeScopeEl.textContent = t('ui.explode.scope.status', {
+    name: ctx.explodeScopeName,
+    count: n,
+    gap: Math.round(ctx.explodeGap),
+    dir: ctx.explodeDir.toUpperCase(),
+  });
 }
 
 export function resetExplode() {

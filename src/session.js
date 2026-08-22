@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { ctx } from './context.js';
+import { onLanguageChange, t as translate } from './ui-i18n.js';
 
 import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } from './scene.js';
 import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
@@ -15,10 +16,11 @@ let reconnectCode = null;
 let reconnectCreate = false;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
+let backendDetails = null;
 
 export function requestSessionResync() {
-  if (!ctx.session?.connected) { xferToast('Join a session to resync'); return false; }
-  try { ctx.session.ws.send(JSON.stringify({ t: 'resync-request' })); setSessionStatus('resync requested…'); return true; } catch { return false; }
+  if (!ctx.session?.connected) { xferToast(translate('ui.join.a.session.to.resync')); return false; }
+  try { ctx.session.ws.send(JSON.stringify({ t: 'resync-request' })); setSessionStatus(translate('ui.resync.requested.ellipsis')); return true; } catch { return false; }
 }
 
 export function broadcastSection(s = sectionState()) {
@@ -42,8 +44,8 @@ export function onModelAck(from) {
   ctx.pendingSend.delete(from);
   if (!ctx.pendingSend.size) {
     if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
-    setSessionStatus(`connected · host · model sent to all`);
-    xferDone('Model sent to guest(s)', 'control restored');
+    setSessionStatus(translate('ui.connected.host.model.sent.to.all'));
+    xferDone(translate('ui.model.sent.to.guest.s'), translate('ui.control.restored'));
   }
 }
 
@@ -52,7 +54,7 @@ export function onPeerGone(id) {
   ctx.ackedSend.delete(id);
   if (!ctx.pendingSend.size) {
     if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
-    setSessionStatus('connected · host');
+    setSessionStatus(translate('ui.connected.host'));
     xferDone();
   }
 }
@@ -79,21 +81,22 @@ export function setSessionStatus(text) {
 export function setHealth(state) {
   if (!ctx.healthDot) return;
   ctx.healthDot.className = 'health-dot ' + state;
-  ctx.healthDot.title = state === 'ok' ? 'server connected'
-    : state === 'bad' ? 'server unreachable - open will not work'
-    : 'checking server...';
+  ctx.healthDot.title = state === 'ok' ? translate('ui.server.connected')
+    : state === 'bad' ? translate('ui.server.unreachable')
+    : translate('ui.checking.server.ellipsis');
 }
 
 function updateBackendStatus(details) {
+  backendDetails = details;
   const backend = details?.backend || (details?.docker ? 'docker' : '');
   if (!ctx.backendStatusEl || !backend) return;
   const native = backend === 'native';
-  const label = native
-    ? 'OpenCascade 7.9.3 · local Python'
+  const label = translate(native
+    ? 'ui.backend.native'
     : details.fallback
-      ? 'OpenCascade · Docker fallback'
-      : 'OpenCascade · Docker';
-  ctx.backendStatusEl.textContent = `Conversion: ${label}`;
+      ? 'ui.backend.docker.fallback'
+      : 'ui.backend.docker');
+  ctx.backendStatusEl.textContent = translate('ui.conversion.status', { label });
   ctx.backendStatusEl.dataset.backendLabel = label;
   ctx.backendStatusEl.dataset.backend = backend;
   ctx.backendStatusEl.title = native
@@ -127,7 +130,7 @@ export function renderRoster() {
     const row = document.createElement('div');
     row.className = 'matrow';
     const isSelf = ctx.session && r.id === ctx.session.id;
-    const label = esc(r.name) + (r.isHost ? ' · host' : '') + (isSelf ? ' (you)' : '');
+    const label = esc(r.name) + (r.isHost ? ` ${translate('ui.host')}` : '') + (isSelf ? ` (${translate('ui.you')})` : '');
     // The host can kick any non-host viewer.
     const kick = ctx.session?.isHost && !r.isHost
       ? `<button class="kick-btn" data-kick="${r.id}" title="Remove ${esc(r.name)}">kick</button>`
@@ -141,6 +144,12 @@ export function renderRoster() {
     ctx.rosterEl.appendChild(row);
   });
 }
+
+onLanguageChange(() => {
+  renderRoster();
+  if (ctx.healthDot) setHealth(ctx.healthDot.classList.contains('ok') ? 'ok' : ctx.healthDot.classList.contains('bad') ? 'bad' : 'unknown');
+  if (backendDetails) updateBackendStatus(backendDetails);
+});
 
 export function fmtTime(ts) {
   const d = new Date(ts);
@@ -166,7 +175,7 @@ export function appendChatMsg(msg) {
 export function sendChatText(text) {
   const t = (text || '').trim();
   if (!t) return;
-  if (!ctx.session?.connected) { appendChatMsg({ id: 'sys', system: true, text: 'Not connected to a session.' }); return; }
+  if (!ctx.session?.connected) { appendChatMsg({ id: 'sys', system: true, text: translate('ui.not.connected.to.a.session') }); return; }
   // Show your own message locally (the server relays only to the other members).
   appendChatMsg({ id: 'self:' + (++ctx.chatSeq), name: ctx.userName, text: t, ts: Date.now(), self: true });
   try { ctx.session.ws.send(JSON.stringify({ t: 'chat', text: t })); } catch {}
@@ -183,7 +192,7 @@ export function sendChat() {
 export function sendPartComment(key, comment) {
   const t = (comment || '').trim();
   if (!t) return false;
-  if (!ctx.session?.connected) { xferToast('Join a session to comment on a part'); return false; }
+  if (!ctx.session?.connected) { xferToast(translate('ui.join.a.session.to.comment.on.a.part')); return false; }
   const root = ctx.model?.children[0];
   const node = key && root ? nodeAtPath(root, key.split('.').map(Number)) : null;
   const name = (node && node.name) || `Part ${key}`;
@@ -201,7 +210,7 @@ ctx.btnChatCloseEl?.addEventListener('click', () => { if (ctx.chatWindowEl) ctx.
 ctx.chatFormEl?.addEventListener('submit', (e) => { e.preventDefault(); sendChat(); });
 
 export function downloadChat() {
-  if (!ctx.chatHistory.length) { xferToast('No chat messages to download'); return; }
+  if (!ctx.chatHistory.length) { xferToast(translate('ui.no.chat.messages.to.download')); return; }
   const head = `CAD Viewer session chat transcript\nGenerated ${new Date().toLocaleString()}\n${'='.repeat(48)}\n\n`;
   const body = ctx.chatHistory
     .map((m) => (m.system ? `[system] ${m.text}` : `${fmtTime(m.ts)}  ${m.name}: ${m.text}`))
@@ -256,7 +265,7 @@ export function showSessionUI(active, code) {
   if (active && ctx.chatWindowEl) ctx.chatWindowEl.hidden = false;
   if (active) {
     ctx.sessionCodeEl.textContent = code;
-    ctx.sessionCodeEl.title = 'click to copy';
+    ctx.sessionCodeEl.title = translate('ui.click.to.copy');
     ctx.sessionCodeEl.style.cursor = 'pointer';
     // Join link: http://<lan-ip>:<port>/?s=CODE — shown so the host can hand
     // the address to other users on the same network.
@@ -286,10 +295,10 @@ export async function refreshJoinLink(code) {
   const url = `${location.protocol}//${base}${port}/?s=${code}`;
   linkEl.href = url;
   linkEl.textContent = url;
-  linkEl.title = 'open on another machine, or copy';
+  linkEl.title = translate('ui.open.on.another.machine.or.copy');
 }
 
-export function endSessionForGuest({ status = 'not in a session', info = '', toast = '' } = {}) {
+export function endSessionForGuest({ status = translate('ui.not.in.a.session'), info = '', toast = '' } = {}) {
   if (ctx.session) { try { ctx.session.ws.close(); } catch {} }
   ctx.session = null;
   setReconnectVisible(false);
@@ -313,7 +322,7 @@ function scheduleGuestReconnect() {
   if (!reconnectCode || reconnectCreate || reconnectAttempts >= 3 || reconnectTimer) return;
   const delay = [1000, 2000, 5000][reconnectAttempts];
   reconnectAttempts++;
-  setSessionStatus(`reconnecting… ${reconnectAttempts}/3`);
+  setSessionStatus(translate('ui.reconnecting.attempt', { attempt: reconnectAttempts }));
   reconnectTimer = setTimeout(() => {
     reconnectTimer = null;
     connectTo(reconnectCode, { create: false, reconnect: true });
@@ -330,7 +339,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
   if (create) q.set('create', '1');
   const ws = new WebSocket(`${proto}://${location.host}/ws?${q}`);
   ctx.session = { code, ws, id: null, isHost: false, connected: false, name: ctx.userName, reconnect };
-  setSessionStatus('connecting…');
+  setSessionStatus(translate('ui.connecting.ellipsis'));
   ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m); };
   ws.onclose = (ev) => {
     // A later connectTo() may have replaced this connection — if so, this
@@ -340,7 +349,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
     const wasHost = ctx.session?.isHost;
     ctx.session = null;
     if (ev.code === 4001) {
-      setSessionStatus('removed by host');
+      setSessionStatus(translate('ui.removed.by.host'));
       showSessionUI(false);
       ctx.roster = []; renderRoster();
       // The viewer was removed — clear the model from their screen.
@@ -348,23 +357,23 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
       clearPartsTree();
       clearPartSelection();
       const infoEl = document.getElementById('info');
-      if (infoEl) infoEl.textContent = 'You were removed from the session by the host.';
-      xferToast('You were removed from the session by the host.');
+      if (infoEl) infoEl.textContent = translate('ui.you.were.removed.from.the.session.by.the.host');
+      xferToast(translate('ui.you.were.removed.from.the.session.by.the.host'));
     } else if (ev.code === 4002) {
       // Fallback: the server told us the host left, but the 'host-left' message
       // was never delivered before the socket closed. End the session the same way.
-      endSessionForGuest({ status: 'host left — session ended', info: 'The host left the session.', toast: 'Host left — session ended.' });
+      endSessionForGuest({ status: translate('ui.host.left.session.ended'), info: translate('ui.the.host.left.the.session'), toast: translate('ui.host.left.session.ended.2') });
     } else if (wasIn && !wasHost) {
-      setSessionStatus('disconnected — reconnecting');
+      setSessionStatus(translate('ui.disconnected.reconnecting'));
       showSessionUI(true);
       setReconnectVisible(true);
       scheduleGuestReconnect();
     } else if (wasIn) {
-      setSessionStatus('disconnected');
+      setSessionStatus(translate('ui.disconnected'));
       showSessionUI(false);
       setReconnectVisible(false);
-    } else if (ctx.sessionStatusEl && ctx.sessionStatusEl.textContent === 'connecting…') {
-      setSessionStatus('could not connect');
+    } else if (ctx.sessionStatusEl && ctx.sessionStatusEl.textContent === translate('ui.connecting.ellipsis')) {
+      setSessionStatus(translate('ui.could.not.connect'));
     }
     // A transfer can't finish without a session — clear it and restore control.
     ctx.pendingSend.clear();
@@ -385,7 +394,7 @@ export function onSessionMsg(msg) {
       if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
       setReconnectVisible(false);
       ctx.roster = msg.roster;
-      setSessionStatus(`connected${msg.isHost ? ' · host' : ''}`);
+      setSessionStatus(msg.isHost ? translate('ui.connected.host') : translate('ui.connected'));
       const roleEl = document.getElementById('session-role');
       if (roleEl) { roleEl.textContent = msg.isHost ? 'HOST' : 'GUEST'; roleEl.hidden = false; }
       showSessionUI(true, msg.session);
@@ -438,7 +447,7 @@ export function onSessionMsg(msg) {
     case 'host-left':
       // The host left or closed the session. The shared model belonged to the
       // host, so clear it from our view and end the session for this guest.
-      endSessionForGuest({ status: 'host left — session ended', info: 'The host left the session.', toast: 'Host left — session ended.' });
+      endSessionForGuest({ status: translate('ui.host.left.session.ended'), info: translate('ui.the.host.left.the.session'), toast: translate('ui.host.left.session.ended.2') });
       break;
     case 'model':
       loadSharedModel(msg);
@@ -488,8 +497,8 @@ export function onSessionMsg(msg) {
       applyRemoteTransSync(msg.keys);
       break;
     case 'resync-done':
-      setSessionStatus(`connected${ctx.session?.isHost ? ' · host' : ''}`);
-      xferToast('Session state synchronized');
+      setSessionStatus(ctx.session?.isHost ? translate('ui.connected.host') : translate('ui.connected'));
+      xferToast(translate('ui.session.state.synchronized'));
       break;
     case 'chat':
       applyRemoteChat(msg);
@@ -567,7 +576,7 @@ export function xferDone(title, sub) {
   setTimeout(() => {
     if (seq !== ctx.xferSeq) return;          // a newer transfer started — don't clobber it
     ctx.xferOverlayEl.hidden = true;
-    xferToast('Model ready — full control restored.');
+    xferToast(translate('ui.model.ready.full.control.restored'));
   }, 950);
 }
 
@@ -576,7 +585,7 @@ export function xferError(msg) {
   ctx.xferSeq++;
   if (!ctx.xferOverlayEl.hidden) ctx.xferOverlayEl.hidden = true;
   ctx.controls.enabled = true;
-  xferToast('Model transfer failed: ' + (msg || 'unknown error'));
+  xferToast(translate('ui.model.transfer.failed') + ' ' + (msg || translate('ui.unknown.error')));
 }
 
 export function xferAbort() {
@@ -625,7 +634,7 @@ export async function loadSharedModel(m) {
   const gen = nextLoadGen();   // shared model supersedes any in-flight local load
   const infoEl = document.getElementById('info');
   const label = m.note || m.filename || 'model';
-  xferBegin('Receiving model…', label);
+  xferBegin(translate('ui.receiving.model.ellipsis'), label);
   try {
     const res = await fetch(`/sessions/${ctx.session.code}/model?ts=${Date.now()}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -644,20 +653,20 @@ export async function loadSharedModel(m) {
       try {
         loadFromGltf(gltf);
         infoEl.textContent = `shared: ${label}\n` + infoEl.textContent;
-        xferDone('Model received', 'you can now rotate, zoom and pan');
+        xferDone(translate('ui.model.received'), translate('ui.you.can.now.rotate.zoom.and.pan'));
       } catch (err) {
         if (!isCurrentGen(gen)) return;
-        infoEl.textContent = 'shared model load error: ' + (err?.message ?? err);
-        xferError('shared model load error: ' + (err?.message ?? err));
+        infoEl.textContent = translate('ui.shared.model.load.error') + ' ' + (err?.message ?? err);
+        xferError(translate('ui.shared.model.load.error') + ' ' + (err?.message ?? err));
       }
     }, (e) => {
       if (!isCurrentGen(gen)) return;
-      infoEl.textContent = 'shared model load failed: ' + e.message;
+      infoEl.textContent = translate('ui.shared.model.load.failed') + ' ' + e.message;
       xferError(e.message);
     });
   } catch (e) {
     if (!isCurrentGen(gen)) return;
-    infoEl.textContent = 'failed to load shared model: ' + e.message;
+    infoEl.textContent = translate('ui.failed.to.load.shared.model') + ' ' + e.message;
     xferError(e.message);
     // No ACK here: if the fetch/stream failed the model never arrived, so the
     // host should legitimately wait for its sendGuard rather than think we got
@@ -681,15 +690,15 @@ export function sendModelToPeers(m, ids) {
   ctx.pendingSend = new Set(waiting);
   if (!waiting.length) {
     // Everyone already ACKed (or no guests) — nothing to wait for.
-    xferDone('Model ready to share', 'all viewers confirmed');
+    xferDone(translate('ui.model.ready.to.share'), translate('ui.all.viewers.confirmed'));
     return;
   }
-  xferBegin('Sending model to guest(s)…', `${waiting.length} waiting to load…`);
+  xferBegin(translate('ui.sending.model.to.guest.s.ellipsis'), `${waiting.length} waiting to load…`);
   if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
   ctx.sendGuard = setTimeout(() => {
     if (!ctx.pendingSend.size) return;
-    setSessionStatus('connected · host · send timed out');
-    xferDone('Model sent', 'no ACK within 30s — continuing');
+    setSessionStatus(translate('ui.connected.host.send.timed.out'));
+    xferDone(translate('ui.model.sent'), translate('ui.no.ack.within.30s.continuing'));
   }, 30000);
 }
 
@@ -720,7 +729,7 @@ export async function shareBuffer(buf, filename, kind) {
     return j;
   } catch (e) {
     console.error(e);
-    infoEl.textContent = 'share failed:\n' + (e.message ?? e);
+    infoEl.textContent = translate('ui.share.failed') + '\n' + (e.message ?? e);
     xferError(e.message);
     return null;
   }

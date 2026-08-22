@@ -2,6 +2,7 @@
 // This layer keeps the legacy sidebar controls working while making the active
 // tool, transform axis, selected part, and next action visible in the viewport.
 import { ctx } from './context.js';
+import { onLanguageChange, t } from './ui-i18n.js';
 import {
   cancelMoveDrag,
   cancelRotateDrag,
@@ -46,21 +47,22 @@ export function activeTool() {
 function toolStatus(tool) {
   if (tool === 'section') {
     const offset = ctx.sectionOffsetValEl?.textContent || `${ctx.sectionOffset} mm`;
-    return `Section view · ${ctx.sectionAxis.toUpperCase()} plane · ${offset} · drag the handle`;
+    return t('ui.section.status', { axis: ctx.sectionAxis.toUpperCase(), offset });
   }
   if (tool === 'measure') {
-    return ctx.measureP1 ? 'First point set · click a second corner' : 'Click a corner to measure';
+    return ctx.measureP1 ? t('ui.measure.first.point.set') : t('ui.measure.click.corner');
   }
   if (tool === 'pivot') {
-    if (!ctx.selectedPartKey) return 'Select a part to edit its pivot';
-    return 'Pivot mode · drag the centre handle · Esc to exit';
+    if (!ctx.selectedPartKey) return t('ui.select.part.to.edit.pivot');
+    return t('ui.pivot.status');
   }
   if (tool === 'move' || tool === 'rotate') {
-    if (!ctx.selectedPartKey) return `Select a part to ${tool}`;
-    if (!ctx.moveAxis) return `${tool[0].toUpperCase() + tool.slice(1)} mode · choose X, Y, or Z`;
-    return `${tool[0].toUpperCase() + tool.slice(1)} mode · ${ctx.moveAxis.toUpperCase()} axis · Esc to exit`;
+    const label = tool[0].toUpperCase() + tool.slice(1);
+    if (!ctx.selectedPartKey) return t('ui.select.part.to.tool', { tool: t(tool === 'rotate' ? 'ui.rotation' : 'ui.move').toLowerCase() });
+    if (!ctx.moveAxis) return t('ui.tool.choose.axis', { tool: label });
+    return t('ui.tool.axis.status', { tool: label, axis: ctx.moveAxis.toUpperCase() });
   }
-  return ctx.selectedPartKey ? 'Part selected · choose a tool' : 'Select a part';
+  return ctx.selectedPartKey ? t('ui.part.selected.choose.tool') : t('ui.select.part');
 }
 
 function selectedBreadcrumb(key) {
@@ -104,10 +106,10 @@ export function syncInteractionUI() {
   if (contextEl) contextEl.hidden = !ctx.selectedPartKey;
   if (selectedLabelEl) {
     selectedLabelEl.textContent = ctx.selectedPartKey ? selectedBreadcrumb(ctx.selectedPartKey) : '';
-    selectedLabelEl.title = ctx.selectedPartKey ? selectedLabelEl.textContent : 'Selected part';
+    selectedLabelEl.title = ctx.selectedPartKey ? selectedLabelEl.textContent : t('ui.selected.part');
   }
   const transBtn = contextButtons.find((button) => button.dataset.partAction === 'transparent');
-  if (transBtn) transBtn.textContent = ctx.selectedPartKey && partTransparent(ctx.selectedPartKey) ? 'Opaque' : 'Transparent';
+  if (transBtn) transBtn.textContent = ctx.selectedPartKey && partTransparent(ctx.selectedPartKey) ? t('ui.opaque') : t('ui.transparent');
 }
 
 function setTool(tool) {
@@ -245,9 +247,9 @@ document.addEventListener('keydown', (event) => {
 
 window.addEventListener('viewer-transform', (event) => {
   const { kind, value, state } = event.detail || {};
-  const label = kind === 'rotate' ? 'Rotation' : 'Move';
-  if (state === 'done') setTransformReadout(`✓ ${label} complete`);
-  else if (state === 'cancelled') setTransformReadout(`↶ ${label} cancelled`);
+  const label = t(kind === 'rotate' ? 'ui.rotation' : 'ui.move');
+  if (state === 'done') setTransformReadout(`✓ ${t('ui.transform.complete', { label })}`);
+  else if (state === 'cancelled') setTransformReadout(`↶ ${t('ui.transform.cancelled', { label })}`);
   else if (kind === 'rotate') setTransformReadout(`↻ ${Math.abs(value || 0).toFixed(1)}°`);
   else if (kind === 'move') setTransformReadout(`Δ ${formatMm(value || 0)} mm`);
 });
@@ -255,4 +257,5 @@ window.addEventListener('viewer-transform', (event) => {
 // Selection changes happen in the parts module. A lightweight refresh keeps the
 // status text correct without coupling parts.js back to this presentation layer.
 window.setInterval(syncInteractionUI, 150);
+onLanguageChange(() => syncInteractionUI());
 syncInteractionUI();

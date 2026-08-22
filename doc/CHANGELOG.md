@@ -21,6 +21,41 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.98] — 2026-08-23
+
+### Added
+
+- Added a built-in English UI catalog with stable translation keys and safe
+  per-key English fallback behavior.
+- Added optional external `zh-Hant.json` and `zh-Hans.json` language add-ons,
+  discovered through `CAD_LANGUAGE_DIR` or a portable build's `languages/`
+  directory.
+- Added a persistent Language selector in the About section of the left
+  sidebar; changing language does not reload the model or session.
+- Added translation coverage for static labels, tooltips, placeholders,
+  accessibility labels, runtime conversion/session messages, and interaction
+  status text.
+- Added `tools/validate-language.mjs`, `tools/check-layout.mjs`, and the
+  translation workflow documentation.
+
+### Fixed
+
+- Fixed translated text inside primary Load model and Create session buttons
+  inheriting muted sidebar span styling and becoming difficult to read.
+- Fixed dynamic backend status text remaining in English after switching locale.
+- Added flexible wrapping and bounded toolbar sizing for longer translated
+  labels at 1280, 1024, and 768 pixel viewports.
+
+### Verification
+
+- Full browser CAD/session regression: **115 passed, 0 failed**.
+- Traditional Chinese, Simplified Chinese, and pseudo-locale layout checks:
+  **0 overflow failures** at 1280, 1024, and 768 pixels.
+- Locale validator: **240 strings** per Chinese draft file, with exact
+  placeholder and catalog-key validation.
+
+---
+
 ## [v0.97] — 2026-08-22
 
 ### Added
