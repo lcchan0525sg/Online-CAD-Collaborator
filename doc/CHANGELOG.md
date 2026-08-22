@@ -21,6 +21,32 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.96] — 2026-08-22
+
+### Fixed
+
+- CAD assembly-tree parsing now recognizes direct `THREE.Mesh` part nodes
+  produced by OCCT 8.0.1 Draco GLBs while continuing to ignore primitive meshes
+  nested inside a part wrapper.
+- Draco-compressed GearBox assemblies now display all 45 parts instead of only
+  the first-level five group nodes.
+
+### Changed
+
+- Assembly trees start fully expanded so nested parts are immediately visible;
+  users can still collapse individual assemblies.
+- The floating assembly panel is taller and reports the loaded node count.
+- About/version display and portable packaging are updated to v0.96.
+
+### Verification
+
+- Production viewer runtime: V7.9.3 GLB **46 rows**, OCCT 8.0.1 Draco GLB
+  **46 rows**.
+- Portable archive: `cad-viewer-portable-v0.96.zip` built and extracted-server
+  smoke-tested successfully.
+
+---
+
 ## [v0.95] — 2026-08-21
 
 ### Added
