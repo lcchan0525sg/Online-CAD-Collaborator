@@ -756,7 +756,7 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
   left: 12px;
   z-index: 40;
   width: 260px;
-  max-height: 48vh;
+  max-height: 80vh;
   overflow: auto;
   padding: 8px 9px;
   background: rgba(20, 24, 34, 0.86);

@@ -9,6 +9,8 @@ import { xferToast, sendPartComment } from './session.js';
 
 export function clearPartsTree() {
   if (!ctx.partsEl) return;
+  const title = document.querySelector('#floating-parts .fp-title');
+  if (title) title.textContent = 'Assembly tree';
   ctx.partsEl.innerHTML = '<span class="hint">—</span>';
   ctx.partRows.clear();
   ctx.allPartRows.length = 0;
@@ -32,15 +34,17 @@ export function buildPartsTree(root) {
   treeFilter = '';
   if (fpFilterEl) fpFilterEl.value = '';
   let count = 0;
-  // Three.js GLTFLoader makes ONE Mesh per glTF PRIMITIVE, and RWGltf_CafWriter
-  // emits one primitive per triangle/face — so a single part can spawn hundreds
-  // of child Mesh objects (auto-named "Part2_1", "Part2_2", ...). A part row
-  // must therefore be any NAMED node that is NOT one of those primitive Mesh
-  // leaves — i.e. a named assembly (Object3D/Group) or a lone top-level Mesh
-  // directly under the scene root (flat single-part GLB). The primitive Meshes
-  // nested under a part are geometry, not separate parts.
-  const isPartNode = (child, obj) =>
-    !!child.name && (obj === root || !child.isMesh);
+  // Three.js GLTFLoader makes ONE Mesh per glTF PRIMITIVE. Older OCCT GLBs
+  // wrap each part in a Group, while OCCT 8 + Draco can map a single-primitive
+  // part directly to Mesh. Ignore Mesh leaves under a part wrapper, but retain
+  // direct Mesh parts under an assembly container that also has child groups.
+  const isPartNode = (child, obj) => {
+    if (!child.name) return false;
+    if (!child.isMesh) return true;
+    if (obj === root) return true;
+    const hasAssemblyChildren = obj.children.some((sibling) => !sibling.isMesh && sibling.name);
+    return hasAssemblyChildren;
+  };
   const walk = (obj, depth, path) => {
     obj.children.forEach((child, i) => {
       const p = [...path, i];
@@ -98,11 +102,14 @@ export function buildPartsTree(root) {
     r.hasKids = ctx.allPartRows.some((o) => o.key.startsWith(r.key + '.'));
     if (r.hasKids) r.toggle.style.visibility = 'visible';
   }
-  // Default: collapse parents at depth >= 1, so the tree initially shows two
-  // levels (top assembly + its direct children); deeper levels start collapsed.
-  ctx.collapsedPaths = new Set(ctx.allPartRows.filter((r) => r.hasKids && r.depth >= 1).map((r) => r.key));
+  // Start fully expanded so nested CAD parts are visible immediately. Users can
+  // collapse any assembly with its toggle; this avoids making a valid hierarchy
+  // look like its children were merged into the top assembly.
+  ctx.collapsedPaths = new Set();
   renderCollapseState();
   if (!count) ctx.partsEl.innerHTML = '<span class="hint">—</span>';
+  const title = document.querySelector('#floating-parts .fp-title');
+  if (title) title.textContent = count ? `Assembly tree (${count} parts)` : 'Assembly tree';
   setFloatingPartsVisible(count > 0);
 }
 
