@@ -21,6 +21,36 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.97] — 2026-08-22
+
+### Added
+
+- Main CAD Viewer conversion now prefers a local Python environment with
+  **OpenCascade/OCP 7.9.3**, selected with `CAD_PYTHON` or `--python`.
+- Backend selection supports `auto` (native-first), `native`, and `docker` via
+  `CAD_BACKEND` or the matching server option.
+- `/health` reports the active conversion backend, and the Model panel displays
+  whether conversion is using local OCP or Docker fallback.
+- Portable viewer builds can bundle the native Python/OCP runtime when built
+  with `CAD_NATIVE_PYTHON`; Docker remains available as a fallback.
+
+### Changed
+
+- STEP/IGES conversion in both direct uploads and shared-session uploads uses
+  the selected backend while preserving the existing XCAF assembly hierarchy,
+  part names, colours, and zero-triangle validation.
+- About label and manual footer are updated to v0.97.
+
+### Verification
+
+- Native local server health: `backend=native` with the verified
+  `cad-native` Python environment.
+- Native `CAM_online.STEP`: valid GLB, 821,644 bytes, 16 nodes, 15 meshes,
+  15 materials, and 12,148 triangles.
+- Auto mode without local OCP: server reports Docker fallback.
+
+---
+
 ## [v0.96] — 2026-08-22
 
 ### Fixed
@@ -463,9 +493,10 @@ OpenCascade (LGPL-2.1 + OCCT exception), pythonocc (LGPL-3.0), Three.js / ws
 
 A **Node.js** web server serves a **Three.js** single-page app. The server
 exposes static files, a REST conversion API, and a **WebSocket** relay for
-real-time multi-user sessions. STEP/IGES/OBJ conversion is delegated to an
-**OpenCascade kernel running in Docker**; the result is served to all members
-of a session.
+real-time multi-user sessions. STEP/IGES/STL conversion is delegated to the
+OpenCascade kernel through local OCP 7.9.3 when available, with the
+`chair-cq:local` Docker image as the fallback; the result is served to all
+members of a session.
 
 ```
 Browser (Three.js)  ──HTTP──►  Node server (src/server.js)
@@ -474,7 +505,7 @@ Browser (Three.js)  ──HTTP──►  Node server (src/server.js)
       │                            │
       │                ┌───────────┴───────────┐
       │                │  POST /convert/*      │
-      │                │  docker run chair-cq  │
+      │                │  local OCP or Docker  │
       │                ▼                       ▼
       │          OpenCascade (OCCT)      other guests (browsers)
 ```
@@ -486,8 +517,9 @@ Browser (Three.js)  ──HTTP──►  Node server (src/server.js)
 | Runtime | **Node.js** (ESM, `"type":"module"`) | `src/server.js`, `src/main.js` |
 | 3D | **Three.js** `^0.185.1` + `OrbitControls`, `GLTFLoader` | ESM via import map |
 | WebSocket | **ws** `^8.21.3` | Session relay |
-| CAD kernel | **OpenCascade (OCCT)** via **pythonocc** in Docker | `chair-cq:local` image |
-| Docker | `docker run --rm` per conversion | Container from `Dockerfile` |
+| CAD kernel | **OpenCascade (OCCT) 7.9.3** via native OCP or Docker | `CAD_PYTHON` or `chair-cq:local` |
+| Native Python | **cadquery-ocp 7.9.3.1.1** | `CAD_PYTHON` / optional portable `python/` |
+| Docker | `docker run --rm` per conversion when selected/fallback | Container from `Dockerfile` |
 | Tests / verify | headless Chrome CDP | in-repo `_*.cjs` probes |
 
 ## 2.1 Software component versions
@@ -500,11 +532,11 @@ Browser (Three.js)  ──HTTP──►  Node server (src/server.js)
 | Node.js (runtime) | **22.23.2** | dev machine / `node.exe` bundled in the zip |
 | Three.js | **0.185.1** | `package.json` (`^0.185.1`) |
 | ws | **8.21.3** | `package.json` (`^8.21.3`) |
-| OpenCascade (OCCT) | **7.9.x** (OCP core **7.9.3.1**) | `chair-cq:local` image (pythonocc-core) |
-| pythonocc-core (OCP) | **7.9.3.1** | `chair-cq:local` image |
+| OpenCascade (OCCT) | **7.9.x** (OCP core **7.9.3.1**) | native `CAD_PYTHON` or `chair-cq:local` |
+| pythonocc-core (OCP) | **7.9.3.1** | native `CAD_PYTHON` or Docker image |
 | CadQuery | **2.8.0** | `chair-cq:local` image (`pip install cadquery`) |
 | Python (in container) | **3.11.16** | `Dockerfile` (`python:3.11-slim`) |
-| Docker | any modern Docker Desktop / engine | required for STEP/IGES/OBJ conversion |
+| Docker | any modern Docker Desktop / engine | fallback when native OCP is unavailable |
 | Headless Chrome | any recent stable | used by in-repo CDP verification probes |
 | GLB/GLTF format | glTF 2.0 (binary `.glb`) | written by `RWGltf_CafWriter` |
 
@@ -530,9 +562,11 @@ tools/convert-cad/   Standalone converter tool (separate package)
 ## 4. Conversion method (STEP / IGES / STL → GLB)
 
 - Server receives an upload and writes it to a temp dir.
-- Runs **`docker run --rm`** with the file mounted as `/w/model<ext>`, invoking
-  `/converters/step2glb.py` which uses **OpenCascade's `RWGltf_CafWriter`** to
-  write `/w/model.glb`. The GLB is binary (not text glTF).
+- In `auto` mode, preflights `CAD_PYTHON` (or `python`) with `import OCP` and
+  prefers native execution; otherwise it runs **`docker run --rm`** with the
+  file mounted as `/w/model<ext>`.
+- Invokes `/converters/step2glb.py`, which uses **OpenCascade's
+  `RWGltf_CafWriter`** to write `model.glb`. The GLB is binary (not text glTF).
 - Preserves **assembly part names** (via XCAF) and **per-part colours**.
 - The server **verifies the result** (`countGlbTriangles`): a 0-triangle GLB is
   rejected with a clear error instead of a silent blank view.
@@ -586,9 +620,10 @@ to disk.
 ## 7. Build & release process
 
 1. Bump the version label in `src/index.html` (and manual footer).
-2. `node build-portable.mjs vX.Y --keep` — checks out the tag into a git
+2. Optionally set `CAD_NATIVE_PYTHON` to bundle local OCP 7.9.3, then run
+   `node build-portable.mjs vX.Y --keep` — checks out the tag into a git
    worktree, assembles `dist/cad-viewer-portable` (bundled `node.exe`, slimmed
-   three.js/ws, converters, `doc/`), and zips to
+   three.js/ws, converters, optional `python/`, `doc/`), and zips to
    `dist/cad-viewer-portable-vX.Y.zip`. The working tree is untouched.
 3. `git tag vX.Y`; append the release to this changelog.
 4. Verify with headless Chrome probes (upload → convert → preview, session sync,

@@ -63,15 +63,16 @@ License : MIT (with third-party components under their own permissive licenses)
 Website : https://nodejs.org
 
 ---------------------------------------------------------------------------
-7. Docker / Docker Desktop (optional, required only for STEP files)
+7. Docker / Docker Desktop (optional fallback for STEP files)
 ---------------------------------------------------------------------------
 License : Docker Desktop's own proprietary EULA (free for small businesses
 and personal use; larger organisations may require a paid subscription).
 Docker Engine itself is Apache 2.0.
 
-NOTE: Docker is NOT bundled. The portable app runs GLB/GLTF files without
-it; STEP conversion additionally requires Docker + the "chair-cq:local"
-image, installed via install-docker-opencascade.bat.
+NOTE: Docker is NOT bundled. The portable app can use a bundled native
+OpenCascade/OCP 7.9.3 runtime when built with CAD_NATIVE_PYTHON. Otherwise
+STEP/IGES conversion falls back to Docker + the "chair-cq:local" image,
+installed via install-docker-opencascade.bat.
 
 ---------------------------------------------------------------------------
 Summary for end users
@@ -100,7 +101,8 @@ obtained, are:
     single step2glb.py in that place)
 
 The object code you receive includes no modifications to these libraries;
-they run unmodified in a separate container. Any modifications you make to
+they run unmodified either in the bundled native Python runtime or in a
+separate container. Any modifications you make to
 them, and any modified versions you redistribute, must comply with the
 terms of their respective licenses. Full license texts are in the LICENSES/
 folder alongside this file.

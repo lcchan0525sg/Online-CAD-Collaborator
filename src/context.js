@@ -129,6 +129,8 @@ const joinCodeInput = document.getElementById('join-code');
 
 const healthDot = document.getElementById('health-dot');
 
+const backendStatusEl = document.getElementById('conversion-status');
+
 let healthFailures = 0;
 
 const chatWindowEl = document.getElementById('chat-window');
@@ -456,6 +458,7 @@ export const ctx = {
   sessionActiveEl,
   joinCodeInput,
   healthDot,
+  backendStatusEl,
   healthFailures,
   chatWindowEl,
   chatMessagesEl,

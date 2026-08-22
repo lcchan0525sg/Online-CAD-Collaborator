@@ -1,6 +1,6 @@
 # CAD Viewer — User Manual
 
-**Version:** v0.94 · **URL:** http://localhost:8088/
+**Version:** v0.97 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
@@ -123,10 +123,13 @@ from a different location.
 **Portable zip (Windows, no installs):**
 
 1. Unzip `cad-viewer-portable.zip` anywhere.
-2. Double-click **`start.bat`**. It launches the server and opens the browser.
+2. Double-click **`start.bat`**. It automatically selects bundled/local native
+   OpenCascade/OCP 7.9.3 when available, then opens the browser.
 3. The app is served at **http://localhost:8088/**
 
-**From source:** `npm start` (or `node src/server.js`) in the project folder, then open the same URL.
+**From source:** double-click the repository's `start.bat` to auto-detect
+`%USERPROFILE%\venvs\cad-native\Scripts\python.exe`, or run `npm start` / `node
+src/server.js` manually with `CAD_PYTHON` configured.
 
 ### Changing the port
 
@@ -142,15 +145,37 @@ Precedence: command-line argument → `port.txt` → env `PORT` → default 8088
 The join link and `/ip` address always reflect the actual port, so guests don't
 need to know it.
 
-> **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) additionally need
-> Docker + the `chair-cq:local` OpenCascade image. GLB/GLTF files work without
-> any of it.
+> **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) use the local
+> OpenCascade/OCP 7.9.3 runtime when configured, and fall back to Docker if it
+> is unavailable. GLB/GLTF files work without either CAD backend.
 
-### Installing the STEP converter (Docker + OpenCascade)
+### Installing the local STEP converter (OpenCascade/OCP 7.9.3)
 
-To open **STEP / IGES / STL** files, the server needs a small converter built on
-the OpenCascade CAD kernel, which runs inside a **Docker** container. This is a
-**one-time** setup on the PC that runs the server — guests never need it.
+To open **STEP / IGES / STL** files without Docker, install a native Windows
+Python environment containing `cadquery-ocp` 7.9.3.1.1. The server only needs
+the executable path; guests never need the CAD runtime.
+
+`start.bat` detects the conventional `%USERPROFILE%\venvs\cad-native` location
+automatically. To use another environment, set the path before starting:
+
+```bat
+set CAD_PYTHON=C:\Users\you\venvs\cad-native\Scripts\python.exe
+set CAD_BACKEND=auto
+node src\server.js
+```
+
+Use `CAD_BACKEND=native` to require the native runtime, or `CAD_BACKEND=docker`
+to force the existing Docker backend. In `auto` mode, the server preflights
+`import OCP`, prefers native conversion, and falls back to Docker when the
+selected Python cannot import OCP.
+
+The Model panel shows the active backend after the server health check.
+
+### Docker fallback setup
+
+If native OCP is not installed, the viewer can still use the existing Docker
+fallback. This is a **one-time** setup on the PC that runs the server — guests
+never need it.
 
 Run **`install-docker-opencascade.bat`** (double-click it; it sits in the same
 folder as `start.bat`). It walks through everything:
@@ -707,15 +732,16 @@ Click **Leave session** to leave. What happens depends on your role:
 
 ## 17. Opening a STEP / IGES / STL file
 
-STEP, IGES and STL conversion happens through the OpenCascade kernel (Docker).
+STEP, IGES and STL conversion happens through the OpenCascade kernel. Local
+OCP 7.9.3 is preferred when configured; otherwise Docker is used automatically.
 The first time you open one you'll see the conversion overlay; when it finishes
 the GLB is loaded — with the original **colours and materials** preserved, and
 part names appearing in the Assembly tree.
 
 ![STEP file being converted to GLB](manual-shots/11-step-converting.png)
 
-If Docker or the `chair-cq:local` image isn't installed, these formats show a
-conversion error while GLB/GLTF continues to work normally.
+If neither local OCP nor the `chair-cq:local` image is available, these formats
+show a conversion error while GLB/GLTF continues to work normally.
 
 ---
 
@@ -757,9 +783,9 @@ node convert-cad.mjs input.step output.glb      # or .gltf
 
 ### Requirements
 
-The converter runs the OpenCascade kernel inside the **`chair-cq:local`**
-Docker image — the same one the viewer uses. Docker Desktop must be running and
-the image built (`install-docker-opencascade.bat`, or `docker build -t
+The standalone converter uses native OpenCascade/OCP 7.9.3. The viewer's
+conversion backend is independent: set `CAD_PYTHON` for local OCP, or use the
+viewer Docker fallback (`install-docker-opencascade.bat`, or `docker build -t
 chair-cq:local .`). **Node.js** is needed for the launcher.
 
 ### How it helps sharing
@@ -775,7 +801,7 @@ It's the same "one compact file over the network" idea, applied offline.
 | Problem | Fix |
 |---|---|
 | Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 8088 isn't blocked by a firewall |
-| STEP/IGES/STL shows “conversion failed” | Run `install-docker-opencascade.bat`; confirm Docker is running with the `chair-cq:local` image |
+| STEP/IGES/STL shows “conversion failed” | Check the Model panel backend; set `CAD_PYTHON` to a Python where `import OCP` succeeds, or run `install-docker-opencascade.bat` and confirm `chair-cq:local` |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |
@@ -821,4 +847,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v0.94 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*CAD Viewer v0.97 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

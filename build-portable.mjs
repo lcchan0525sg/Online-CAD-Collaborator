@@ -9,7 +9,7 @@
 //
 // Output: dist/cad-viewer-portable.zip, or dist/cad-viewer-portable-<version>.zip
 // when a version is given. A versioned build NEVER touches the working tree.
-import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync } from 'node:fs';
+import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -19,6 +19,7 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'cad-viewer-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
+const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON || '';
 // Converter source: CQ_DIR env (a folder of per-format modules) -> legacy
 // CQ_SCRIPT env (single step2glb.py) -> dev-machine default folder. The
 // server resolves the same layout at runtime, so a folder and a legacy file
@@ -43,6 +44,11 @@ const keepOlder = process.argv.includes('--keep') || process.argv[3] === '--keep
 // resolve the version label: explicit arg, else nearest tag, else 'dev'
 function resolveVersion() {
   if (versionArg) return versionArg.replace(/^v/i, '');   // normalize "V0.2" -> "0.2"
+  try {
+    const html = readFileSync(join(ROOT, 'src', 'index.html'), 'utf8');
+    const match = html.match(/<strong>CAD Viewer<\/strong>\s*v([0-9][^<\s-]*)/);
+    if (match) return match[1];
+  } catch {}
   try {
     const desc = execFileSync('git', ['describe', '--tags', '--always'], { cwd: ROOT, encoding: 'utf8' }).trim();
     return desc.replace(/^v/i, '');
@@ -93,6 +99,22 @@ function buildFrom(src, version, zipName) {
   if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
   const dockerFile = join(src, 'Dockerfile');
   if (existsSync(dockerFile)) copyFileSync(dockerFile, join(APP, 'Dockerfile'));
+
+  // Optional native Python/OCP runtime. If CAD_NATIVE_PYTHON is provided, the
+  // portable viewer prefers it at runtime; otherwise the Docker fallback files
+  // above remain available for existing installations.
+  if (NATIVE_PYTHON) {
+    const info = execFileSync(NATIVE_PYTHON, ['-c',
+      'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
+      .trim().split(/\r?\n/);
+    const basePython = realpathSync(info[0]);
+    const venvPython = realpathSync(info[1]);
+    const nativeRoot = join(APP, 'python');
+    mkdirSync(nativeRoot, { recursive: true });
+    cpSync(basePython, nativeRoot, { recursive: true });
+    cpSync(join(venvPython, 'Lib', 'site-packages'), join(nativeRoot, 'Lib', 'site-packages'), { recursive: true });
+    console.log('bundled native Python/OCP from', NATIVE_PYTHON);
+  }
   // User manual (doc/: HTML + PDF + MD + screenshots). Served at /doc/ by
   // the server (repo root in dev, zip root here), so copy the whole folder.
   if (existsSync(join(src, 'doc'))) {
@@ -154,8 +176,12 @@ function buildFrom(src, version, zipName) {
     'set "PORT=8088"',
     'if not "%~1"=="" set "PORT=%~1"',
     'if exist "port.txt" set /p PORT=<port.txt',
+    'if not defined CAD_PYTHON if exist "python\\python.exe" set "CAD_PYTHON=%~dp0python\\python.exe"',
+    'if not defined CAD_BACKEND set "CAD_BACKEND=auto"',
     '',
     'echo Starting CAD Viewer on port %PORT% ...',
+    'if defined CAD_PYTHON echo CAD backend: native-first ^(%CAD_PYTHON%^)',
+    'if not defined CAD_PYTHON echo CAD backend: auto ^(native if available, Docker fallback^)',
     'start "" http://localhost:%PORT%/',
     'set PORT=%PORT%',
     'node.exe server.js',
@@ -168,6 +194,9 @@ function buildFrom(src, version, zipName) {
     'cd "$(dirname "$0")"',
     'PORT="${1:-8088}"',
     '[ -f port.txt ] && PORT=$(head -1 port.txt)',
+    '[ -z "${CAD_PYTHON:-}" ] && [ -f python/python.exe ] && CAD_PYTHON="$PWD/python/python.exe"',
+    'CAD_BACKEND="${CAD_BACKEND:-auto}"',
+    'export CAD_PYTHON CAD_BACKEND',
     'echo "Starting CAD Viewer on port $PORT ..."',
     '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',
     'exec env PORT="$PORT" node server.js',
@@ -186,7 +215,11 @@ function buildFrom(src, version, zipName) {
     '',
     'Then open http://localhost:8088/  (the launcher opens it for you).',
     '',
-    'The zip bundles node.exe, so NO installs are needed on Windows.',
+    'The zip bundles node.exe, so NO Node install is needed on Windows.',
+    '',
+    NATIVE_PYTHON
+      ? 'This build also bundles native Python/OCP 7.9.3 and prefers it automatically; Docker remains available as fallback.'
+      : 'For local OpenCascade without Docker, build with CAD_NATIVE_PYTHON set to a cadquery-ocp 7.9.3 Python executable.',
     '',
     'User manual:',
     '  Open doc/USER-MANUAL.html (or doc/USER-MANUAL.pdf) for full',
@@ -202,14 +235,11 @@ function buildFrom(src, version, zipName) {
     '  LAN open the join link shown in the sidebar (http://<ip>:8088/?s=CODE) or',
     '  type the code into "Join". Camera + part show/hide stay in sync.',
     '',
-    'STEP files:',
-    '  NOTE: STEP conversion requires TWO external pieces that are NOT bundled:',
-    '  1. Docker Desktop (or another Docker runtime) installed on this PC, and',
-    '  2. the OpenCascade CAD converter image "chair-cq:local" (built from the',
-    '     chair-3d-web repo, or provided as a separate image).',
-    '  The server shells out to Docker and runs the converter inside it',
-    '  (the converters/ folder, or a legacy step2glb.py in older zips).',
-    '  Without Docker, GLB/GLTF files still work; STEP shows a conversion error.',
+    'CAD files:',
+    '  STEP/IGES conversion prefers local OpenCascade 7.9.3 when CAD_PYTHON',
+    '  points to a Python environment where import OCP succeeds.',
+    '  If native OCP is unavailable, the server falls back to Docker and the',
+    '  chair-cq:local image. GLB/GLTF files always work without either backend.',
     '',
     'Port: 8088. Override with env PORT.',
     '',

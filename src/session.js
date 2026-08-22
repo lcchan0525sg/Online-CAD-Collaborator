@@ -84,10 +84,28 @@ export function setHealth(state) {
     : 'checking server...';
 }
 
+function updateBackendStatus(details) {
+  const backend = details?.backend || (details?.docker ? 'docker' : '');
+  if (!ctx.backendStatusEl || !backend) return;
+  const native = backend === 'native';
+  const label = native
+    ? 'OpenCascade 7.9.3 · local Python'
+    : details.fallback
+      ? 'OpenCascade · Docker fallback'
+      : 'OpenCascade · Docker';
+  ctx.backendStatusEl.textContent = `Conversion: ${label}`;
+  ctx.backendStatusEl.dataset.backendLabel = label;
+  ctx.backendStatusEl.dataset.backend = backend;
+  ctx.backendStatusEl.title = native
+    ? `Native CAD backend: ${details.nativePython || 'configured Python'}`
+    : details.fallback || 'Docker CAD backend: chair-cq:local';
+}
+
 export async function pollHealth() {
   try {
     const r = await fetch('/health', { cache: 'no-store' });
-    if (r.ok) { ctx.healthFailures = 0; setHealth('ok'); }
+    const details = await r.json().catch(() => null);
+    if (r.ok) { ctx.healthFailures = 0; updateBackendStatus(details); setHealth('ok'); }
     else { ctx.healthFailures++; setHealth(ctx.healthFailures >= 2 ? 'bad' : 'unknown'); }
   } catch {
     ctx.healthFailures++;

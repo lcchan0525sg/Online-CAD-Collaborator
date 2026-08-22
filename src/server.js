@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { readFile, writeFile, unlink, rmdir, mkdir, stat } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { extname, join, normalize, dirname } from 'node:path';
 import { tmpdir, networkInterfaces } from 'node:os';
 import { randomUUID, randomBytes } from 'node:crypto';
@@ -50,7 +50,8 @@ if (!PORT) {
 }
 if (!PORT) PORT = 8088;
 
-// STEP import runs the OpenCascade kernel (no Windows wheel) in Docker.
+// STEP import runs the OpenCascade kernel through a native OCP 7.9.3 Python
+// environment when one is available, with Docker retained as the fallback.
 // The converter is a FOLDER of per-format modules (converters/step2glb.py
 // dispatcher + convert_step.py / convert_iges.py / convert_stl.py +
 // common.py), so a new format never touches a finished one.
@@ -78,6 +79,80 @@ function resolveConverter() {
   return { host: candidates[candidates.length - 1], inContainer: '/converters' };
 }
 const CQ = resolveConverter();
+
+// Backend selection: auto prefers local OCP and falls back to Docker. Use
+// --backend native/docker (or CAD_BACKEND) to force one path, and --python (or
+// CAD_PYTHON) to select the native Python executable explicitly.
+let BACKEND_REQUEST = String(process.env.CAD_BACKEND || 'auto').toLowerCase();
+let NATIVE_PYTHON = process.env.CAD_PYTHON || 'python';
+for (let i = 2; i < process.argv.length; i++) {
+  const a = process.argv[i];
+  if (a === '--backend' && process.argv[i + 1]) BACKEND_REQUEST = process.argv[++i].toLowerCase();
+  else if (a.startsWith('--backend=')) BACKEND_REQUEST = a.slice('--backend='.length).toLowerCase();
+  else if (a === '--python' && process.argv[i + 1]) NATIVE_PYTHON = process.argv[++i];
+  else if (a.startsWith('--python=')) NATIVE_PYTHON = a.slice('--python='.length);
+}
+if (!['auto', 'native', 'docker'].includes(BACKEND_REQUEST)) {
+  console.error(`invalid CAD_BACKEND '${BACKEND_REQUEST}' (use auto, native, or docker)`);
+  process.exit(2);
+}
+
+const NATIVE_CONVERTER = CQ.host.toLowerCase().endsWith('.py')
+  ? CQ.host
+  : join(CQ.host, 'step2glb.py');
+let NATIVE_PROBE_ERROR = '';
+let NATIVE_AVAILABLE = false;
+try {
+  execFileSync(NATIVE_PYTHON, ['-c', 'import OCP'], { stdio: 'ignore', timeout: 30_000 });
+  NATIVE_AVAILABLE = true;
+} catch (e) {
+  NATIVE_PROBE_ERROR = String(e?.message || e);
+}
+if (BACKEND_REQUEST === 'native' && !NATIVE_AVAILABLE) {
+  console.error(`native CAD backend unavailable: Python '${NATIVE_PYTHON}' cannot import OCP`);
+  console.error('Set CAD_PYTHON/--python to a cadquery-ocp 7.9.3 environment or use --backend auto.');
+  process.exit(1);
+}
+const ACTIVE_BACKEND = BACKEND_REQUEST === 'docker'
+  ? 'docker'
+  : NATIVE_AVAILABLE ? 'native' : 'docker';
+const BACKEND_FALLBACK = BACKEND_REQUEST === 'auto' && !NATIVE_AVAILABLE
+  ? 'local OCP unavailable; using Docker fallback'
+  : '';
+
+function runKernelConversion(inPath, outPath, stem) {
+  if (ACTIVE_BACKEND === 'native') {
+    const args = [NATIVE_CONVERTER, inPath, outPath, `--stem=${stem}`];
+    return new Promise((resolve) => {
+      execFile(NATIVE_PYTHON, args, {
+        env: { ...process.env, CQ_STEM: stem },
+        maxBuffer: 16 * 1024 * 1024,
+        timeout: 10 * 60 * 1000,
+      }, (err, stdout, stderr) => resolve({
+        code: err ? (err.code ?? 1) : 0,
+        stdout: String(stdout || ''),
+        stderr: String(stderr || ''),
+      }));
+    });
+  }
+
+  const args = [
+    'run', '--rm',
+    '--env', `CQ_STEM=${stem}`,
+    '-v', `${dirname(inPath)}:/w`,
+    '-v', `${CQ.host}:${CQ.inContainer}:ro`,
+    '-w', '/w',
+    CQ_CONTAINER,
+    'python', '/converters/step2glb.py', `/w/${inPath.split(/[\\/]/).pop()}`, '/w/' + outPath.split(/[\\/]/).pop(),
+  ];
+  return new Promise((resolve) => {
+    execFile('docker', args, { maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (err, stdout, stderr) => resolve({
+      code: err ? (err.code ?? 1) : 0,
+      stdout: String(stdout || ''),
+      stderr: String(stderr || ''),
+    }));
+  });
+}
 
 // Upload extensions the kernel can convert (mirrors the converters/step2glb.py
 // FORMATS map). The server stores the upload under its REAL extension so the
@@ -133,7 +208,15 @@ const httpServer = http
     // ---- API: health check (for the server-reachability indicator) ----
     if (req.method === 'GET' && url.pathname === '/health') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      res.end(JSON.stringify({ ok: true, docker: !!CQ_CONTAINER }));
+      res.end(JSON.stringify({
+        ok: true,
+        backend: ACTIVE_BACKEND,
+        requestedBackend: BACKEND_REQUEST,
+        nativeAvailable: NATIVE_AVAILABLE,
+        nativePython: NATIVE_PYTHON,
+        fallback: BACKEND_FALLBACK || null,
+        docker: ACTIVE_BACKEND === 'docker',
+      }));
       return;
     }
     // ---- API: LAN addresses (for sharing the join link) ----
@@ -251,7 +334,13 @@ process.on('uncaughtException', (err) => {
   console.error('[fatal] uncaughtException:', err);
 });
 
-httpServer.listen(PORT, () => console.log(`cad-viewer on http://localhost:${PORT}`));
+httpServer.listen(PORT, () => {
+  console.log(`cad-viewer on http://localhost:${PORT}`);
+  console.log(`[cad] conversion backend: ${ACTIVE_BACKEND}`);
+  if (ACTIVE_BACKEND === 'native') console.log(`[cad] native Python: ${NATIVE_PYTHON}`);
+  if (BACKEND_FALLBACK) console.log(`[cad] ${BACKEND_FALLBACK}`);
+  if (!NATIVE_AVAILABLE && NATIVE_PROBE_ERROR) console.log(`[cad] native probe: ${NATIVE_PROBE_ERROR}`);
+});
 
 /* ============================ Sessions (shared viewing) ============================
  * In-memory shared sessions: one model + a roster of connected viewers whose
@@ -594,31 +683,17 @@ async function handleSessionModelUpload(req, res, session) {
     let glb = buf;
 
     if (kind !== 'glb') {
-      // Reuse the kernel conversion in Docker. The upload keeps its real
-      // extension so the /converters/step2glb.py dispatcher picks the matching
-      // convert_<kind>.py module (everything-as-model.step would force every
-      // format through the STEP reader).
+      // Reuse the selected kernel backend. The upload keeps its real extension
+      // so the dispatcher picks the matching convert_<kind>.py module
+      // (everything-as-model.step would force every format through STEP).
       const ext = storeExt(filename, kind);
       const tmp = join(tmpdir(), 'cadv-sess-' + randomUUID());
       const inPath = join(tmp, 'model' + ext);
       const outPath = join(tmp, 'model.glb');
       await mkdir(tmp, { recursive: true });
       await writeFile(inPath, buf);
-      const args = [
-        'run', '--rm',
-        '--env', `CQ_STEM=${stemOf(filename) || 'model'}`,
-        '-v', `${tmp}:/w`,
-        '-v', `${CQ.host}:${CQ.inContainer}:ro`,
-        '-w', '/w',
-        CQ_CONTAINER,
-        'python', '/converters/step2glb.py', `/w/model${ext}`, '/w/model.glb',
-      ];
-      console.log(`[session ${session.code}] converting ${filename} ...`);
-      const { code, stderr } = await new Promise((resolve) => {
-        execFile('docker', args, { maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (err, _so, se) => {
-          resolve({ code: err ? (err.code ?? 1) : 0, stderr: String(se || '') });
-        });
-      });
+      console.log(`[session ${session.code}] converting ${filename} via ${ACTIVE_BACKEND} ...`);
+      const { code, stderr } = await runKernelConversion(inPath, outPath, stemOf(filename) || 'model');
       if (code !== 0) {
         await Promise.allSettled([unlink(inPath), unlink(outPath), rmdir(tmp).catch(() => {})]);
         res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
@@ -655,7 +730,7 @@ async function handleSessionModelUpload(req, res, session) {
 /**
  * POST /convert/step — accepts a raw .step/.stp/.igs/.iges/.stl body (the
  * client sends its filename via x-filename), converts it to GLB via the
- * OpenCascade kernel in Docker, and responds with the GLB bytes. The name is
+ * selected OpenCascade backend, and responds with the GLB bytes. The name is
  * legacy: it is the generic "convert CAD → GLB" endpoint.
  */
 async function handleStepUpload(req, res) {
@@ -714,25 +789,10 @@ async function handleStepUpload(req, res) {
       return;
     }
 
-    // Mount the temp dir (read/write) and the converter script, run the kernel.
-    // Docker Desktop on Windows accepts native C:\... paths in -v.
-    const args = [
-      'run', '--rm',
-      '--env', `CQ_STEM=${stemOf(filename) || 'model'}`,
-      '-v', `${tmp}:/w`,
-      '-v', `${CQ.host}:${CQ.inContainer}:ro`,
-      '-w', '/w',
-      CQ_CONTAINER,
-      'python', '/converters/step2glb.py', `/w/model${ext}`, '/w/model.glb',
-    ];
-    console.log(`[convert] ${kind.toUpperCase()} ${(size / 1024).toFixed(1)} KB ...`);
+    // Run the selected local OCP or Docker backend against the staged file.
+    console.log(`[convert] ${kind.toUpperCase()} ${(size / 1024).toFixed(1)} KB via ${ACTIVE_BACKEND} ...`);
     const t0 = Date.now();
-    const { code, stderr } = await new Promise((resolve) => {
-      execFile('docker', args, { maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (err, _so, se) => {
-        const out = String(se || '');
-        resolve({ code: err ? (err.code ?? 1) : 0, stderr: out });
-      });
-    });
+    const { code, stderr } = await runKernelConversion(inPath, outPath, stemOf(filename) || 'model');
     if (code !== 0) {
       console.log('[convert] conversion failed:\n' + stderr.slice(-2000));
       res.writeHead(500, { 'content-type': 'text/plain; charset=utf-8' });
