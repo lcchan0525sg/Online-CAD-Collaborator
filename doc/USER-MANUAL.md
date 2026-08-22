@@ -21,7 +21,7 @@
 15. [Session chat](#15-session-chat)
 16. [Leaving a session](#16-leaving-a-session)
 17. [Opening a STEP / IGES / STL file](#17-opening-a-step--iges--stl-file)
-18. [Standalone CAD converter (convert-cad)](#18-standalone-cad-converter-convert-cad)
+18. [Offline CAD converters](#18-offline-cad-converters)
 19. [Troubleshooting](#19-troubleshooting)
 20. [Sharing with external parties](#20-sharing-with-external-parties)
 
@@ -745,12 +745,26 @@ show a conversion error while GLB/GLTF continues to work normally.
 
 ---
 
-## 18. Standalone CAD converter (convert-cad)
+## 18. Offline CAD converters
 
-Besides the viewer, the distribution includes a **separate, standalone CAD
-converter** — **`convert-cad`** (v0.2) — that turns STEP / IGES / STL files into
-GLB / GLTF **without** the viewer. It is independent of the viewer's own
-converters, so using it can never disturb them.
+Besides the viewer, the separate **CAD Converter** project provides a standalone
+`convert-cad` tool (v0.26) that turns STEP / IGES / STL files into GLB / GLTF
+**without** the viewer. It is independent of the viewer's own converters, so
+using it can never disturb them.
+
+If you want to optimize a model **offline before opening or sharing it in CAD
+Viewer**, there are two CAD Converter editions:
+
+| Edition | Type | Best for |
+|---|---|---|
+| **CAD Converter** (`convert-cad`) | Web-enabled tool | Drag-and-drop conversion, preview, and optional Draco compression in a browser |
+| **CAD Converter2** | Desktop tool | Offline conversion and optimization from a native desktop application |
+
+Use either edition to prepare a lightweight GLB/GLTF first. The converted file
+can then be opened in CAD Viewer without running a CAD conversion during the
+viewing session. For large models, the web-enabled CAD Converter offers a
+**Draco** option; compare the resulting file size because Draco is most helpful
+for dense geometry and is not smaller for every multi-part CAD assembly.
 
 ### What it converts
 
@@ -765,8 +779,8 @@ binary file; `.gltf` → text JSON + a companion `.bin`.
 
 ### Using the drag-&-drop web UI (recommended)
 
-1. Launch the web UI: double-click **`convert-cad-web.bat`** (Windows), or run
-   `node convert-cad-server.mjs` from the `tools/convert-cad/` folder.
+1. Launch the web UI from the standalone CAD Converter project: double-click
+   **`convert-cad-web.bat`** (Windows), or run `node convert-cad-server.mjs`.
 2. Open **http://localhost:8787/** in a browser.
 3. **Drag & drop** a CAD file onto the page (a STEP/IGES/STL file).
 4. Pick **.glb** or **.gltf**, click **Convert**.
@@ -775,10 +789,21 @@ binary file; `.gltf` → text JSON + a companion `.bin`.
 
 ![The convert-cad drag-&-drop web UI, with a converted model previewed](manual-shots/16-convert-cad.png)
 
+### Using CAD Converter2 (desktop tool)
+
+CAD Converter2 is the desktop edition for offline conversion and optimization.
+Launch its current portable desktop executable, select a STEP / IGES / STL file,
+choose the output format and optimization/compression settings, then click
+**Convert**. The desktop tool reports conversion statistics such as part count,
+face reduction, output size, processing time, and shows the assembly tree beside
+the 3D preview.
+
+![CAD Converter2 desktop tool with GearBox selected, optimized mesh statistics, assembly tree and 3D preview](manual-shots/17-cad-converter2.png)
+
 ### Using the command line
 
 ```bash
-node convert-cad.mjs input.step output.glb      # or .gltf
+node convert-cad.mjs input.step output.glb      # run from the CAD Converter project
 ```
 
 ### Requirements

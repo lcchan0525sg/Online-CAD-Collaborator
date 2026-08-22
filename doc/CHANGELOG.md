@@ -556,7 +556,7 @@ doc/                 User manual (MD + HTML + PDF), changelog, screenshots
 build-portable.mjs   Builds dist/cad-viewer-portable-vX.Y.zip
 Dockerfile           chair-cq:local (OpenCascade + pythonocc)
 install-docker-opencascade.bat   One-time Docker/OCCT setup for Windows
-tools/convert-cad/   Standalone converter tool (separate package)
+cad-converter/       Standalone CAD Converter project (separate package)
 ```
 
 ## 4. Conversion method (STEP / IGES / STL → GLB)
