@@ -285,6 +285,10 @@ Move the mouse over a part in the 3D viewport and a small **tooltip** shows the
 part's name at the cursor, while its row in the Assembly tree highlights. This
 answers "which part is this?" instantly, without clicking.
 
+While you are orbiting, panning or zooming, the tooltip and tree highlight are
+paused so the camera stays responsive; they return on the next mouse move after
+you release.
+
 ![Hovering a part shows its name in a tooltip](manual-shots/22-part-hover.png)
 
 ### Right-click menu (Hide / Move / Show me only / Make transparent / Comment)

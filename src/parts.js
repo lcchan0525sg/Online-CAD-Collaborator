@@ -570,6 +570,7 @@ export function hoverPickKey(clientX, clientY) {
   const ndc = new THREE.Vector2(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
   ctx.hoverRay.setFromCamera(ndc, ctx.camera);
   const hits = ctx.hoverRay.intersectObject(ctx.model, true);
+  ctx.hoverPickCount++;
   const hit = hits.find((h) => isPickVisible(h.object));
   if (!hit) return null;
   // Resolve the hit mesh up to its deepest named part ancestor (same rule as

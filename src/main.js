@@ -34,6 +34,7 @@ if (bootSession) {
 
 window.__viewer = {
   get model() { return ctx.model; },
+  get camera() { return ctx.camera; },
   get scale() { return ctx.modelScale; },
   get THREE() { return THREE; },
   get session() { return ctx.session; },
@@ -88,6 +89,10 @@ window.__viewer = {
     return out;
   },
   get moveAxis() { return ctx.moveAxis; },
+  get navigating() { return ctx.navigating; },
+  get hoverKey() { return ctx.hoverKey; },
+  get hoverPickCount() { return ctx.hoverPickCount; },
+  resetHoverPicks: () => { ctx.hoverPickCount = 0; },
   get gizmoVisible() { return ctx.moveGizmo.visible; },
   get rotateMode() { return ctx.rotateMode; },
   get pivotMode() { return ctx.pivotMode; },

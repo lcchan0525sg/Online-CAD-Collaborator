@@ -813,6 +813,9 @@ export function updateMoveGizmo() {
 ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   const now = performance.now();
   if (now - ctx.lastHoverPick < ctx.HOVER_TICK_MS) return;   // throttle raycast
+  // Camera navigation in progress (orbit/pan/zoom): skip part-detection
+  // entirely. Re-enables automatically on the next move after 'end'.
+  if (ctx.navigating) return;
   ctx.lastHoverPick = now;
   const key = hoverPickKey(e.clientX, e.clientY);
   if (key === ctx.hoverKey) return;                       // no change — keep current

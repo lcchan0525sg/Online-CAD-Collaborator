@@ -21,6 +21,21 @@ versioning follows `v0.x`.
 
 ---
 
+## [v0.99] — 2026-08-23
+
+### Changed
+
+- Part detection (hover tooltip + Assembly-tree row highlight) now suspends
+  while a camera navigation gesture is in progress — orbit, pan, zoom — and
+  re-enables on the first mouse move after the gesture completes. Driven by a
+  single `ctx.navigating` flag set from OrbitControls' `start`/`end` events;
+  this avoids redundant full-model raycasts during navigation on large
+  assemblies. Measure-mode corner-snap glow is suspended for the same reason.
+  Click selection is unchanged: it already ignores drags via its own
+  > 5 px movement threshold.
+
+---
+
 ## [v0.98] — 2026-08-23
 
 ### Added

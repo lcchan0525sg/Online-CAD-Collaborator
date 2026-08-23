@@ -565,6 +565,7 @@ document.getElementById('fm-collapse')?.addEventListener('click', () => {
 });
 ctx.renderer.domElement.addEventListener('pointermove', (e) => {
   if (!ctx.measureOn) return;
+  if (ctx.navigating) return;   // no corner detection while orbiting/panning/zooming
   const c = pickNearestCorner(e.clientX, e.clientY);
   if (!c) { clearHoverGlow(); return; }
   ctx.measureGlow.position.copy(c);

@@ -16,6 +16,17 @@ const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffe
 
 const controls = new OrbitControls(camera, renderer.domElement);
 
+// True while a camera navigation gesture is in progress (left-drag rotate,
+// right/middle-drag pan, wheel zoom, keyboard). OrbitControls fires 'start'
+// when a gesture begins and 'end' when it completes; feature modules read
+// ctx.navigating to suspend pick-heavy work (hover raycasts, corner-snap)
+// while the user is navigating. Click selection is unaffected: it already
+// ignores drags via its own > 5px movement threshold.
+//
+// ctx.hoverPickCount counts hover raycasts actually executed (headless-test).
+controls.addEventListener('start', () => { ctx.navigating = true; });
+controls.addEventListener('end', () => { ctx.navigating = false; });
+
 const hemi = new THREE.HemisphereLight(0xbcd0ff, 0x20242c, 0.9);
 
 const key = new THREE.DirectionalLight(0xffffff, 2.4);
@@ -623,4 +634,6 @@ export const ctx = {
   animState,
   pendingRemoteAnim,
   userName,
+  navigating: false,
+  hoverPickCount: 0,
 };
