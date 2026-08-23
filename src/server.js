@@ -489,7 +489,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, chat: [] };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, sectionPresets: null, corr: null, chat: [] };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -518,14 +518,14 @@ wss.on('connection', (ws, req, url) => {
   if (session.explode) send(ws, { t: 'explode', ...session.explode });
   if (session.section) send(ws, { t: 'section', s: session.section });
   // Late joiner: replay named section-cut presets (was only in resync).
-  if (session.sectionPresets && session.sectionPresets.length) send(ws, { t: 'section-preset', presets: session.sectionPresets });
+  if (Array.isArray(session.sectionPresets)) send(ws, { t: 'section-preset', presets: session.sectionPresets });
   // Late joiner: replay model corrections (units/scale/flip/rotate). Each client
   // applies them to its own freshly loaded model (applyModelCorrections at load),
   // and they persist in client context until then — no model dependency.
   if (session.corr) send(ws, { t: 'corr', s: session.corr });
   // Late joiner: replay part transparency state (key -> transparent).
   const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
-  if (transKeys.length) send(ws, { t: 'trans-sync', keys: transKeys });
+  if (session.trans) send(ws, { t: 'trans-sync', keys: transKeys });
   // Late joiner: replay the current part transforms, including custom pivots.
   for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
   // Late joiner: replay the chat history.
@@ -674,9 +674,9 @@ wss.on('connection', (ws, req, url) => {
       if (session.measures?.length) send(ws, { t: 'measure-sync', measures: session.measures });
       if (session.explode) send(ws, { t: 'explode', ...session.explode });
       if (session.section) send(ws, { t: 'section', s: session.section });
-      if (session.sectionPresets?.length) send(ws, { t: 'section-preset', presets: session.sectionPresets });
+      if (Array.isArray(session.sectionPresets)) send(ws, { t: 'section-preset', presets: session.sectionPresets });
       if (session.corr) send(ws, { t: 'corr', s: session.corr });
-      for (const key of Object.keys(session.trans || {}).filter((k) => session.trans[k])) send(ws, { t: 'trans', key, transparent: true });
+      if (session.trans) send(ws, { t: 'trans-sync', keys: Object.keys(session.trans).filter((k) => session.trans[k]) });
       for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
       if (session.chat?.length) send(ws, { t: 'chat-sync', history: session.chat });
       send(ws, { t: 'resync-done' });

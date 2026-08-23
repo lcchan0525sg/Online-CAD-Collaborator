@@ -434,6 +434,7 @@ window.addEventListener('viewer-model-loaded', () => {
 window.addEventListener('viewer-model-cleared', () => {
   ctx.sectionVisuals.visible = false;
   if (ctx.sectionContours) { ctx.sectionContours.visible = false; setContourGeometry(ctx.sectionContours, []); }
+  ctx.pendingRemoteSectionPresets = null;
   clearSectionPresets(false);
 });
 
@@ -508,6 +509,12 @@ export function applyRemoteSectionPresets(presets) {
       offset: Number.isFinite(Number(p.offset)) ? Number(p.offset) : 0,
       reversed: !!p.reversed,
     }));
+    // Remote presets retain their IDs. Advance the local sequence so a new
+    // preset created by this viewer cannot collide with an existing spN.
+    for (const p of ctx.sectionPresets) {
+      const match = /^sp(\d+)$/.exec(String(p.id));
+      if (match) ctx.sectionPresetSeq = Math.max(ctx.sectionPresetSeq, Number(match[1]));
+    }
     renderSectionPresets();
   } finally { ctx.applyingRemoteSectionPreset = false; }
 }

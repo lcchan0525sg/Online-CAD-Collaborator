@@ -12,12 +12,12 @@ let transformGroupSeq = 0;
 
 function clonePivot(pivot) { return pivot ? pivot.clone() : null; }
 
-export function captureTransform(node, path = movePathFor(node)) {
+export function captureTransform(node, path = movePathFor(node), pivot = ctx.customPivot) {
   return {
     path: [...path],
     pos: node.position.clone(),
     quat: node.quaternion.clone(),
-    pivot: clonePivot(ctx.customPivot),
+    pivot: clonePivot(pivot),
   };
 }
 

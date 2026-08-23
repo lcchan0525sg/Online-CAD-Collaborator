@@ -181,12 +181,14 @@ window.__viewer = {
     const root = ctx.model && ctx.model.children[0];
     const node = root && nodeAtPath(root, key.split('.').map(Number));
     if (!node) return null;
-    const before = captureTransform(node);
+    const path = key.split('.').map(Number);
+    const pivot = ctx.pivotByPath.get(key) || null;
+    const before = captureTransform(node, path, pivot);
     node.position.add(new THREE.Vector3(delta[0], delta[1], delta[2]));
     node.updateMatrixWorld(true);
-    const after = captureTransform(node);
+    const after = captureTransform(node, path, pivot);
     recordTransform(before, after, 'test move');
-    broadcastTransform(node ? after.path : [], node);
+    broadcastTransform(after.path, node, pivot);
     return [node.position.x, node.position.y, node.position.z];
   },
   get transformHistoryLength() { return ctx.transformHistory.length; },
@@ -235,7 +237,7 @@ window.__viewer = {
   measureClear: () => { measureClear(); return true; },
   measureIds: () => ctx.measureList.map((m) => m.id),
   transSet: (key, on) => { setPartTransparent(key, !!on); return partTransparent(key); },
-  transKeys: () => [...transparentParts],
+  transKeys: () => [...ctx.transparentParts],
   get transCount() { return ctx.transparentParts.size; },
   partMat: (key) => {
     const root = ctx.model.children[0];
@@ -269,7 +271,7 @@ window.__viewer = {
       const sel = partIsSelected(ctx.meshPartKey.get(o) || '');
       if (trans) applied++;
     });
-    return { meshCount, applied, keys: [...new Set(keys)].slice(0, 5), transparentParts: [...transparentParts] };
+    return { meshCount, applied, keys: [...new Set(keys)].slice(0, 5), transparentParts: [...ctx.transparentParts] };
   },
   partScreen: (key) => {
     const root = ctx.model.children[0];

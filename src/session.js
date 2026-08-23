@@ -312,6 +312,8 @@ export function endSessionForGuest({ status = translate('ui.not.in.a.session'), 
   ctx.currentModel = null;
   if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
   xferAbort();
+  nextLoadGen();
+  ctx.pendingRemoteSectionPresets = null;
   clearModel();
   if (typeof resetChat === 'function') { resetChat(); if (ctx.chatWindowEl) ctx.chatWindowEl.hidden = true; }
   if (info) { const infoEl = document.getElementById('info'); if (infoEl) infoEl.textContent = info; }
@@ -384,7 +386,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
   ws.onerror = () => {}; // onclose handles cleanup
 }
 
-export function onSessionMsg(msg) {
+export async function onSessionMsg(msg) {
   switch (msg.t) {
     case 'joined':
       ctx.session.id = msg.id;
@@ -402,7 +404,10 @@ export function onSessionMsg(msg) {
       // Host opened a model BEFORE the session existed (or while connecting):
       // upload + offer it now so guests get it, without re-opening the file.
       if (msg.isHost && ctx.lastLocalModel) {
-        shareBuffer(ctx.lastLocalModel.buf, ctx.lastLocalModel.filename, ctx.lastLocalModel.kind);
+        // The upload resets model-specific server state when it completes. Wait
+        // for that reset before publishing transforms/visibility/transparency,
+        // otherwise those messages can arrive first and be erased by the upload.
+        await shareBuffer(ctx.lastLocalModel.buf, ctx.lastLocalModel.filename, ctx.lastLocalModel.kind);
         const sent = new Set();
         for (const entry of ctx.transformHistory) {
           const key = entry.path.join('.');
@@ -897,7 +902,11 @@ document.getElementById('btn-leave-session').addEventListener('click', () => {
   ctx.currentModel = null;
   if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
   xferAbort();
-  if (wasGuest && ctx.model) clearModel();
+  if (wasGuest) {
+    nextLoadGen();
+    ctx.pendingRemoteSectionPresets = null;
+    if (ctx.model) clearModel();
+  }
   if (typeof resetChat === 'function') { resetChat(); if (ctx.chatWindowEl) ctx.chatWindowEl.hidden = true; }
 });
 

@@ -21,6 +21,28 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.03] — 2026-08-24
+
+### Fixed
+
+- Pre-session model uploads now finish before model-specific state is
+  published, preventing the server's upload reset from erasing hidden-part
+  visibility, transparency and transform state.
+- Empty section-preset and transparency snapshots are replayed during initial
+  join and resync, so cleared state cannot remain stale on reconnecting guests.
+- Guest-created section presets advance past remote `spN` IDs instead of
+  colliding with the host's preset IDs.
+- Session teardown invalidates in-flight shared-model loads and clears pending
+  section-preset state before a later unrelated model can be opened.
+- The transform verification helper now uses the target part's saved pivot,
+  and transparency debug accessors use the shared context state.
+
+### Verified
+
+- Added targeted browser checks for delayed model upload state replay,
+  section-preset ID allocation, target-pivot preservation and empty-state
+  propagation; the existing full browser suite remains green.
+
 ## [v1.02] — 2026-08-24
 
 ### Fixed
