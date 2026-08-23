@@ -140,13 +140,27 @@ export function fitModelPreserveView() {
 export function frameModel() {
   if (!ctx.model) return;
   const { center, maxDim, dist } = framing();
-  ctx.controls.target.copy(center);
-  ctx.camera.up.set(0, 1, 0);
-  ctx.camera.position.set(center.x + dist * 0.7, center.y + dist * 0.55, center.z + dist * 0.85);
-  ctx.camera.near = dist / 1000;
-  ctx.camera.far = dist * 1000;
-  ctx.camera.updateProjectionMatrix();
-  ctx.controls.update();
+  // A guest that just loaded the shared model must keep the host's camera (adopted
+  // via the server's late-joiner replay / resync), not snap to its own default iso.
+  // That default snap fires a `change` that would broadcast the guest's default
+  // camera back to the host and reset the host's view angle + zoom. Only fall back
+  // to the default framing if the guest received no host camera yet.
+  const guestInSession = !!(ctx.session?.connected && !ctx.session.isHost);
+  const adoptHostCam = guestInSession && ctx.remoteCamValid;
+  if (guestInSession) ctx.applyingRemote = true;   // never broadcast the guest's load frame
+  try {
+    if (!adoptHostCam) {
+      ctx.controls.target.copy(center);
+      ctx.camera.up.set(0, 1, 0);
+      ctx.camera.position.set(center.x + dist * 0.7, center.y + dist * 0.55, center.z + dist * 0.85);
+    }
+    ctx.camera.near = dist / 1000;
+    ctx.camera.far = dist * 1000;
+    ctx.camera.updateProjectionMatrix();
+    ctx.controls.update();
+  } finally {
+    if (guestInSession) ctx.applyingRemote = false;
+  }
   setActivePreset(null);
 
   // grid + shadow light sized to the model

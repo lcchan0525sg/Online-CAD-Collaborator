@@ -21,6 +21,33 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.01] — 2026-08-23
+
+### Fixed
+
+- Session sync: a guest joining a session no longer resets the host's camera
+  (view angle and zoom level). The guest's load-time auto-frame
+  (`frameModel()` snapping to its default iso view) fired an OrbitControls
+  `change` that broadcast the guest's default camera to the host — the same
+  class of load-time-echo bug fixed for lighting/animation/explode in v1.00.
+  Three coordinated changes, no server change needed (the server already
+  stores and replays the host's camera):
+  - `session.js` — new `broadcastCamera()`; the host now publishes its
+    current camera position + target as part of its pre-join state publish,
+    so a model opened *before* the session is created is replayed to late
+    joiners (previously `session.camera` was null and the guest simply
+    framed its own default view). `applyRemoteCamera` also marks the remote
+    camera as valid.
+  - `scene.js` — `frameModel()` now keeps the adopted host camera when a
+    guest in a session has already received one, instead of snapping to the
+    default iso view, and the load-time frame is wrapped so it is never
+    broadcast back to the host.
+  - `context.js` — new `remoteCamValid` flag.
+- Verified with a two-browser headless harness (real load paths): the host's
+  custom view angle + zoom are preserved exactly when a guest joins, the
+  guest adopts the host's view, and negative control (fix reverted)
+  reproduced the original clobbering.
+
 ## [v1.00] — 2026-08-23
 
 ### Fixed

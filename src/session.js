@@ -428,6 +428,12 @@ export function onSessionMsg(msg) {
         broadcastLight();
         broadcastAnim();
         if (ctx.explodeGap) broadcastExplode();
+        // Publish the host's current camera (view angle + zoom) too, so a guest
+        // joining a session whose model was opened BEFORE the session existed
+        // adopts the host's view. Without this, session.camera is null for a
+        // pre-session model and the guest would snap to its own default framing
+        // — which gets relayed back and resets the host's view angle + zoom.
+        broadcastCamera();
       }
       // Guest deep-link: the server tells us the session already has a model —
       // fetch + load it (blocking overlay until it lands).
@@ -757,6 +763,17 @@ ctx.controls.addEventListener('change', () => {
   } catch {}
 });
 
+export function broadcastCamera() {
+  if (!ctx.session?.connected) return;
+  try {
+    ctx.session.ws.send(JSON.stringify({
+      t: 'cam',
+      pos: [ctx.camera.position.x, ctx.camera.position.y, ctx.camera.position.z],
+      target: [ctx.controls.target.x, ctx.controls.target.y, ctx.controls.target.z],
+    }));
+  } catch {}
+}
+
 export function applyRemoteCamera(pos, target) {
   if (!pos || !target || pos.length !== 3 || target.length !== 3) return;
   ctx.applyingRemote = true;
@@ -764,6 +781,7 @@ export function applyRemoteCamera(pos, target) {
   ctx.controls.target.set(target[0], target[1], target[2]);
   ctx.controls.update();
   ctx.applyingRemote = false;
+  ctx.remoteCamValid = true;   // a peer/host camera is now in force (guest load adopts it)
 }
 
 export function currentAnimState() {

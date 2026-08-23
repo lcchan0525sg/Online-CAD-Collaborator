@@ -114,6 +114,8 @@ let roster = [];             // [{id, name, isHost}]
 
 let applyingRemote = false;  // suppress broadcast while applying a remote camera
 
+let remoteCamValid = false;  // a peer/host camera has been received (guest load adopts it)
+
 let lastCamSent = 0;
 
 const CAM_INTERVAL = 40;     // ms between camera broadcasts
@@ -456,6 +458,7 @@ export const ctx = {
   session,
   roster,
   applyingRemote,
+  remoteCamValid,
   lastCamSent,
   CAM_INTERVAL,
   pendingSend,
