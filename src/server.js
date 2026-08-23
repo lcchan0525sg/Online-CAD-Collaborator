@@ -517,6 +517,12 @@ wss.on('connection', (ws, req, url) => {
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
   if (session.explode) send(ws, { t: 'explode', ...session.explode });
   if (session.section) send(ws, { t: 'section', s: session.section });
+  // Late joiner: replay named section-cut presets (was only in resync).
+  if (session.sectionPresets && session.sectionPresets.length) send(ws, { t: 'section-preset', presets: session.sectionPresets });
+  // Late joiner: replay model corrections (units/scale/flip/rotate). Each client
+  // applies them to its own freshly loaded model (applyModelCorrections at load),
+  // and they persist in client context until then — no model dependency.
+  if (session.corr) send(ws, { t: 'corr', s: session.corr });
   // Late joiner: replay part transparency state (key -> transparent).
   const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
   if (transKeys.length) send(ws, { t: 'trans-sync', keys: transKeys });

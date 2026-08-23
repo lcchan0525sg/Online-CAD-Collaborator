@@ -5,7 +5,7 @@ import { ctx } from './context.js';
 import { onLanguageChange, t as translate } from './ui-i18n.js';
 
 import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } from './scene.js';
-import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
+import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, broadcastParts, broadcastTransparent, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync, applyRemoteMeasureUpdate, broadcastMeasureAdd } from './measure.js';
 import { applySectionState, applyRemoteSectionPresets, sectionPresetsState, sectionState } from './section.js';
 import { applyRemoteExplode, broadcastExplode } from './explode.js';
@@ -410,6 +410,23 @@ export function onSessionMsg(msg) {
           sent.add(key);
           const node = ctx.model && nodeAtPath(ctx.model.children[0], entry.path);
           if (node) broadcastTransform(entry.path, node, ctx.pivotByPath.get(key) || null);
+        }
+        // Publish pre-created part visibility (hidden / isolated parts) too. Without
+        // this a guest that joins sees every part visible until the 1.2s auto-resync
+        // (or never, if that is skipped). Only non-default (hidden) parts are sent,
+        // mirroring how the server stores visibility as a delta from all-visible.
+        if (ctx.model) {
+          const hiddenOps = [];
+          const root = ctx.model.children[0];
+          for (const r of ctx.allPartRows) {
+            const node = nodeAtPath(root, r.key.split('.').map(Number));
+            if (node && !node.visible) hiddenOps.push({ path: r.key.split('.').map(Number), visible: false });
+          }
+          if (hiddenOps.length) broadcastParts(hiddenOps);
+        }
+        // Publish pre-created part transparency (transparent parts) the same way.
+        if (ctx.transparentParts.size) {
+          for (const key of ctx.transparentParts) broadcastTransparent(key, true);
         }
         for (const measurement of ctx.measureList) broadcastMeasureAdd(measurement);
         // Publish a pre-created section state (plane/axis/offset/reverse) the same

@@ -290,6 +290,7 @@ let sectionReversed = true;
 let sectionMode = false;
 let sectionPlane = new THREE.Plane();
 let pendingRemoteSection = null;
+let pendingRemoteSectionPresets = null;   // section presets received before a model loaded
 let applyingRemoteSection = false;
 
 // Section-view visual overlay: a transparent reference plane at the cut plus the
@@ -577,6 +578,7 @@ export const ctx = {
   sectionMode,
   sectionPlane,
   pendingRemoteSection,
+  pendingRemoteSectionPresets,
   applyingRemoteSection,
   sectionVisuals,
   sectionPlaneMesh,

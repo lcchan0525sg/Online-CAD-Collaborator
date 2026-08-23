@@ -21,6 +21,22 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.02] — 2026-08-24
+
+### Fixed
+
+- Late-joining guests now receive the host's model corrections (units, scale,
+  flip and rotation), named section-cut presets, hidden-part visibility and
+  part-transparency state during the initial session replay.
+- Section presets received before a guest's model finishes loading are buffered
+  and restored after the model is ready instead of being cleared by model-load
+  initialization.
+
+### Verified
+
+- Added a recorded-transform test hook so the pre-session transform-history
+  replay path can be exercised with a genuine history entry.
+
 ## [v1.01] — 2026-08-23
 
 ### Fixed

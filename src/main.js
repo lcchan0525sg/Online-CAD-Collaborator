@@ -12,7 +12,7 @@ import { explodeScopeNode, explodeSet } from './explode.js';
 import { updateMoveGizmo } from './move.js';
 import { applyRemoteCamera, askName, broadcastCorrections, connectTo, downloadChat, ensureName, fmtTime, loadSharedModel, newSessionCode, sendChat, sendPartComment, shareBuffer, xferDone, xferLogReset } from './session.js';
 import { setPresetView } from './scene.js';
-import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot, broadcastTransform } from './move.js';
+import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActivePivot, broadcastTransform, recordTransform, captureTransform } from './move.js';
 import { addSectionPreset, applySectionState, exportSectionPng, exportSectionSvg, removeSectionPreset, resetSection, sectionPresetsState, sectionState } from './section.js';
 import { applyModelCorrections, resetModelCorrections, applyUnits } from './model.js';
 import { formatMm } from './measure.js';
@@ -173,6 +173,21 @@ window.__viewer = {
     node.updateMatrixWorld(true);
     broadcastTransform(key.split('.').map(Number), node);
     return true;
+  },
+  // Test helper: move a part by a delta and RECORD it in transformHistory (like a
+  // real user move does), so the host's pre-session transformHistory publish has a
+  // genuine entry to replay. Returns the new position.
+  pushTransform: (key, delta = [0, 0, 0]) => {
+    const root = ctx.model && ctx.model.children[0];
+    const node = root && nodeAtPath(root, key.split('.').map(Number));
+    if (!node) return null;
+    const before = captureTransform(node);
+    node.position.add(new THREE.Vector3(delta[0], delta[1], delta[2]));
+    node.updateMatrixWorld(true);
+    const after = captureTransform(node);
+    recordTransform(before, after, 'test move');
+    broadcastTransform(node ? after.path : [], node);
+    return [node.position.x, node.position.y, node.position.z];
   },
   get transformHistoryLength() { return ctx.transformHistory.length; },
   get transformRedoLength() { return ctx.transformRedo.length; },

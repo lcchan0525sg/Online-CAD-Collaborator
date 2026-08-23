@@ -427,6 +427,9 @@ window.addEventListener('viewer-model-loaded', () => {
   applySectionState(null, false);
   scheduleContours(true);
   clearSectionPresets(false);
+  // Restore any section presets that arrived with the late-joiner replay before
+  // this model finished loading (buffered in pendingRemoteSectionPresets).
+  flushPendingSectionPresets();
 });
 window.addEventListener('viewer-model-cleared', () => {
   ctx.sectionVisuals.visible = false;
@@ -490,6 +493,12 @@ export function clearSectionPresets(broadcast = true) {
 
 export function applyRemoteSectionPresets(presets) {
   if (!Array.isArray(presets)) return;
+  // A model must be loaded before the preset chips can be shown. A section-preset
+  // can arrive from the server's late-joiner replay BEFORE the guest's model has
+  // finished loading (connect-replay fires before loadSharedModel completes), so
+  // buffer it and restore it in the viewer-model-loaded handler (which also
+  // clears any local presets). Without this the replayed presets would be wiped.
+  if (!ctx.model) { ctx.pendingRemoteSectionPresets = presets; return; }
   ctx.applyingRemoteSectionPreset = true;
   try {
     ctx.sectionPresets = presets.map((p) => ({
@@ -501,6 +510,13 @@ export function applyRemoteSectionPresets(presets) {
     }));
     renderSectionPresets();
   } finally { ctx.applyingRemoteSectionPreset = false; }
+}
+
+export function flushPendingSectionPresets() {
+  if (!ctx.model || !ctx.pendingRemoteSectionPresets) return;
+  const presets = ctx.pendingRemoteSectionPresets;
+  ctx.pendingRemoteSectionPresets = null;
+  applyRemoteSectionPresets(presets);
 }
 
 ctx.sectionPresetSaveBtn?.addEventListener('click', () => addSectionPreset(ctx.sectionPresetNameEl?.value));
