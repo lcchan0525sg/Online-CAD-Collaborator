@@ -21,6 +21,36 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.00] — 2026-08-23
+
+### Fixed
+
+- Session sync: a guest joining a session no longer clobbers the host's
+  "module status" (lighting, animation, explode gap) with its own defaults.
+  Two coordinated changes:
+  - `session.js` — the host now publishes its current lighting / animation /
+    explode state as part of its pre-join state publish (alongside
+    corrections and section presets), so late joiners and resync replay
+    receive the host's real settings instead of only ever seeing the
+    guest's own defaults.
+  - `scene.js` — the model-load-time state broadcast is now **host-only**.
+    Previously, a guest that finished loading the shared model would
+    broadcast its own *default* light/anim, the server relayed that back to
+    the host, and `applyRemoteLight` / `applyRemoteAnim` overwrote the host's
+    settings — i.e. the guest's join effectively "restarted" the host's
+    module status. Guests now receive the host's state instead, and a
+    guest's own mid-session change is still sent live by its control
+    handlers.
+- Verified across STEP, IGES and GLB (including a 35 MB model) with a
+  two-browser headless harness: host state is preserved on guest join, the
+  guest adopts the host's state, and live host→guest changes still sync.
+
+### Changed
+
+- `languages/` (the external, human-editable locale files) is now gitignored
+  so it stays out of the source repo, matching the project convention that
+  Chinese locale files are not committed.
+
 ## [v0.99] — 2026-08-23
 
 ### Changed

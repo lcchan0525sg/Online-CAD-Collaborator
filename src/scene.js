@@ -299,9 +299,15 @@ export function loadFromGltf(gltf) {
   ctx.scene.add(ctx.model);
   applyModelCorrections();   // apply per-viewer scale / flip / rotate corrections
   setupAnimation(gltf, root);
-  // In a session, push the current animation + lighting state so every viewer
-  // (including ones that joined mid-load) converges on the same settings.
-  if (ctx.session?.connected) { broadcastAnim(); broadcastLight(); }
+  // In a session, the HOST pushes its current animation + lighting state so every
+  // viewer (including ones that joined mid-load) converges on the same settings.
+  // This must be host-only: a GUEST loading the shared model would otherwise
+  // broadcast its own DEFAULT light/anim, the server would relay that back to the
+  // host, and applyRemoteLight/applyRemoteAnim would overwrite the host's
+  // settings — i.e. the guest "restarts" the host's module status. Guests receive
+  // the host's state instead (pre-session publish at join + resync replay), and a
+  // guest's own mid-session change is still sent live by its control handlers.
+  if (ctx.session?.connected && ctx.session.isHost) { broadcastAnim(); broadcastLight(); }
   frameModel();
   showInfo(gltf, ctx.model, maxDim);
   buildPartsTree(root);

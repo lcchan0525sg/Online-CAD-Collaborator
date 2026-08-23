@@ -4,3 +4,4 @@ _*.js
 _*.cjs
 *.log
 dist/
+languages/

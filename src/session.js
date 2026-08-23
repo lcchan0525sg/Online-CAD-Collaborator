@@ -8,7 +8,7 @@ import { clearModel, isCurrentGen, loadFromGltf, nextLoadGen, refreshAnimUI } fr
 import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTransparent, applyRemoteTree, clearPartSelection, clearPartsTree, nodeAtPath } from './parts.js';
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync, applyRemoteMeasureUpdate, broadcastMeasureAdd } from './measure.js';
 import { applySectionState, applyRemoteSectionPresets, sectionPresetsState, sectionState } from './section.js';
-import { applyRemoteExplode } from './explode.js';
+import { applyRemoteExplode, broadcastExplode } from './explode.js';
 import { applyRemoteMove, applyRemoteRot, applyRemoteTransform, broadcastTransform } from './move.js';
 import { applyRemoteCorrections, correctionsState } from './model.js';
 
@@ -420,6 +420,14 @@ export function onSessionMsg(msg) {
         broadcastCorrections();
         // Publish any saved section presets.
         if (ctx.sectionPresets.length) broadcastSectionPresets(sectionPresetsState());
+        // Publish the host's current lighting + animation + explode (the "module
+        // status") the same way. Without these the guest only ever got its own
+        // defaults, and its load-time broadcast relayed those defaults back and
+        // clobbered the host. The server stores each value so resync /
+        // late-joiner replay can hand it to later members too.
+        broadcastLight();
+        broadcastAnim();
+        if (ctx.explodeGap) broadcastExplode();
       }
       // Guest deep-link: the server tells us the session already has a model —
       // fetch + load it (blocking overlay until it lands).
