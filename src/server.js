@@ -50,20 +50,11 @@ if (!PORT) {
 }
 if (!PORT) PORT = 8088;
 
-// STEP import runs the OpenCascade kernel through a native OCP 7.9.3 Python
-// environment when one is available, with Docker retained as the fallback.
-// The converter is a FOLDER of per-format modules (converters/step2glb.py
-// dispatcher + convert_step.py / convert_iges.py / convert_stl.py +
-// common.py), so a new format never touches a finished one.
-//
-// Host path resolution: CQ_DIR env -> converters/ next to server.js
-// (portable zip: src/converters) -> legacy single step2glb.py next to
-// server.js (old zips) -> dev-machine default. The container path is always
-// /converters/step2glb.py: a folder mounts to /converters, a legacy single
-// .py mounts to /converters/step2glb.py (docker creates the parent dir), so
-// the docker command is identical for both layouts.
+// STEP/IGES conversion runs through the native OpenCascade/OCP 7.9.3 Python
+// environment. STL remains host-side via the pure-JS writer.
+// The converter is a folder of per-format modules (converters/step2glb.py
+// dispatcher + convert_step.py / convert_iges.py / convert_stl.py + common.py).
 import { existsSync } from 'node:fs';
-const CQ_CONTAINER = process.env.CQ_CONTAINER || 'chair-cq:local';
 function resolveConverter() {
   const candidates = process.env.CQ_DIR
     ? [process.env.CQ_DIR]
@@ -71,19 +62,12 @@ function resolveConverter() {
        'C:\\Users\\chan_\\Projects\\chair-3d-web\\converters',
        'C:\\Users\\chan_\\Projects\\chair-3d-web\\step2glb.py'];
   for (const c of candidates) {
-    if (existsSync(c)) {
-      const isFile = c.toLowerCase().endsWith('.py');
-      return { host: c, inContainer: isFile ? '/converters/step2glb.py' : '/converters' };
-    }
+    if (existsSync(c)) return { host: c };
   }
-  return { host: candidates[candidates.length - 1], inContainer: '/converters' };
+  return { host: candidates[candidates.length - 1] };
 }
 const CQ = resolveConverter();
 
-// Backend selection: auto prefers local OCP and falls back to Docker. Use
-// --backend native/docker (or CAD_BACKEND) to force one path, and --python (or
-// CAD_PYTHON) to select the native Python executable explicitly.
-let BACKEND_REQUEST = String(process.env.CAD_BACKEND || 'auto').toLowerCase();
 function defaultNativePython() {
   const candidates = [
     join(ROOT, 'python', 'python.exe'),
@@ -92,69 +76,39 @@ function defaultNativePython() {
   ].filter(Boolean);
   return candidates.find((candidate) => existsSync(candidate)) || 'python';
 }
-let NATIVE_PYTHON = process.env.CAD_PYTHON || defaultNativePython();
+const NATIVE_PYTHON = process.env.CAD_PYTHON || defaultNativePython();
 for (let i = 2; i < process.argv.length; i++) {
   const a = process.argv[i];
-  if (a === '--backend' && process.argv[i + 1]) BACKEND_REQUEST = process.argv[++i].toLowerCase();
-  else if (a.startsWith('--backend=')) BACKEND_REQUEST = a.slice('--backend='.length).toLowerCase();
-  else if (a === '--python' && process.argv[i + 1]) NATIVE_PYTHON = process.argv[++i];
-  else if (a.startsWith('--python=')) NATIVE_PYTHON = a.slice('--python='.length);
+  if (a === '--python' && process.argv[i + 1]) process.env.CAD_PYTHON = process.argv[++i];
+  else if (a.startsWith('--python=')) process.env.CAD_PYTHON = a.slice('--python='.length);
 }
-if (!['auto', 'native', 'docker'].includes(BACKEND_REQUEST)) {
-  console.error(`invalid CAD_BACKEND '${BACKEND_REQUEST}' (use auto, native, or docker)`);
-  process.exit(2);
-}
-
+const EFFECTIVE_NATIVE_PYTHON = process.env.CAD_PYTHON || NATIVE_PYTHON;
 const NATIVE_CONVERTER = CQ.host.toLowerCase().endsWith('.py')
   ? CQ.host
   : join(CQ.host, 'step2glb.py');
 let NATIVE_PROBE_ERROR = '';
 let NATIVE_AVAILABLE = false;
 try {
-  execFileSync(NATIVE_PYTHON, ['-c', 'import OCP'], { stdio: 'ignore', timeout: 30_000 });
+  execFileSync(EFFECTIVE_NATIVE_PYTHON, ['-c', 'import OCP'], { stdio: 'ignore', timeout: 30_000 });
   NATIVE_AVAILABLE = true;
 } catch (e) {
   NATIVE_PROBE_ERROR = String(e?.message || e);
 }
-if (BACKEND_REQUEST === 'native' && !NATIVE_AVAILABLE) {
-  console.error(`native CAD backend unavailable: Python '${NATIVE_PYTHON}' cannot import OCP`);
-  console.error('Set CAD_PYTHON/--python to a cadquery-ocp 7.9.3 environment or use --backend auto.');
+if (!NATIVE_AVAILABLE) {
+  console.error(`native CAD backend unavailable: Python '${EFFECTIVE_NATIVE_PYTHON}' cannot import OCP`);
+  console.error('Set CAD_PYTHON/--python to a cadquery-ocp 7.9.3 environment.');
   process.exit(1);
 }
-const ACTIVE_BACKEND = BACKEND_REQUEST === 'docker'
-  ? 'docker'
-  : NATIVE_AVAILABLE ? 'native' : 'docker';
-const BACKEND_FALLBACK = BACKEND_REQUEST === 'auto' && !NATIVE_AVAILABLE
-  ? 'local OCP unavailable; using Docker fallback'
-  : '';
+const ACTIVE_BACKEND = 'native';
 
 function runKernelConversion(inPath, outPath, stem) {
-  if (ACTIVE_BACKEND === 'native') {
-    const args = [NATIVE_CONVERTER, inPath, outPath, `--stem=${stem}`];
-    return new Promise((resolve) => {
-      execFile(NATIVE_PYTHON, args, {
-        env: { ...process.env, CQ_STEM: stem },
-        maxBuffer: 16 * 1024 * 1024,
-        timeout: 10 * 60 * 1000,
-      }, (err, stdout, stderr) => resolve({
-        code: err ? (err.code ?? 1) : 0,
-        stdout: String(stdout || ''),
-        stderr: String(stderr || ''),
-      }));
-    });
-  }
-
-  const args = [
-    'run', '--rm',
-    '--env', `CQ_STEM=${stem}`,
-    '-v', `${dirname(inPath)}:/w`,
-    '-v', `${CQ.host}:${CQ.inContainer}:ro`,
-    '-w', '/w',
-    CQ_CONTAINER,
-    'python', '/converters/step2glb.py', `/w/${inPath.split(/[\\/]/).pop()}`, '/w/' + outPath.split(/[\\/]/).pop(),
-  ];
+  const args = [NATIVE_CONVERTER, inPath, outPath, `--stem=${stem}`];
   return new Promise((resolve) => {
-    execFile('docker', args, { maxBuffer: 16 * 1024 * 1024, timeout: 10 * 60 * 1000 }, (err, stdout, stderr) => resolve({
+    execFile(EFFECTIVE_NATIVE_PYTHON, args, {
+      env: { ...process.env, CQ_STEM: stem },
+      maxBuffer: 16 * 1024 * 1024,
+      timeout: 10 * 60 * 1000,
+    }, (err, stdout, stderr) => resolve({
       code: err ? (err.code ?? 1) : 0,
       stdout: String(stdout || ''),
       stderr: String(stderr || ''),
@@ -261,11 +215,8 @@ const httpServer = http
       res.end(JSON.stringify({
         ok: true,
         backend: ACTIVE_BACKEND,
-        requestedBackend: BACKEND_REQUEST,
         nativeAvailable: NATIVE_AVAILABLE,
-        nativePython: NATIVE_PYTHON,
-        fallback: BACKEND_FALLBACK || null,
-        docker: ACTIVE_BACKEND === 'docker',
+        nativePython: EFFECTIVE_NATIVE_PYTHON,
       }));
       return;
     }
@@ -401,8 +352,7 @@ process.on('uncaughtException', (err) => {
 httpServer.listen(PORT, () => {
   console.log(`cad-viewer on http://localhost:${PORT}`);
   console.log(`[cad] conversion backend: ${ACTIVE_BACKEND}`);
-  if (ACTIVE_BACKEND === 'native') console.log(`[cad] native Python: ${NATIVE_PYTHON}`);
-  if (BACKEND_FALLBACK) console.log(`[cad] ${BACKEND_FALLBACK}`);
+  console.log(`[cad] native Python: ${EFFECTIVE_NATIVE_PYTHON}`);
   if (!NATIVE_AVAILABLE && NATIVE_PROBE_ERROR) console.log(`[cad] native probe: ${NATIVE_PROBE_ERROR}`);
 });
 
@@ -836,7 +786,7 @@ async function handleStepUpload(req, res) {
     await writeFile(inPath, Buffer.concat(chunks));
 
     // STL is a pure mesh: convert HOST-SIDE with the direct JS writer (no
-    // Docker). The OCCT/B-rep path emits one glTF primitive per facet -> ~10x
+    // The native OCCT/B-rep path emits one glTF primitive per facet -> ~10x
     // blowup (and Draco can't fix structural bloat); stl2glb.mjs writes a single
     // welded, flat-shaded primitive, typically smaller than the source.
     if (kind === 'stl') {
@@ -863,7 +813,7 @@ async function handleStepUpload(req, res) {
       return;
     }
 
-    // Run the selected local OCP or Docker backend against the staged file.
+    // Run the native OpenCascade backend against the staged file.
     console.log(`[convert] ${kind.toUpperCase()} ${(size / 1024).toFixed(1)} KB via ${ACTIVE_BACKEND} ...`);
     const t0 = Date.now();
     const { code, stderr } = await runKernelConversion(inPath, outPath, stemOf(filename) || 'model');

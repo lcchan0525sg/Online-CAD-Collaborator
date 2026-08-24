@@ -147,69 +147,36 @@ need to know it.
 
 ### Changing the language
 
-The viewer starts in English. To change the interface language, scroll to the
-**About** section at the bottom of the left sidebar and use the **Language**
-selector. Choose **繁體中文** or **简体中文**; the choice is remembered in the
-browser. English is always available as the fallback for missing or invalid
-individual translations.
+The viewer starts in English. To change the interface language, open the
+**View** floating panel at the top-right of the viewport and use the
+**Language** selector. Choose **繁體中文** or **简体中文**; the choice is remembered
+in the browser. English is always available as the fallback for missing or
+invalid individual translations.
 
 Chinese language add-ons are external UTF-8 JSON files. In a source checkout,
 set `CAD_LANGUAGE_DIR` to the folder containing `zh-Hant.json` and
 `zh-Hans.json`; portable builds place reviewed files under `languages/` next to
 `server.js`. See `doc/TRANSLATION-WORKFLOW.md` for validation and packaging.
 
-> **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) use the local
-> OpenCascade/OCP 7.9.3 runtime when configured, and fall back to Docker if it
-> is unavailable. GLB/GLTF files work without either CAD backend.
+> **STEP, IGES and STL files** (.step/.stp, .igs/.iges, .stl) use the native
+> OpenCascade/OCP 7.9.3 runtime. GLB/GLTF files work without the CAD converter.
 
-### Installing the local STEP converter (OpenCascade/OCP 7.9.3)
+### Installing the native STEP converter (OpenCascade/OCP 7.9.3)
 
-To open **STEP / IGES / STL** files without Docker, install a native Windows
-Python environment containing `cadquery-ocp` 7.9.3.1.1. The server only needs
-the executable path; guests never need the CAD runtime.
+To open **STEP / IGES / STL** files, install a native Windows Python
+environment containing `cadquery-ocp` 7.9.3.1.1. The server only needs the
+executable path; guests never need the CAD runtime.
 
 `start.bat` detects the conventional `%USERPROFILE%\venvs\cad-native` location
 automatically. To use another environment, set the path before starting:
 
 ```bat
 set CAD_PYTHON=C:\Users\you\venvs\cad-native\Scripts\python.exe
-set CAD_BACKEND=auto
 node src\server.js
 ```
 
-Use `CAD_BACKEND=native` to require the native runtime, or `CAD_BACKEND=docker`
-to force the existing Docker backend. In `auto` mode, the server preflights
-`import OCP`, prefers native conversion, and falls back to Docker when the
-selected Python cannot import OCP.
-
-The Model panel shows the active backend after the server health check.
-
-### Docker fallback setup
-
-If native OCP is not installed, the viewer can still use the existing Docker
-fallback. This is a **one-time** setup on the PC that runs the server — guests
-never need it.
-
-Run **`install-docker-opencascade.bat`** (double-click it; it sits in the same
-folder as `start.bat`). It walks through everything:
-
-| Step | What the script does |
-|---|---|
-| **1. Docker check** | If Docker Desktop isn't installed, it installs it automatically via `winget` (~500 MB download) and starts it. You can also install it yourself from https://www.docker.com/products/docker-desktop/ and re-run. |
-| **2. Wait for engine** | Waits until the Docker engine is running (first start can take a few minutes). |
-| **3. Build the image** | Builds the **`chair-cq:local`** OpenCascade image from the bundled `Dockerfile` — first build downloads ~1 GB and can take **5–15 minutes**. |
-| **4. Verify** | Runs a quick check that the OpenCascade kernel is ready, so you know STEP conversion will work. |
-
-**To install it manually** (instead of the script):
-
-1. Install **Docker Desktop** and make sure the engine is running.
-2. Open a terminal in the distribution folder and build the image:
-   ```
-   docker build -t chair-cq:local .
-   ```
-
-That's it. Once the image exists, STEP / IGES / STL files convert normally. If
-you only ever open **GLB / GLTF** files, you can skip this entirely.
+The server preflights `import OCP` and refuses to start if the native runtime
+is unavailable. The Model panel shows the native backend after the health check.
 
 ![Empty start — the viewport is blank until you open a model](manual-shots/01-empty-start.png)
 
@@ -749,16 +716,15 @@ Click **Leave session** to leave. What happens depends on your role:
 
 ## 17. Opening a STEP / IGES / STL file
 
-STEP, IGES and STL conversion happens through the OpenCascade kernel. Local
-OCP 7.9.3 is preferred when configured; otherwise Docker is used automatically.
+STEP, IGES and STL conversion happens through the native OpenCascade kernel.
 The first time you open one you'll see the conversion overlay; when it finishes
 the GLB is loaded — with the original **colours and materials** preserved, and
 part names appearing in the Assembly tree.
 
 ![STEP file being converted to GLB](manual-shots/11-step-converting.png)
 
-If neither local OCP nor the `chair-cq:local` image is available, these formats
-show a conversion error while GLB/GLTF continues to work normally.
+If the native OCP runtime is unavailable, the server refuses to start until
+`CAD_PYTHON` points to a Python environment where `import OCP` succeeds.
 
 ---
 
@@ -789,7 +755,7 @@ for dense geometry and is not smaller for every multi-part CAD assembly.
 |---|---|
 | `.step`, `.stp` | B-rep; keeps assembly part names + per-part colours |
 | `.igs`, `.iges` | B-rep; keeps colours; parts named `Part1..N` |
-| `.stl` | Mesh; converted host-side by the pure-JS writer (no Docker) |
+| `.stl` | Mesh; converted host-side by the pure-JS writer |
 
 Output format is chosen by the **output file extension**: `.glb` → a single
 binary file; `.gltf` → text JSON + a companion `.bin`.
@@ -825,15 +791,14 @@ node convert-cad.mjs input.step output.glb      # run from the CAD Converter pro
 
 ### Requirements
 
-The standalone converter uses native OpenCascade/OCP 7.9.3. The viewer's
-conversion backend is independent: set `CAD_PYTHON` for local OCP, or use the
-viewer Docker fallback (`install-docker-opencascade.bat`, or `docker build -t
-chair-cq:local .`). **Node.js** is needed for the launcher.
+The standalone converter uses native OpenCascade/OCP 7.9.3. The viewer uses the
+same native runtime: set `CAD_PYTHON` to a Python environment where `import OCP`
+succeeds. **Node.js** is needed for the launcher.
 
 ### How it helps sharing
 
 Convert a CAD file to GLB/GLTF once, then hand the lightweight file to someone
-who opens it directly in the viewer — they never need Docker or the converter.
+who opens it directly in the viewer — they never need the converter.
 It's the same "one compact file over the network" idea, applied offline.
 
 ---
@@ -843,7 +808,7 @@ It's the same "one compact file over the network" idea, applied offline.
 | Problem | Fix |
 |---|---|
 | Can't open the app on another PC | Use the **join link** (LAN address), make sure both PCs are on the same network, and that port 8088 isn't blocked by a firewall |
-| STEP/IGES/STL shows “conversion failed” | Check the Model panel backend; set `CAD_PYTHON` to a Python where `import OCP` succeeds, or run `install-docker-opencascade.bat` and confirm `chair-cq:local` |
+| STEP/IGES/STL shows “conversion failed” | Set `CAD_PYTHON` to a Python environment where `import OCP` succeeds, then restart the server |
 | Guest doesn't get the model | The host must be connected with a model loaded — joining an empty session shows nothing until the host shares |
 | Port already in use | Change it: `start.bat 4323` (zip), a `port.txt` file, or `set PORT=4323` |
 | Join link shows the wrong IP | The link uses the host's LAN address; refresh/re-create the session to re-detect it |
@@ -873,8 +838,7 @@ outside your network view a session, you have two main options.
 
 1. Provision a small **virtual server** (VPS/cloud instance) with a public IP
    or domain.
-2. Copy the distribution and run the server there (`node src/server.js`), or
-   package it into the same Docker image.
+2. Copy the distribution and run the server there (`node src/server.js`).
 3. Share the server's URL with the external party.
 
 This is the best option for **always-on** external access (client demos,

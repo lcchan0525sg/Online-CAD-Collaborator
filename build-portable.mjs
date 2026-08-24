@@ -87,25 +87,17 @@ function buildFrom(src, version, zipName) {
       .replace(/<strong>CAD Viewer<\/strong>\s*v[0-9][^<\s-]*/, `<strong>CAD Viewer</strong> v${version}`);
     writeFileSync(join(APP, 'index.html'), html);
   }
-  // CAD converter (needs Docker + chair-cq:local image on the target machine).
-  // Prefer the per-format folder (converters/); fall back to a legacy single
-  // step2glb.py. Either layout works at runtime (server resolves both).
-  if (convSrc.toLowerCase().endsWith('.py')) {
-    if (existsSync(convSrc)) copyFileSync(convSrc, join(APP, 'step2glb.py'));
-  } else if (existsSync(join(convSrc, 'step2glb.py'))) {
-    cpSync(convSrc, join(APP, 'converters'), { recursive: true });
+  // CAD converter: native OpenCascade/OCP only.
+  if (existsSync(convSrc)) {
+    if (convSrc.toLowerCase().endsWith('.py')) copyFileSync(convSrc, join(APP, 'step2glb.py'));
+    else if (existsSync(join(convSrc, 'step2glb.py'))) cpSync(convSrc, join(APP, 'converters'), { recursive: true });
   } else {
-    console.warn('WARNING: no converter found at', convSrc, '- zip will not convert STEP/IGES/STL');
+    console.warn('WARNING: no native converter found at', convSrc);
   }
-  // One-click Docker + OpenCascade installer, and the Dockerfile it builds from
-  const installBat = join(src, 'install-docker-opencascade.bat');
-  if (existsSync(installBat)) copyFileSync(installBat, join(APP, 'install-docker-opencascade.bat'));
-  const dockerFile = join(src, 'Dockerfile');
-  if (existsSync(dockerFile)) copyFileSync(dockerFile, join(APP, 'Dockerfile'));
+
 
   // Optional native Python/OCP runtime. If CAD_NATIVE_PYTHON is provided, the
-  // portable viewer prefers it at runtime; otherwise the Docker fallback files
-  // above remain available for existing installations.
+  // portable viewer bundles it for native conversion.
   if (NATIVE_PYTHON) {
     const info = execFileSync(NATIVE_PYTHON, ['-c',
       'import sys; print(sys.base_prefix); print(sys.prefix); import OCP'], { encoding: 'utf8' })
@@ -201,11 +193,10 @@ function buildFrom(src, version, zipName) {
     'if not "%~1"=="" set "PORT=%~1"',
     'if exist "port.txt" set /p PORT=<port.txt',
     'if not defined CAD_PYTHON if exist "python\\python.exe" set "CAD_PYTHON=%~dp0python\\python.exe"',
-    'if not defined CAD_BACKEND set "CAD_BACKEND=auto"',
     '',
     'echo Starting CAD Viewer on port %PORT% ...',
-    'if defined CAD_PYTHON echo CAD backend: native-first ^(%CAD_PYTHON%^)',
-    'if not defined CAD_PYTHON echo CAD backend: auto ^(native if available, Docker fallback^)',
+    'if defined CAD_PYTHON echo CAD backend: native OpenCascade ^(%CAD_PYTHON%^)',
+    'if not defined CAD_PYTHON echo ERROR: set CAD_PYTHON to a cadquery-ocp Python environment',
     'start "" http://localhost:%PORT%/',
     'set PORT=%PORT%',
     'node.exe server.js',
@@ -219,8 +210,7 @@ function buildFrom(src, version, zipName) {
     'PORT="${1:-8088}"',
     '[ -f port.txt ] && PORT=$(head -1 port.txt)',
     '[ -z "${CAD_PYTHON:-}" ] && [ -f python/python.exe ] && CAD_PYTHON="$PWD/python/python.exe"',
-    'CAD_BACKEND="${CAD_BACKEND:-auto}"',
-    'export CAD_PYTHON CAD_BACKEND',
+    'export CAD_PYTHON',
     'echo "Starting CAD Viewer on port $PORT ..."',
     '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',
     'exec env PORT="$PORT" node server.js',
@@ -242,8 +232,8 @@ function buildFrom(src, version, zipName) {
     'The zip bundles node.exe, so NO Node install is needed on Windows.',
     '',
     NATIVE_PYTHON
-      ? 'This build also bundles native Python/OCP 7.9.3 and prefers it automatically; Docker remains available as fallback.'
-      : 'For local OpenCascade without Docker, build with CAD_NATIVE_PYTHON set to a cadquery-ocp 7.9.3 Python executable.',
+      ? 'This build bundles native Python/OCP 7.9.3 for OpenCascade conversion.'
+      : 'Set CAD_NATIVE_PYTHON to a cadquery-ocp 7.9.3 Python executable when building a portable release.',
     '',
     'User manual:',
     '  Open doc/USER-MANUAL.html (or doc/USER-MANUAL.pdf) for full',
@@ -260,10 +250,9 @@ function buildFrom(src, version, zipName) {
     '  type the code into "Join". Camera + part show/hide stay in sync.',
     '',
     'CAD files:',
-    '  STEP/IGES conversion prefers local OpenCascade 7.9.3 when CAD_PYTHON',
+    '  STEP/IGES conversion uses native OpenCascade 7.9.3 when CAD_PYTHON',
     '  points to a Python environment where import OCP succeeds.',
-    '  If native OCP is unavailable, the server falls back to Docker and the',
-    '  chair-cq:local image. GLB/GLTF files always work without either backend.',
+    '  GLB/GLTF files always work without the converter.',
     '',
     'Port: 8088. Override with env PORT.',
     '',

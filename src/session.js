@@ -105,20 +105,13 @@ export function setHealth(state) {
 
 function updateBackendStatus(details) {
   backendDetails = details;
-  const backend = details?.backend || (details?.docker ? 'docker' : '');
-  if (!ctx.backendStatusEl || !backend) return;
-  const native = backend === 'native';
-  const label = translate(native
-    ? 'ui.backend.native'
-    : details.fallback
-      ? 'ui.backend.docker.fallback'
-      : 'ui.backend.docker');
+  const backend = details?.backend || 'native';
+  if (!ctx.backendStatusEl) return;
+  const label = translate('ui.backend.native');
   ctx.backendStatusEl.textContent = translate('ui.conversion.status', { label });
   ctx.backendStatusEl.dataset.backendLabel = label;
   ctx.backendStatusEl.dataset.backend = backend;
-  ctx.backendStatusEl.title = native
-    ? `Native CAD backend: ${details.nativePython || 'configured Python'}`
-    : details.fallback || 'Docker CAD backend: chair-cq:local';
+  ctx.backendStatusEl.title = `Native CAD backend: ${details?.nativePython || 'configured Python'}`;
 }
 
 export async function pollHealth() {

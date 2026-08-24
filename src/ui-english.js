@@ -11,8 +11,6 @@ export const ENGLISH_UI = Object.freeze({
   "ui.assembly.tree.count": "Assembly tree ({count} parts)",
   "ui.axis": "Axis",
   "ui.back": "Back",
-  "ui.backend.docker": "OpenCascade · Docker",
-  "ui.backend.docker.fallback": "OpenCascade · Docker fallback",
   "ui.backend.native": "OpenCascade 7.9.3 · local Python",
   "ui.background": "Background",
   "ui.blueprint": "Blueprint",
@@ -171,7 +169,6 @@ export const ENGLISH_UI = Object.freeze({
   "ui.plane": "Plane",
   "ui.play": "▶ Play",
   "ui.press.x.y.z.to.choose.an.axis.then.drag.to.move": "press X / Y / Z to choose an axis, then drag to move",
-  "ui.real.kernel.geometry.glb.gltf": "Real kernel geometry · GLB/GLTF",
   "ui.receiving.model.ellipsis": "Receiving model…",
   "ui.reconnect": "Reconnect",
   "ui.reconnecting.attempt": "reconnecting… {attempt}/3",
@@ -351,22 +348,6 @@ export const UI_CATALOG_META = Object.freeze({
     "translatable": true,
     "sourceFiles": [
       "src/index.html"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.backend.docker": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.backend.docker.fallback": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
     ],
     "context": "",
     "notes": ""
@@ -1646,14 +1627,6 @@ export const UI_CATALOG_META = Object.freeze({
     "notes": ""
   },
   "ui.press.x.y.z.to.choose.an.axis.then.drag.to.move": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/index.html"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.real.kernel.geometry.glb.gltf": {
     "translatable": true,
     "sourceFiles": [
       "src/index.html"

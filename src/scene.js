@@ -455,18 +455,11 @@ export async function importStep(file) {
   ctx.modelName = file.name;
   const uploadSession = ctx.session;
   const isStl = /\.stl$/i.test(file.name);
-  const backendLabel = ctx.backendStatusEl?.dataset.backendLabel || 'OpenCascade kernel · server backend';
-  const backendTitle = isStl
-    ? 'STL host-side'
-    : backendLabel.includes('local Python')
-      ? 'Native OpenCascade 7.9.3'
-      : backendLabel.includes('Docker')
-        ? 'Docker OpenCascade'
-        : backendLabel;
-  xferBegin(`Converting CAD file · ${backendTitle}`, isStl ? `Host-side STL → GLB — ${file.name}` : `${backendLabel} — ${file.name}`);
+
+  xferBegin(`Converting CAD file · Native OpenCascade`, isStl ? `Host-side STL → GLB — ${file.name}` : `Native OpenCascade — ${file.name}`);
   infoEl.textContent = isStl
     ? `converting ${file.name} to GLB…\n(pure JS, host-side — instant)`
-    : `converting ${file.name} to GLB…\n(${backendLabel} — allow a few seconds)`;
+    : `converting ${file.name} to GLB…\n(native OpenCascade — allow a few seconds)`;
   const t0 = performance.now();
   try {
     const headers = {

@@ -21,6 +21,24 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.042] — 2026-08-24
+
+### Changed
+
+- Removed the Docker conversion backend and fallback path; STEP/IGES
+  conversion now requires native OpenCascade/OCP 7.9.3.
+- Removed Docker setup files, Docker backend labels, and Docker instructions
+  from the portable build and user manual.
+- Removed redundant backend status text from the Model sidebar.
+- Removed the redundant Real kernel geometry subtitle from the sidebar brand.
+
+### Verified
+
+- Native `GearBox.stp` conversion produced a valid 3,775,412-byte GLB.
+- Native-only health check reports `backend=native` with the configured OCP
+  Python environment.
+- zh-Hant/zh-Hans validation and responsive layout checks pass.
+
 ## [v1.041] — 2026-08-24
 
 ### Added
