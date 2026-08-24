@@ -21,6 +21,27 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.045] — 2026-08-24
+
+### Fixed
+
+- Reset Position now publishes the complete baseline transform to the shared
+  session, so Host and Guest Resync cannot restore stale positions, rotations,
+  or custom pivots.
+- Reset Position now clears Undo and Redo history for every viewer in the
+  session, including late joiners and viewers that request Resync afterward.
+- Cancelled move and rotation drags now restore and publish the complete
+  transform, preventing an intermediate drag state from returning after
+  Resync.
+
+### Verified
+
+- Host and Guest reset messages relay in both directions.
+- Resync replays the reset baseline and reset-history event.
+- Move/rotation cancellation uses the authoritative transform protocol.
+
+---
+
 ## [v1.044] — 2026-08-24
 
 ### Fixed

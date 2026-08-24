@@ -439,7 +439,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, sectionPresets: null, corr: null, chat: [] };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, transformResetVersion: 0, sectionPresets: null, corr: null, chat: [] };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -481,6 +481,7 @@ wss.on('connection', (ws, req, url) => {
   if (Object.keys(session.trans || {}).length) send(ws, { t: 'trans-sync', keys: transKeys });
   // Late joiner: replay the current part transforms, including custom pivots.
   for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
+  if (session.transformResetVersion) send(ws, { t: 'transform-reset', version: session.transformResetVersion });
   // Late joiner: replay the chat history.
   if (session.chat && session.chat.length) send(ws, { t: 'chat-sync', history: session.chat });
   // Let everyone else know a new member arrived (host uses this to offer its
@@ -538,6 +539,9 @@ wss.on('connection', (ws, req, url) => {
         name: (session.members.get(id) || {}).name || '',
       };
       broadcast(session, { t: 'transform', ...session.transforms[key] }, id);
+    } else if (msg.t === 'transform-reset') {
+      session.transformResetVersion = (session.transformResetVersion || 0) + 1;
+      broadcast(session, { t: 'transform-reset', version: session.transformResetVersion }, id);
     } else if (msg.t === 'move' && Array.isArray(msg.path) && Array.isArray(msg.pos)) {
       // Part move: relay the new position to the other members so everyone sees
       // the same part placement. No stored state needed (host Reset re-broadcasts).
@@ -631,6 +635,7 @@ wss.on('connection', (ws, req, url) => {
       if (session.corr) send(ws, { t: 'corr', s: session.corr });
       if (Object.keys(session.trans || {}).length) send(ws, { t: 'trans-sync', keys: Object.keys(session.trans).filter((k) => session.trans[k]) });
       for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
+      if (session.transformResetVersion) send(ws, { t: 'transform-reset', version: session.transformResetVersion });
       if (session.chat?.length) send(ws, { t: 'chat-sync', history: session.chat });
       send(ws, { t: 'resync-done' });
     } else if (msg.t === 'kick' && typeof msg.target === 'string') {

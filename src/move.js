@@ -111,6 +111,17 @@ export function updateUndoState() {
   if (redo) redo.disabled = !(ctx.transformRedo && ctx.transformRedo.length);
 }
 
+export function clearTransformHistory() {
+  ctx.transformHistory.length = 0;
+  ctx.transformRedo.length = 0;
+  updateUndoState();
+}
+
+export function broadcastTransformReset() {
+  if (!ctx.session?.connected) return;
+  try { ctx.session.ws.send(JSON.stringify({ t: 'transform-reset' })); } catch {}
+}
+
 export function undoLastMove() { return undoTransform(); }
 
 export function redoLastMove() { return redoTransform(); }
@@ -315,7 +326,6 @@ export function resetPartPositions() {
     visited.add(node.uuid);
     node.position.copy(orig);
     node.updateMatrixWorld(true);
-    broadcastMove(path.split('.').map(Number), orig);
   }
   // Also restore rotations (move + rotate share the Reset button).
   const rv = new Set();
@@ -325,13 +335,23 @@ export function resetPartPositions() {
     rv.add(node.uuid);
     node.quaternion.copy(orig);
     node.updateMatrixWorld(true);
-    broadcastRot(path.split('.').map(Number), orig);
+  }
+  // Publish the complete reset state through the authoritative transform path.
+  // Sending legacy move/rot messages updates other live viewers but does not
+  // replace session.transforms, so a later guest resync would restore stale
+  // positions or rotations. One atomic transform per node keeps live peers and
+  // the server snapshot aligned, including the cleared custom pivot.
+  const tv = new Set();
+  for (const [path] of ctx.originalPositions) {
+    const node = nodeAtPath(root, path.split('.').map(Number));
+    if (!node || tv.has(node.uuid)) continue;
+    tv.add(node.uuid);
+    broadcastTransform(path.split('.').map(Number), node, null);
   }
   // Reset also clears the unified transform history.
-  ctx.transformHistory.length = 0;
-  ctx.transformRedo.length = 0;
+  clearTransformHistory();
+  broadcastTransformReset();
   setRotateMode(false);
-  updateUndoState();
   xferToast(translate('ui.part.positions.reset'));
 }
 
@@ -568,10 +588,11 @@ export function cancelRotateDrag() {
     }
   } else {
     const node = movableNode();
-    if (node) {
-      node.quaternion.copy(ctx.rotStartQuat);
+    if (node && ctx.rotStartTransform) {
+      node.position.copy(ctx.rotStartTransform.pos);
+      node.quaternion.copy(ctx.rotStartTransform.quat);
       node.updateMatrixWorld(true);
-      broadcastRot(movePathFor(node), node.quaternion);
+      broadcastTransform(movePathFor(node), node, ctx.rotStartTransform.pivot);
     }
   }
   ctx.rotating = false;
@@ -648,7 +669,7 @@ export function cancelMoveDrag() {
     for (const item of ctx.moveStartGroup) {
       item.node.position.copy(item.before.pos);
       item.node.updateMatrixWorld(true);
-      broadcastMove(movePathFor(item.node), item.node.position);
+      broadcastTransform(movePathFor(item.node), item.node, item.before.pivot);
     }
   }
   ctx.moveStartGroup = null;

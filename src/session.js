@@ -9,7 +9,7 @@ import { applyRemoteParts, applyRemoteSel, applyRemoteTransSync, applyRemoteTran
 import { applyRemoteMeasureAdd, applyRemoteMeasureClear, applyRemoteMeasureDel, applyRemoteMeasureSync, applyRemoteMeasureUpdate, broadcastMeasureAdd } from './measure.js';
 import { applySectionState, applyRemoteSectionPresets, sectionPresetsState, sectionState } from './section.js';
 import { applyRemoteExplode, broadcastExplode } from './explode.js';
-import { applyRemoteMove, applyRemoteRot, applyRemoteTransform, broadcastTransform } from './move.js';
+import { applyRemoteMove, applyRemoteRot, applyRemoteTransform, broadcastTransform, clearTransformHistory } from './move.js';
 import { applyRemoteCorrections, correctionsState } from './model.js';
 
 let reconnectCode = null;
@@ -527,6 +527,9 @@ export async function onSessionMsg(msg) {
       break;
     case 'transform':
       applyRemoteTransform(msg);
+      break;
+    case 'transform-reset':
+      clearTransformHistory();
       break;
     case 'section':
       ctx.applyingRemoteSection = true;
