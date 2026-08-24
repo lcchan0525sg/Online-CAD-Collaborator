@@ -906,3 +906,60 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
   color: #e6ecf3;
 }
 #viewport .fp-filter::placeholder { color: #7d8ea3; }
+
+/* ---- Session record window (mirrors #chat-window) ---- */
+#record-window {
+  position: absolute;
+  /* Keep Session Record directly below the fixed View presets panel. */
+  right: 12px;
+  top: 145px;
+  bottom: auto;
+  width: 320px;
+  max-height: 38vh;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  background: rgba(14, 17, 25, 0.95);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+#record-window[hidden] { display: none; }
+#record-window.record-collapsed { max-height: 38px; }
+#record-window.record-collapsed .record-toolbar,
+#record-window.record-collapsed .record-list,
+#record-window.record-collapsed .record-foot { display: none; }
+/* Keep the record panel in the vertical stack below View even when Chat is
+   also open; it remains scrollable within the available viewport height. */
+#record-window.above-chat { top: 145px; bottom: auto; }
+@media (max-width: 600px) {
+  /* On narrow viewports, keep the same vertical stack below View. */
+  #record-window { right: 12px; top: 145px; bottom: auto; max-height: 38vh; }
+  #record-window.above-chat { top: 145px; bottom: auto; }
+}
+.record-toolbar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px; border-bottom: 1px solid var(--line); background: var(--panel2);
+}
+.record-toolbar .btn { padding: 6px 10px; font-size: 12px; }
+.tlabel.record-auto { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); cursor: pointer; }
+.record-list { flex: 1; overflow-y: auto; padding: 10px 12px; font-size: 12.5px; line-height: 1.45; display: flex; flex-direction: column; gap: 10px; }
+.rec-group-head { font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); margin-bottom: 6px; }
+.rec-row { display: flex; gap: 8px; align-items: baseline; }
+.rec-link { color: #7cc4ff; }
+.rec-shot { position: relative; margin-bottom: 8px; }
+.rec-shot img { width: 100%; border-radius: 6px; border: 1px solid var(--line); display: block; }
+.rec-shot .rec-profile { margin-top: 6px; background: #fff; }
+.rec-shot-delete {
+  position: absolute; top: 5px; right: 5px; z-index: 2;
+  width: 22px; height: 22px; padding: 0;
+  border: 1px solid rgba(255,255,255,.45); border-radius: 50%;
+  background: rgba(12,15,22,.86); color: #fff;
+  cursor: pointer; font-size: 18px; line-height: 18px;
+}
+.rec-shot-delete:hover { background: #b83232; border-color: #ff9b94; }
+.rec-shot-missing { height: 90px; border: 1px dashed var(--line); border-radius: 6px; }
+.rec-shot .cm-time { font-size: 10px; color: var(--muted); }
+.record-foot { display: flex; gap: 6px; padding: 8px; border-top: 1px solid var(--line); background: var(--panel2); }
+.record-foot .btn { flex: 1; padding: 7px 8px; font-size: 12px; }

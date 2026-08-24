@@ -694,6 +694,7 @@ export async function loadSharedModel(m) {
   const isCurrentLoad = () => isCurrentGen(gen) && ctx.session === loadSession && loadSession.connected;
   const infoEl = document.getElementById('info');
   const label = m.note || m.filename || 'model';
+  ctx.modelName = label;
   xferBegin(translate('ui.receiving.model.ellipsis'), label);
   try {
     const res = await fetch(`/sessions/${loadSession.code}/model?ts=${Date.now()}`);

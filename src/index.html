@@ -55,6 +55,7 @@
           </div>
           <div id="roster" class="mats" style="margin-top:8px"></div>
           <button class="btn" id="btn-chat" style="margin-top:10px; width:100%">Chat</button>
+          <button class="btn" id="btn-record" style="margin-top:10px; width:100%">Session record</button>
           <button class="btn" id="btn-resync-session" style="margin-top:10px">Resync session</button>
           <button class="btn" id="btn-reconnect-session" style="margin-top:10px" hidden>Reconnect</button>
           <button class="btn" id="btn-leave-session" style="margin-top:10px">Leave session</button>
@@ -219,7 +220,7 @@
           </label>
         </div>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v1.03 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v1.04 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -371,6 +372,23 @@
           <input type="text" id="chat-input" placeholder="Message…" maxlength="500" autocomplete="off" spellcheck="false">
           <button type="submit" class="btn">Send</button>
         </form>
+      </div>
+      <div id="record-window" hidden>
+        <div class="chat-head">Session record
+          <span class="chat-head-actions">
+            <button class="chat-dl" id="btn-record-collapse" title="Collapse session record" aria-label="Collapse session record">▾</button>
+            <button class="chat-dl" id="btn-report" title="Create session report (HTML)">⬇</button>
+            <button class="chat-close" id="btn-record-close">✕</button>
+          </span>
+        </div>
+        <div class="record-toolbar">
+          <button class="btn" id="btn-capture">📷 Capture</button>
+        </div>
+        <div id="record-list" class="record-list"></div>
+        <div class="record-foot">
+          <button class="btn" id="btn-record-clear">Clear record</button>
+          <button class="btn primary" id="btn-report-bottom">Create session report</button>
+        </div>
       </div>
     </main>
   </div>

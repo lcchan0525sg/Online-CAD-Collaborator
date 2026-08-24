@@ -402,6 +402,7 @@ ctx.loader.setDRACOLoader(ctx.dracoLoader);
 
 export function loadUrl(url) {
   const gen = nextLoadGen();
+  ctx.modelName = decodeURIComponent((url.split('/').pop() || '').replace(/\.[^.]+$/, '')) || url;
   ctx.loader.load(url, (gltf) => { if (isCurrentGen(gen)) loadFromGltf(gltf); },
     (ev) => { if (ev.total) console.log('progress', (ev.loaded / ev.total * 100).toFixed(0) + '%'); },
     (err) => {
@@ -413,6 +414,7 @@ export function loadUrl(url) {
 export function loadFile(file, afterLoad) {
   const reader = new FileReader();
   const gen = nextLoadGen();
+  ctx.modelName = file.name;
   const p = new Promise((resolve) => {
     reader.onload = () => {
       const buf = reader.result;
@@ -450,6 +452,7 @@ export function loadFile(file, afterLoad) {
 export async function importStep(file) {
   const infoEl = document.getElementById('info');
   const gen = nextLoadGen();
+  ctx.modelName = file.name;
   const uploadSession = ctx.session;
   const isStl = /\.stl$/i.test(file.name);
   const backendLabel = ctx.backendStatusEl?.dataset.backendLabel || 'OpenCascade kernel · server backend';

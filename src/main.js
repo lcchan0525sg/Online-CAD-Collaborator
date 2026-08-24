@@ -5,6 +5,7 @@ import { ctx } from './context.js';
 import { availableLocales, currentLocale, setLocale, t } from './ui-i18n.js';
 import './scene.js'; import './parts.js'; import './measure.js'; import './explode.js'; import './move.js'; import './session.js';
 import './interaction.js'; import './section.js'; import './theme.js';
+import './session-record.js';
 import { importStep, loadFile, loadUrl } from './scene.js';
 import { clearPartSelection, nodeAtPath, partIsSelected, partIsTransparent, partTransparent, selectPart, setPartTransparent, setPartVisible, showPartMenu } from './parts.js';
 import { commitMeasurement, measureClear, measureEnsureVisuals, pickNearestCorner, updateMeasureStatus } from './measure.js';
@@ -16,6 +17,7 @@ import { setPivotMode, setRotateMode, undoTransform, redoTransform, rememberActi
 import { addSectionPreset, applySectionState, exportSectionPng, exportSectionSvg, removeSectionPreset, resetSection, sectionPresetsState, sectionState } from './section.js';
 import { applyModelCorrections, resetModelCorrections, applyUnits } from './model.js';
 import { formatMm } from './measure.js';
+import { buildReportHtml, captureScreenshot } from './session-record.js';
 
 ctx.renderer.setAnimationLoop(() => {
   const dt = Math.min(ctx.animClock.getDelta(), 0.1);
@@ -108,6 +110,9 @@ window.__viewer = {
   addSectionPreset: (name) => { addSectionPreset(name); return sectionPresetsState(); },
   removeSectionPreset: (id) => { removeSectionPreset(id); return sectionPresetsState(); },
   exportSectionSvg: () => exportSectionSvg(),
+  // Session record (per-viewer diary + HTML report).
+  captureScreenshot: (opts) => captureScreenshot(opts),
+  buildReportHtml: () => buildReportHtml(),
   exportSectionPng: () => exportSectionPng(),
   get sectionVisualsVisible() { return !!(ctx.sectionVisuals && ctx.sectionVisuals.visible); },
   get sectionMode() { return !!ctx.sectionMode; },

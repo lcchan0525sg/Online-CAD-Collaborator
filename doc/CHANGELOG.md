@@ -21,6 +21,31 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.04] — 2026-08-24
+
+### Added
+
+- Added a per-viewer Session Record panel with localStorage persistence keyed by session code.
+- Added manual viewport screenshots with per-picture deletion controls.
+- Saving a named section cut now records the exact cut profile (name, plane,
+  offset and reverse state), captures the viewport, and stores the generated 2D
+  section-profile image in the same record.
+- Added linked Photo entries in the HTML session report so section profiles jump
+  to their corresponding captured images.
+- Added collapsible, height-limited Session Record UI to avoid covering other
+  floating panels.
+
+### Changed
+
+- Blank saved-cut names now default to `<PLANE> plane · HH:MM:SS` instead of
+  `Cut N`.
+- Portable builds now include `session-record.js`.
+
+### Verified
+
+- Browser checks cover saved-cut profile/image persistence, report image links,
+  screenshot deletion, panel layout, collapse/expand behavior and locale layout.
+
 ## [v1.03] — 2026-08-24
 
 ### Fixed

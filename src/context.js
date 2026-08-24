@@ -48,6 +48,8 @@ let model = null;      // the loaded (scaled) group
 
 let modelScale = 1;
 
+let modelName = '';      // display name of the last loaded model (for the session record)
+
 let modelGen = 0;      // monotonic load token: a stale async load can't clobber a newer one
 
 // The parts tree now renders inside the floating Parts panel (the sidebar no
@@ -428,6 +430,7 @@ export const ctx = {
   grid,
   model,
   modelScale,
+  modelName,
   modelGen,
   partsEl,
   partRows,

@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { ctx } from './context.js';
 import { t } from './ui-i18n.js';
 import { broadcastSection, broadcastSectionPresets } from './session.js';
+import { logSection, onSectionPresetSaved } from './session-record.js';
 
 const PLANE_COLOR = 0x5aa0ff;        // soft blue reference plane
 const PLANE_OPACITY = 0.15;
@@ -268,6 +269,7 @@ export function applySectionState(state, sync = true) {
     ctx.sectionOffset = Number.isFinite(state.offset) ? state.offset : 0;
     ctx.sectionReversed = !!state.reversed;
   }
+  try { logSection(sectionState()); } catch {}
   if (ctx.sectionOnChk) ctx.sectionOnChk.checked = ctx.sectionOn;
   if (ctx.sectionAxisEl) ctx.sectionAxisEl.value = ctx.sectionAxis;
   if (ctx.sectionOffsetEl) ctx.sectionOffsetEl.value = String(ctx.sectionOffset);
@@ -472,11 +474,16 @@ function renderSectionPresets() {
 }
 
 export function addSectionPreset(name, broadcast = true) {
-  const n = (name || '').trim().slice(0, 40) || `Cut ${ctx.sectionPresets.length + 1}`;
-  ctx.sectionPresets.push({ id: 'sp' + (++ctx.sectionPresetSeq), name: n, axis: ctx.sectionAxis, offset: ctx.sectionOffset, reversed: ctx.sectionReversed });
+  const now = new Date();
+  const pad = (v) => String(v).padStart(2, '0');
+  const defaultName = `${ctx.sectionAxis.toUpperCase()} plane · ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  const n = (name || '').trim().slice(0, 40) || defaultName;
+  const preset = { id: 'sp' + (++ctx.sectionPresetSeq), name: n, axis: ctx.sectionAxis, offset: ctx.sectionOffset, reversed: ctx.sectionReversed };
+  ctx.sectionPresets.push(preset);
   if (ctx.sectionPresetNameEl) ctx.sectionPresetNameEl.value = '';
   renderSectionPresets();
   if (broadcast && !ctx.applyingRemoteSectionPreset) broadcastSectionPresets(sectionPresetsState());
+  return preset;
 }
 
 export function removeSectionPreset(id, broadcast = true) {
@@ -526,9 +533,17 @@ export function flushPendingSectionPresets() {
   applyRemoteSectionPresets(presets);
 }
 
-ctx.sectionPresetSaveBtn?.addEventListener('click', () => addSectionPreset(ctx.sectionPresetNameEl?.value));
+function addSectionPresetFromUi(name) {
+  const preset = addSectionPreset(name, false);   // no broadcast yet
+  const profileImage = exportSectionPng({ download: false });
+  onSectionPresetSaved(preset, profileImage);      // save profile + both images
+  broadcastSectionPresets(sectionPresetsState());
+  return preset;
+}
+
+ctx.sectionPresetSaveBtn?.addEventListener('click', () => addSectionPresetFromUi(ctx.sectionPresetNameEl?.value));
 ctx.sectionPresetNameEl?.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter') { e.preventDefault(); addSectionPreset(ctx.sectionPresetNameEl.value); }
+  if (e.key === 'Enter') { e.preventDefault(); addSectionPresetFromUi(ctx.sectionPresetNameEl.value); }
 });
 
 // ---- Section 2D drawing export (SVG / PNG) ----
@@ -589,10 +604,10 @@ export function exportSectionSvg() {
   return svg;
 }
 
-export function exportSectionPng() {
-  if (!ctx.sectionOn || !ctx.model) { xferToast(t('ui.enable.section.view.to.export.a.cut')); return null; }
+export function exportSectionPng({ download = true } = {}) {
+  if (!ctx.sectionOn || !ctx.model) { if (download) xferToast(t('ui.enable.section.view.to.export.a.cut')); return null; }
   const { segs, unit, label } = projectSectionDrawing();
-  if (!segs.length) { xferToast(t('ui.no.geometry.intersects.this.section')); return null; }
+  if (!segs.length) { if (download) xferToast(t('ui.no.geometry.intersects.this.section')); return null; }
   const { minX, maxY, spanX, spanY, margin } = drawingBounds(segs);
   const scale = 8;   // pixels per display unit
   const W = Math.ceil((spanX + 2 * margin) * scale);
@@ -613,9 +628,11 @@ export function exportSectionPng() {
   g.font = `${Math.max(10, Math.round(scale * Math.max(spanX, spanY) * 0.03))}px sans-serif`;
   g.fillText(`${label} · units ${unit}`, margin * scale * 0.5, H - margin * scale * 0.4);
   const data = canvas.toDataURL('image/png');
-  const a = document.createElement('a');
-  a.href = data; a.download = `section-${ctx.sectionAxis}-${Date.now()}.png`;
-  document.body.appendChild(a); a.click(); a.remove();
+  if (download) {
+    const a = document.createElement('a');
+    a.href = data; a.download = `section-${ctx.sectionAxis}-${Date.now()}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
   return data;
 }
 

@@ -6,9 +6,14 @@ export const ENGLISH_UI = Object.freeze({
   "ui.all.viewers.confirmed": "all viewers confirmed",
   "ui.ambient": "Ambient",
   "ui.animation": "Animation",
+  "ui.assembly": "Assembly",
   "ui.assembly.tree": "Assembly tree",
+  "ui.assembly.tree.count": "Assembly tree ({count} parts)",
   "ui.axis": "Axis",
   "ui.back": "Back",
+  "ui.backend.docker": "OpenCascade · Docker",
+  "ui.backend.docker.fallback": "OpenCascade · Docker fallback",
+  "ui.backend.native": "OpenCascade 7.9.3 · local Python",
   "ui.background": "Background",
   "ui.blueprint": "Blueprint",
   "ui.bottom": "Bottom",
@@ -18,10 +23,13 @@ export const ENGLISH_UI = Object.freeze({
   "ui.cancel": "Cancel",
   "ui.cannot.redo.part.changed.remotely": "Cannot redo: part changed remotely",
   "ui.cannot.undo.part.changed.remotely": "Cannot undo: part changed remotely",
+  "ui.capture": "📷 Capture",
   "ui.chan.lap.chi": "Chan Lap Chi",
   "ui.chat": "Chat",
+  "ui.checking.server.ellipsis": "checking server...",
   "ui.clear": "Clear",
   "ui.clear.all.measurements": "Clear all measurements",
+  "ui.clear.record": "Clear record",
   "ui.click.an.axis.arrow.to.set.the.move.direction": "Click an axis arrow to set the move direction",
   "ui.click.to.copy": "click to copy",
   "ui.clip": "Clip",
@@ -29,25 +37,31 @@ export const ENGLISH_UI = Object.freeze({
   "ui.collapse.assembly.tree": "Collapse Assembly tree",
   "ui.collapse.model.corrections": "Collapse Model corrections",
   "ui.comment": "Comment",
-  "ui.comment.on.this.part.ellipsis": "Comment on this part…",
   "ui.comment.ellipsis": "Comment…",
+  "ui.comment.on.this.part.ellipsis": "Comment on this part…",
+  "ui.connected": "connected",
   "ui.connected.host": "connected · host",
   "ui.connected.host.model.sent.to.all": "connected · host · model sent to all",
   "ui.connected.host.send.timed.out": "connected · host · send timed out",
   "ui.connecting": "connecting",
   "ui.connecting.ellipsis": "connecting…",
   "ui.control.restored": "control restored",
+  "ui.conversion.checking.backend.ellipsis": "Conversion: checking backend…",
   "ui.conversion.failed": "conversion failed:",
   "ui.conversion.produced.no.visible.geometry.0.triangles": "conversion produced no visible geometry (0 triangles).",
   "ui.conversion.produced.no.visible.geometry.0.triangles.see.server.log": "conversion produced no visible geometry (0 triangles). See server log.",
-  "ui.conversion.checking.backend.ellipsis": "Conversion: checking backend…",
+  "ui.conversion.status": "Conversion: {label}",
   "ui.converted.glb.parse.failed": "converted GLB parse failed:",
   "ui.could.not.connect": "could not connect",
   "ui.create.session": "Create session",
+  "ui.create.session.report": "Create session report",
+  "ui.create.session.report.html": "Create session report (HTML)",
   "ui.delete.preset": "Delete preset",
   "ui.developer": "Developer:",
   "ui.dir": "Dir",
+  "ui.disconnected": "disconnected",
   "ui.disconnected.reconnecting": "disconnected — reconnecting",
+  "ui.distance": "Distance: {value}",
   "ui.download.the.current.view.as.a.png": "Download the current view as a PNG",
   "ui.download.transcript": "Download transcript",
   "ui.drag.to.orbit.scroll.to.zoom.right.drag.to.pan": "drag to orbit · scroll to zoom · right-drag to pan",
@@ -57,6 +71,7 @@ export const ENGLISH_UI = Object.freeze({
   "ui.enter.your.name.shown.to.other.viewers": "Enter your name (shown to other viewers):",
   "ui.expand.assembly.tree": "Expand Assembly tree",
   "ui.explode": "Explode",
+  "ui.explode.scope.status": "Scope: {name} · {count} children · gap {gap} mm · dir {dir}",
   "ui.exploding": "Exploding: —",
   "ui.explosion.direction.mm.gap.works.along.an.axis": "Explosion direction (mm gap works along an axis)",
   "ui.export.png": "Export PNG",
@@ -77,6 +92,7 @@ export const ENGLISH_UI = Object.freeze({
   "ui.hide": "Hide",
   "ui.hide.all.parts": "Hide all parts",
   "ui.hide.part": "Hide part",
+  "ui.host": "· host",
   "ui.host.left.session.ended": "host left — session ended",
   "ui.host.left.session.ended.2": "Host left — session ended.",
   "ui.in": "in",
@@ -93,11 +109,13 @@ export const ENGLISH_UI = Object.freeze({
   "ui.join.a.session.to.resync": "Join a session to resync",
   "ui.keep.the.opposite.side.of.the.section.plane": "Keep the opposite side of the section plane",
   "ui.key": "Key",
+  "ui.language": "Language",
   "ui.lcchan.r2innov.com": "lcchan@r2innov.com",
   "ui.leave.session": "Leave session",
   "ui.left": "Left",
   "ui.light.cad": "Light CAD",
   "ui.lighting": "Lighting",
+  "ui.load.a.model.first": "Load a model first",
   "ui.load.failed": "load failed:",
   "ui.local.python": "local Python",
   "ui.loop": "Loop",
@@ -105,7 +123,10 @@ export const ENGLISH_UI = Object.freeze({
   "ui.make.transparent": "Make transparent",
   "ui.materials": "Materials",
   "ui.measure": "Measure",
+  "ui.measure.click.corner": "Click a corner to measure",
+  "ui.measure.first.point.set": "First point set · click a second corner",
   "ui.measure.mode.click.a.first.corner.then.a.second.corner.press.esc.to.canc": "Measure mode: click a first corner, then a second corner; press Esc to cancel the first point",
+  "ui.measured": "Measured {value}",
   "ui.measurement.label": "Measurement label",
   "ui.measurements": "Measurements",
   "ui.message.ellipsis": "Message…",
@@ -114,8 +135,8 @@ export const ENGLISH_UI = Object.freeze({
   "ui.model.control": "MODEL CONTROL",
   "ui.model.load.error": "model load error:",
   "ui.model.loaded": "Model loaded",
-  "ui.model.ready.to.share": "Model ready to share",
   "ui.model.ready.full.control.restored": "Model ready — full control restored.",
+  "ui.model.ready.to.share": "Model ready to share",
   "ui.model.received": "Model received",
   "ui.model.scale.multiplier": "Model scale multiplier",
   "ui.model.sent": "Model sent",
@@ -129,21 +150,34 @@ export const ENGLISH_UI = Object.freeze({
   "ui.no.ack.within.30s.continuing": "no ACK within 30s — continuing",
   "ui.no.chat.messages.to.download": "No chat messages to download",
   "ui.no.geometry.intersects.this.section": "No geometry intersects this section",
+  "ui.no.measurements": "no measurements",
   "ui.no.model.loaded": "no model loaded",
+  "ui.no.record.entries.yet": "no entries yet",
   "ui.none": "None",
+  "ui.not.connected.to.a.session": "Not connected to a session.",
   "ui.not.in.a.session": "not in a session",
+  "ui.nothing.recorded.for.this.session": "Nothing recorded for this session yet",
   "ui.off": "off",
+  "ui.opaque": "Opaque",
   "ui.open.model.ellipsis": "Open model …",
   "ui.open.on.another.machine.or.copy": "open on another machine, or copy",
   "ui.opencascade.kernel.server.backend": "OpenCascade kernel · server backend",
   "ui.parse.failed": "parse failed:",
   "ui.part.positions.reset": "Part positions reset",
+  "ui.part.selected.choose.tool": "Part selected · choose a tool",
+  "ui.pause": "⏸ Pause",
   "ui.pivot": "Pivot",
+  "ui.pivot.status": "Pivot mode · drag the centre handle · Esc to exit",
   "ui.plane": "Plane",
+  "ui.play": "▶ Play",
   "ui.press.x.y.z.to.choose.an.axis.then.drag.to.move": "press X / Y / Z to choose an axis, then drag to move",
   "ui.real.kernel.geometry.glb.gltf": "Real kernel geometry · GLB/GLTF",
   "ui.receiving.model.ellipsis": "Receiving model…",
   "ui.reconnect": "Reconnect",
+  "ui.reconnecting.attempt": "reconnecting… {attempt}/3",
+  "ui.record.measurements": "Measurements",
+  "ui.record.screenshots": "Screenshots",
+  "ui.record.section.cuts": "Section cuts",
   "ui.redo": "Redo",
   "ui.redo.the.last.undone.part.transform": "Redo the last undone part transform",
   "ui.remove.measurement": "Remove measurement",
@@ -162,24 +196,34 @@ export const ENGLISH_UI = Object.freeze({
   "ui.right": "Right",
   "ui.rotate": "Rotate",
   "ui.rotate.the.model.around.the.selected.axis": "Rotate the model around the selected axis",
+  "ui.rotation": "Rotation",
   "ui.rotation.angle.degrees": "Rotation angle (degrees)",
   "ui.save.cut": "Save cut",
   "ui.save.the.current.section.as.a.named.preset": "Save the current section as a named preset",
   "ui.scale": "Scale",
   "ui.scope.nothing.to.spread.select.an.assembly": "Scope: nothing to spread · select an assembly",
+  "ui.screenshot.saved.to.session.record": "Screenshot saved to session record",
   "ui.second.point": "second point",
   "ui.section": "Section",
   "ui.section.plane.axis": "Section plane axis",
+  "ui.section.status": "Section view · {axis} plane · {offset} · drag the handle",
   "ui.section.view": "Section view",
   "ui.select": "Select",
   "ui.select.a.part": "Select a part",
+  "ui.select.part": "Select a part",
+  "ui.select.part.to.edit.pivot": "Select a part to edit its pivot",
+  "ui.select.part.to.tool": "Select a part to {tool}",
   "ui.selected.part": "Selected part",
   "ui.send": "Send",
   "ui.sending.model.to.guest.s.ellipsis": "Sending model to guest(s)…",
   "ui.server.connected": "server connected",
   "ui.server.status": "server status",
+  "ui.server.unreachable": "server unreachable - open will not work",
   "ui.session.chat": "Session chat",
   "ui.session.code": "session code",
+  "ui.session.record.cleared": "Session record cleared",
+  "ui.session.record.window": "Session record",
+  "ui.session.report.downloaded": "Session report downloaded",
   "ui.session.state.synchronized": "Session state synchronized",
   "ui.share.failed": "share failed:",
   "ui.share.session": "Share session",
@@ -193,9 +237,14 @@ export const ENGLISH_UI = Object.freeze({
   "ui.the.host.left.the.session": "The host left the session.",
   "ui.third.party.notices.txt": "THIRD-PARTY-NOTICES.txt",
   "ui.this.application.uses.the.opencascade.technology.kernel.gnu.lgpl.v2.1.wi": "This application uses the OpenCascade Technology kernel (GNU LGPL v2.1 with the OCCT exception) and pythonocc bindings (GNU LGPL v3.0) for STEP file conversion, and Three.js / ws (MIT). See",
+  "ui.to.glb": "→ GLB",
+  "ui.tool.axis.status": "{tool} mode · {axis} axis · Esc to exit",
+  "ui.tool.choose.axis": "{tool} mode · choose X, Y, or Z",
   "ui.top": "Top",
   "ui.transferring.model.ellipsis": "Transferring model…",
   "ui.transform.axis": "Transform axis",
+  "ui.transform.cancelled": "{label} cancelled",
+  "ui.transform.complete": "{label} complete",
   "ui.transparent": "Transparent",
   "ui.undo": "Undo",
   "ui.undo.the.last.part.transform": "Undo the last part transform",
@@ -210,45 +259,10 @@ export const ENGLISH_UI = Object.freeze({
   "ui.wireframe": "Wireframe",
   "ui.x": "X",
   "ui.y": "Y",
+  "ui.you": "you",
   "ui.you.can.now.rotate.zoom.and.pan": "you can now rotate, zoom and pan",
   "ui.you.were.removed.from.the.session.by.the.host": "You were removed from the session by the host.",
   "ui.z": "Z",
-  "ui.host": "· host",
-  "ui.to.glb": "→ GLB",
-  "ui.pause": "⏸ Pause",
-  "ui.play": "▶ Play",
-  "ui.language": "Language",
-  "ui.section.status": "Section view · {axis} plane · {offset} · drag the handle",
-  "ui.measure.first.point.set": "First point set · click a second corner",
-  "ui.measure.click.corner": "Click a corner to measure",
-  "ui.select.part.to.edit.pivot": "Select a part to edit its pivot",
-  "ui.pivot.status": "Pivot mode · drag the centre handle · Esc to exit",
-  "ui.select.part.to.tool": "Select a part to {tool}",
-  "ui.tool.choose.axis": "{tool} mode · choose X, Y, or Z",
-  "ui.tool.axis.status": "{tool} mode · {axis} axis · Esc to exit",
-  "ui.part.selected.choose.tool": "Part selected · choose a tool",
-  "ui.select.part": "Select a part",
-  "ui.transform.complete": "{label} complete",
-  "ui.transform.cancelled": "{label} cancelled",
-  "ui.explode.scope.status": "Scope: {name} · {count} children · gap {gap} mm · dir {dir}",
-  "ui.measured": "Measured {value}",
-  "ui.rotation": "Rotation",
-  "ui.opaque": "Opaque",
-  "ui.assembly.tree.count": "Assembly tree ({count} parts)",
-  "ui.assembly": "Assembly",
-  "ui.no.measurements": "no measurements",
-  "ui.distance": "Distance: {value}",
-  "ui.server.unreachable": "server unreachable - open will not work",
-  "ui.checking.server.ellipsis": "checking server...",
-  "ui.you": "you",
-  "ui.not.connected.to.a.session": "Not connected to a session.",
-  "ui.reconnecting.attempt": "reconnecting… {attempt}/3",
-  "ui.connected": "connected",
-  "ui.disconnected": "disconnected",
-  "ui.conversion.status": "Conversion: {label}",
-  "ui.backend.native": "OpenCascade 7.9.3 · local Python",
-  "ui.backend.docker.fallback": "OpenCascade · Docker fallback",
-  "ui.backend.docker": "OpenCascade · Docker"
 });
 export const UI_CATALOG_META = Object.freeze({
   "ui.0.mm": {
@@ -299,6 +313,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.assembly": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/explode.js"
+    ],
+    "context": "",
+    "notes": "Fallback assembly name."
+  },
   "ui.assembly.tree": {
     "translatable": true,
     "sourceFiles": [
@@ -308,6 +330,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.assembly.tree.count": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/parts.js"
+    ],
+    "context": "",
+    "notes": "Dynamic assembly-tree title; preserve count placeholder."
   },
   "ui.axis": {
     "translatable": true,
@@ -321,6 +351,30 @@ export const UI_CATALOG_META = Object.freeze({
     "translatable": true,
     "sourceFiles": [
       "src/index.html"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.backend.docker": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.backend.docker.fallback": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.backend.native": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
     ],
     "context": "",
     "notes": ""
@@ -398,6 +452,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.capture": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Capture screenshot button"
+  },
   "ui.chan.lap.chi": {
     "translatable": false,
     "sourceFiles": [
@@ -414,6 +476,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.checking.server.ellipsis": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime session status string."
+  },
   "ui.clear": {
     "translatable": true,
     "sourceFiles": [
@@ -429,6 +499,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.clear.record": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Clear record button"
   },
   "ui.click.an.axis.arrow.to.set.the.move.direction": {
     "translatable": true,
@@ -487,6 +565,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.comment.ellipsis": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": ""
+  },
   "ui.comment.on.this.part.ellipsis": {
     "translatable": true,
     "sourceFiles": [
@@ -495,13 +581,13 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
-  "ui.comment.ellipsis": {
+  "ui.connected": {
     "translatable": true,
     "sourceFiles": [
-      "src/index.html"
+      "src/session.js"
     ],
     "context": "",
-    "notes": ""
+    "notes": "Runtime session status string."
   },
   "ui.connected.host": {
     "translatable": true,
@@ -553,6 +639,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.conversion.checking.backend.ellipsis": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": ""
+  },
   "ui.conversion.failed": {
     "translatable": true,
     "sourceFiles": [
@@ -578,13 +672,13 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
-  "ui.conversion.checking.backend.ellipsis": {
+  "ui.conversion.status": {
     "translatable": true,
     "sourceFiles": [
-      "src/index.html"
+      "src/session.js"
     ],
     "context": "",
-    "notes": ""
+    "notes": "Preserve {label} placeholder."
   },
   "ui.converted.glb.parse.failed": {
     "translatable": true,
@@ -610,6 +704,22 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.create.session.report": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Create report button"
+  },
+  "ui.create.session.report.html": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Report download button title"
+  },
   "ui.delete.preset": {
     "translatable": true,
     "sourceFiles": [
@@ -634,6 +744,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.disconnected": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime session status string."
+  },
   "ui.disconnected.reconnecting": {
     "translatable": true,
     "sourceFiles": [
@@ -641,6 +759,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.distance": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/measure.js"
+    ],
+    "context": "",
+    "notes": "Live measurement hover label."
   },
   "ui.download.the.current.view.as.a.png": {
     "translatable": true,
@@ -714,6 +840,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.explode.scope.status": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/explode.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
   },
   "ui.exploding": {
     "translatable": true,
@@ -875,6 +1009,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.host": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js:130"
+    ],
+    "context": "",
+    "notes": ""
+  },
   "ui.host.left.session.ended": {
     "translatable": true,
     "sourceFiles": [
@@ -1005,6 +1147,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.language": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Language selector label."
+  },
   "ui.lcchan.r2innov.com": {
     "translatable": false,
     "sourceFiles": [
@@ -1044,6 +1194,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.load.a.model.first": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session-record.js"
+    ],
+    "context": "",
+    "notes": "Toast when capturing with no model"
   },
   "ui.load.failed": {
     "translatable": true,
@@ -1102,6 +1260,22 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.measure.click.corner": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.measure.first.point.set": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
   "ui.measure.mode.click.a.first.corner.then.a.second.corner.press.esc.to.canc": {
     "translatable": true,
     "sourceFiles": [
@@ -1109,6 +1283,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.measured": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/measure.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
   },
   "ui.measurement.label": {
     "translatable": true,
@@ -1175,18 +1357,18 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
-  "ui.model.ready.to.share": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js:684"
-    ],
-    "context": "",
-    "notes": ""
-  },
   "ui.model.ready.full.control.restored": {
     "translatable": true,
     "sourceFiles": [
       "src/session.js:570"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.model.ready.to.share": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js:684"
     ],
     "context": "",
     "notes": ""
@@ -1297,6 +1479,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.no.measurements": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/measure.js"
+    ],
+    "context": "",
+    "notes": "Empty measurement list."
+  },
   "ui.no.model.loaded": {
     "translatable": true,
     "sourceFiles": [
@@ -1305,6 +1495,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.no.record.entries.yet": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Session record panel empty state"
+  },
   "ui.none": {
     "translatable": true,
     "sourceFiles": [
@@ -1312,6 +1510,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.not.connected.to.a.session": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime session status string."
   },
   "ui.not.in.a.session": {
     "translatable": true,
@@ -1323,6 +1529,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.nothing.recorded.for.this.session": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session-record.js"
+    ],
+    "context": "",
+    "notes": "Toast when report requested from an empty record"
+  },
   "ui.off": {
     "translatable": true,
     "sourceFiles": [
@@ -1330,6 +1544,14 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.opaque": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime transparency action label."
   },
   "ui.open.model.ellipsis": {
     "translatable": true,
@@ -1372,6 +1594,23 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.part.selected.choose.tool": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.pause": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/scene.js:372",
+      "src/scene.js:603"
+    ],
+    "context": "",
+    "notes": ""
+  },
   "ui.pivot": {
     "translatable": true,
     "sourceFiles": [
@@ -1380,10 +1619,28 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.pivot.status": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
   "ui.plane": {
     "translatable": true,
     "sourceFiles": [
       "src/index.html"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.play": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html",
+      "src/scene.js:372",
+      "src/scene.js:606"
     ],
     "context": "",
     "notes": ""
@@ -1419,6 +1676,38 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.reconnecting.attempt": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime reconnect status; preserve attempt placeholder."
+  },
+  "ui.record.measurements": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Session record panel group heading"
+  },
+  "ui.record.screenshots": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Session record panel group heading"
+  },
+  "ui.record.section.cuts": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Session record panel group heading"
   },
   "ui.redo": {
     "translatable": true,
@@ -1564,6 +1853,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.rotation": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime tool name."
+  },
   "ui.rotation.angle.degrees": {
     "translatable": true,
     "sourceFiles": [
@@ -1604,6 +1901,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.screenshot.saved.to.session.record": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session-record.js"
+    ],
+    "context": "",
+    "notes": "Toast after manual capture"
+  },
   "ui.second.point": {
     "translatable": true,
     "sourceFiles": [
@@ -1628,6 +1933,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.section.status": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
   "ui.section.view": {
     "translatable": true,
     "sourceFiles": [
@@ -1651,6 +1964,30 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.select.part": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.select.part.to.edit.pivot": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.select.part.to.tool": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
   },
   "ui.selected.part": {
     "translatable": true,
@@ -1693,6 +2030,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.server.unreachable": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime session status string."
+  },
   "ui.session.chat": {
     "translatable": true,
     "sourceFiles": [
@@ -1708,6 +2053,30 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.session.record.cleared": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session-record.js"
+    ],
+    "context": "",
+    "notes": "Toast after clearing the record"
+  },
+  "ui.session.record.window": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/index.html"
+    ],
+    "context": "",
+    "notes": "Floating window title"
+  },
+  "ui.session.report.downloaded": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session-record.js"
+    ],
+    "context": "",
+    "notes": "Toast after report download"
   },
   "ui.session.state.synchronized": {
     "translatable": true,
@@ -1815,6 +2184,30 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": "Long legal/help text; preserve or review separately from short UI labels."
   },
+  "ui.to.glb": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/server.js:171"
+    ],
+    "context": "",
+    "notes": ""
+  },
+  "ui.tool.axis.status": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.tool.choose.axis": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
   "ui.top": {
     "translatable": true,
     "sourceFiles": [
@@ -1839,6 +2232,22 @@ export const UI_CATALOG_META = Object.freeze({
     ],
     "context": "",
     "notes": ""
+  },
+  "ui.transform.cancelled": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
+  },
+  "ui.transform.complete": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/interaction.js"
+    ],
+    "context": "",
+    "notes": "Runtime status string; preserve placeholders exactly."
   },
   "ui.transparent": {
     "translatable": true,
@@ -1954,6 +2363,14 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
+  "ui.you": {
+    "translatable": true,
+    "sourceFiles": [
+      "src/session.js"
+    ],
+    "context": "",
+    "notes": "Runtime session status string."
+  },
   "ui.you.can.now.rotate.zoom.and.pan": {
     "translatable": true,
     "sourceFiles": [
@@ -1980,295 +2397,4 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": ""
   },
-  "ui.host": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js:130"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.to.glb": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/server.js:171"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.pause": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/scene.js:372",
-      "src/scene.js:603"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.play": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/index.html",
-      "src/scene.js:372",
-      "src/scene.js:606"
-    ],
-    "context": "",
-    "notes": ""
-  },
-  "ui.language": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/index.html"
-    ],
-    "context": "",
-    "notes": "Language selector label."
-  },
-  "ui.section.status": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.measure.first.point.set": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.measure.click.corner": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.select.part.to.edit.pivot": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.pivot.status": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.select.part.to.tool": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.tool.choose.axis": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.tool.axis.status": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.part.selected.choose.tool": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.select.part": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.transform.complete": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.transform.cancelled": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.explode.scope.status": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/explode.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.measured": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/measure.js"
-    ],
-    "context": "",
-    "notes": "Runtime status string; preserve placeholders exactly."
-  },
-  "ui.rotation": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime tool name."
-  },
-  "ui.opaque": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/interaction.js"
-    ],
-    "context": "",
-    "notes": "Runtime transparency action label."
-  },
-  "ui.assembly.tree.count": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/parts.js"
-    ],
-    "context": "",
-    "notes": "Dynamic assembly-tree title; preserve count placeholder."
-  },
-  "ui.assembly": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/explode.js"
-    ],
-    "context": "",
-    "notes": "Fallback assembly name."
-  },
-  "ui.no.measurements": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/measure.js"
-    ],
-    "context": "",
-    "notes": "Empty measurement list."
-  },
-  "ui.distance": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/measure.js"
-    ],
-    "context": "",
-    "notes": "Live measurement hover label."
-  },
-  "ui.server.unreachable": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.checking.server.ellipsis": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.you": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.not.connected.to.a.session": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.reconnecting.attempt": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime reconnect status; preserve attempt placeholder."
-  },
-  "ui.connected": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.disconnected": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "",
-    "notes": "Runtime session status string."
-  },
-  "ui.conversion.status": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "Dynamic backend status line",
-    "notes": "Preserve {label} placeholder."
-  },
-  "ui.backend.native": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "Native backend label",
-    "notes": ""
-  },
-  "ui.backend.docker.fallback": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "Docker fallback backend label",
-    "notes": ""
-  },
-  "ui.backend.docker": {
-    "translatable": true,
-    "sourceFiles": [
-      "src/session.js"
-    ],
-    "context": "Docker backend label",
-    "notes": ""
-  }
 });

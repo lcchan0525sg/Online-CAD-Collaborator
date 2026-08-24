@@ -7,6 +7,7 @@ import { t } from './ui-i18n.js';
 import { clearPartSelection, selectPart, partNameForKey } from './parts.js';
 import { isPickVisible, pickGizmoAxis, pickPartKey, setMoveAxis } from './move.js';
 import { xferToast } from './session.js';
+import { logMeasure } from './session-record.js';
 
 ctx.renderer.domElement.addEventListener('pointerup', (e) => {
   if (e.button !== 0 || !ctx.pickDown) return;
@@ -258,6 +259,7 @@ export function makeMeasureEntry(p1, p2, part1 = null, part2 = null) {
 
 export function addMeasurement(entry, broadcast) {
   ctx.measureList.push(entry);
+  try { logMeasure(entry); } catch {}
   renderMeasureList();
   rebuildDimensionLayer();
   if (broadcast) broadcastMeasureAdd(entry);
