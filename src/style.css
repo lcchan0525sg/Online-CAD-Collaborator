@@ -49,10 +49,10 @@ body {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--muted);
+  color: var(--accent);
   margin: 0 0 12px;
 }
-.section h2 button { all: unset; cursor: pointer; }
+.section h2 button { all: unset; cursor: pointer; color: inherit; }
 
 /* Section headings that carry a mouse-over (title) tooltip */
 .section h2[title] { cursor: help; }
@@ -79,7 +79,26 @@ body {
 .row.toggle { flex-wrap: wrap; justify-content: flex-start; gap: 6px 10px; }
 .toggle input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
 
-/* control rows (animation + lighting sliders) */
+.section-head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.section-head-row .btn { padding: 3px 8px; font-size: 11px; }
+
+.move-controls {
+  justify-content: flex-start;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+.move-controls .tlabel {
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.move-controls #move-axis { min-width: 20px; font-size: 11px; }
+.move-controls .btn { padding: 5px 7px; font-size: 12px; }
 .row { margin-bottom: 10px; }
 .row .tlabel { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .row select {
@@ -488,6 +507,7 @@ body {
     radial-gradient(120% 90% at 50% 20%, #232b3a 0%, #141822 55%, #0c0e13 100%);
 }
 #stage { position: absolute; inset: 0; }
+body[data-background-scheme="gray"] #viewport { background: radial-gradient(120% 90% at 50% 20%, #aeb7c2 0%, #7c858f 58%, #555d67 100%); }
 body[data-background-scheme="navy"] #viewport { background: radial-gradient(120% 90% at 50% 20%, #1c3855 0%, #0d1b2a 58%, #07111d 100%); }
 body[data-background-scheme="light"] #viewport { background: radial-gradient(120% 90% at 50% 20%, #ffffff 0%, #e7edf3 58%, #cbd5df 100%); }
 body[data-background-scheme="blueprint"] #viewport { background: radial-gradient(120% 90% at 50% 20%, #e8f6ff 0%, #b9dbef 58%, #8fb9d8 100%); }
@@ -733,6 +753,22 @@ body[data-background-scheme="blueprint"] #viewport { background: radial-gradient
   backdrop-filter: blur(4px);
 }
 #viewport .view-presets[hidden] { display: none; }
+#viewport .vp-language {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 5px;
+  font-size: 11px;
+  color: var(--muted, #9aa4b2);
+}
+#viewport .vp-language .ctl {
+  min-width: 112px;
+  max-width: 130px;
+  padding: 3px 5px;
+  font-size: 11px;
+}
 #viewport .vp-title {
   width: 100%;
   font-size: 11px;

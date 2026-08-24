@@ -21,6 +21,27 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.041] — 2026-08-24
+
+### Added
+
+- Added subtle modern gradient viewport backgrounds and a Gray background option.
+- Moved the Language selector to the top of the floating View panel.
+- Added a Section view heading above the section controls and an Explode view heading above the Explode slider.
+
+### Changed
+
+- Renamed the session action to `Create Online Meeting`, with updated Traditional and Simplified Chinese translations.
+- Applied accent coloring to sidebar section titles.
+- Compacted the Move controls so Undo, Redo and Reset stay on one row.
+- Moved Lighting Reset into the Lighting heading row.
+- Reduced and removed the obsolete `Exploding: —` sidebar status row.
+
+### Verified
+
+- Locale validation passes for zh-Hant and zh-Hans.
+- Layout checks pass at all supported viewport widths.
+
 ## [v1.04] — 2026-08-24
 
 ### Added

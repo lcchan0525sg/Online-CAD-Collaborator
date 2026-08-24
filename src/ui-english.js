@@ -53,7 +53,7 @@ export const ENGLISH_UI = Object.freeze({
   "ui.conversion.status": "Conversion: {label}",
   "ui.converted.glb.parse.failed": "converted GLB parse failed:",
   "ui.could.not.connect": "could not connect",
-  "ui.create.session": "Create session",
+  "ui.create.session": "Create Online Meeting",
   "ui.create.session.report": "Create session report",
   "ui.create.session.report.html": "Create session report (HTML)",
   "ui.delete.preset": "Delete preset",
@@ -72,7 +72,7 @@ export const ENGLISH_UI = Object.freeze({
   "ui.expand.assembly.tree": "Expand Assembly tree",
   "ui.explode": "Explode",
   "ui.explode.scope.status": "Scope: {name} · {count} children · gap {gap} mm · dir {dir}",
-  "ui.exploding": "Exploding: —",
+  "ui.explode.view": "Explode view",
   "ui.explosion.direction.mm.gap.works.along.an.axis": "Explosion direction (mm gap works along an axis)",
   "ui.export.png": "Export PNG",
   "ui.export.svg": "Export SVG",
@@ -849,13 +849,13 @@ export const UI_CATALOG_META = Object.freeze({
     "context": "",
     "notes": "Runtime status string; preserve placeholders exactly."
   },
-  "ui.exploding": {
+  "ui.explode.view": {
     "translatable": true,
     "sourceFiles": [
       "src/index.html"
     ],
     "context": "",
-    "notes": ""
+    "notes": "Explode section heading"
   },
   "ui.explosion.direction.mm.gap.works.along.an.axis": {
     "translatable": true,

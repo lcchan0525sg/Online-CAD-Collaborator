@@ -35,7 +35,7 @@
 
         <div id="session-controls">
           <div class="row toggle" style="align-items:center">
-            <button class="btn primary" id="btn-create-session" style="flex:1; margin:0">Create session</button>
+            <button class="btn primary" id="btn-create-session" data-ui="ui.create.session" style="flex:1; margin:0">Create Online Meeting</button>
           </div>
           <div class="actions" style="margin-top:10px">
             <input type="text" id="join-code" placeholder="session code" maxlength="12" autocomplete="off" spellcheck="false">
@@ -73,6 +73,7 @@
           <label class="tlabel">Background
             <select class="ctl" id="background-scheme" title="Viewport background colour scheme">
               <option value="graphite">Graphite</option>
+              <option value="gray">Gray</option>
               <option value="navy">Navy</option>
               <option value="light">Light CAD</option>
               <option value="blueprint">Blueprint</option>
@@ -101,7 +102,7 @@
       </section>
 
       <section class="section">
-        <h2>Lighting</h2>
+        <h2 class="section-head-row"><span>Lighting</span><button class="btn" id="light-reset" data-ui="ui.reset" data-ui-title="ui.reset.lighting" title="Reset lighting">Reset</button></h2>
         <div class="row">
           <label class="tlabel">Ambient
             <input class="ctl slider" type="range" id="light-ambient" min="0" max="2" step="0.05" value="0.9">
@@ -126,7 +127,7 @@
             <span id="light-front-val">1.0</span>
           </label>
         </div>
-        <button class="btn" id="light-reset">Reset lighting</button>
+
       </section>
 
       <section class="section collapsible-sec">
@@ -136,10 +137,10 @@
 
       <section class="section">
         <h2>MODEL CONTROL</h2>
-        <div class="row toggle" style="margin-bottom:6px; align-items:center">
-          <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move part</span></label>
+        <div class="row toggle move-controls" style="margin-bottom:6px; align-items:center">
+          <label class="tlabel"><input class="ctl" type="checkbox" id="move-on"><span>Move</span></label>
           <span id="move-axis" class="move-axis" title="press X / Y / Z to choose an axis, then drag to move">off</span>
-          <button class="btn" id="btn-move-undo" title="Undo the last part transform" style="margin-left:auto">Undo</button>
+          <button class="btn" id="btn-move-undo" title="Undo the last part transform">Undo</button>
           <button class="btn" id="btn-move-redo" title="Redo the last undone part transform">Redo</button>
           <button class="btn" id="btn-reset-pos" title="Reset all moved parts">Reset</button>
         </div>
@@ -149,6 +150,7 @@
           <button class="btn" id="btn-measure-clear" title="Clear all measurements" style="margin-left:auto">Clear</button>
         </div>
         <div id="measure-list" class="mats" style="margin-top:4px"></div>
+        <h2 data-ui="ui.section.view">Section view</h2>
         <div class="row toggle section-view-row" style="margin-bottom:6px; align-items:center">
           <label class="tlabel"><input class="ctl" type="checkbox" id="section-on"><span>Section view</span></label>
           <span id="section-offset-val" class="move-axis">0 mm</span>
@@ -171,6 +173,7 @@
           <button class="btn" id="section-export-svg" type="button" title="Export the current section cut as a 2D SVG drawing">Export SVG</button>
           <button class="btn" id="section-export-png" type="button" title="Export the current section cut as a 2D PNG drawing">Export PNG</button>
         </div>
+        <h2 data-ui="ui.explode.view">Explode view</h2>
         <div class="row toggle" style="margin-bottom:6px; align-items:center">
           <span class="tlabel explode-label">Explode</span>
           <input class="slider" type="range" id="explode-slider" min="0" max="500" value="0" step="1" style="flex:1; min-width:0; margin-left:8px">
@@ -186,9 +189,7 @@
             <option value="z">Z</option>
           </select>
         </div>
-        <div class="row" style="margin-bottom:8px">
-          <span id="explode-scope" class="explode-scope" title="Which assembly's children are being spread apart">Exploding: —</span>
-        </div>
+
         <div id="part-menu" class="part-menu" hidden>
           <button type="button" id="part-menu-hide">Hide part</button>
           <button type="button" id="part-menu-move">Move part</button>
@@ -212,15 +213,8 @@
 
       <section class="section">
         <h2>About</h2>
-        <div class="row language-row">
-          <label class="tlabel" for="ui-language"><span data-ui="ui.language">Language</span>
-            <select class="ctl" id="ui-language" aria-label="Language">
-              <option value="en">English</option>
-            </select>
-          </label>
-        </div>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v1.04 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v1.041 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -271,7 +265,12 @@
       </div>
 
       <!-- Preset views: floating panel, top-right of the viewport -->
-      <div id="view-presets" class="view-presets">
+        <div id="view-presets" class="view-presets">
+        <label class="vp-language" for="ui-language"><span data-ui="ui.language">Language</span>
+          <select class="ctl" id="ui-language" aria-label="Language">
+            <option value="en">English</option>
+          </select>
+        </label>
         <span class="vp-title">View</span>
         <button type="button" class="vp-btn" id="vp-fit" title="Fit model without changing the current view direction">Fit</button>
         <button type="button" class="vp-btn" data-view="iso" aria-pressed="false" title="Isometric">Iso</button>
