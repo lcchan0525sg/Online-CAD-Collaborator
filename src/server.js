@@ -439,7 +439,7 @@ wss.on('connection', (ws, req, url) => {
   let session = sessions.get(raw);
   if (!session) {
     if (!isNewHost) { ws.close(4000, 'unknown session'); return; }
-    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, transformResetVersion: 0, sectionPresets: null, corr: null, chat: [] };
+    session = { code: raw, model: null, members: new Map(), light: null, anim: null, measures: [], explode: 0, trans: {}, transforms: {}, transformResetVersion: 0, section: null, sectionRevision: 0, sectionWriter: null, sectionPresets: null, corr: null, chat: [] };
     sessions.set(raw, session);
     console.log(`[session ${raw}] created`);
   }
@@ -451,6 +451,7 @@ wss.on('connection', (ws, req, url) => {
   send(ws, {
     t: 'joined', id, session: session.code, isHost, roster: roster(session),
     model: session.model ? { filename: session.model.filename, kind: session.model.kind, note: session.model.note } : null,
+    sectionRevision: session.sectionRevision || 0,
   });
   // Late joiner: replay the current part-visibility state so they start in sync.
   if (session.partsState && Object.keys(session.partsState).length) {
@@ -466,7 +467,7 @@ wss.on('connection', (ws, req, url) => {
   // Late joiner: replay the committed measurements + explode state.
   if (session.measures && session.measures.length) send(ws, { t: 'measure-sync', measures: session.measures });
   if (session.explode) send(ws, { t: 'explode', ...session.explode });
-  if (session.section) send(ws, { t: 'section', s: session.section });
+  if (session.section) send(ws, { t: 'section', s: session.section, revision: session.sectionRevision || 0 });
   // Late joiner: replay named section-cut presets (was only in resync).
   if (Array.isArray(session.sectionPresets)) send(ws, { t: 'section-preset', presets: session.sectionPresets });
   // Late joiner: replay model corrections (units/scale/flip/rotate). Each client
@@ -595,13 +596,25 @@ wss.on('connection', (ws, req, url) => {
       };
       broadcast(session, { t: 'explode', ...session.explode }, id);
     } else if (msg.t === 'section' && msg.s && typeof msg.s === 'object') {
-      session.section = {
-        enabled: !!msg.s.enabled,
-        axis: ['x', 'y', 'z'].includes(msg.s.axis) ? msg.s.axis : 'x',
-        offset: Number.isFinite(Number(msg.s.offset)) ? Number(msg.s.offset) : 0,
-        reversed: !!msg.s.reversed,
-      };
-      broadcast(session, { t: 'section', s: session.section }, id);
+      const member = session.members.get(id);
+      const baseRevision = Number.isInteger(msg.baseRevision) ? msg.baseRevision : 0;
+      const currentRevision = session.sectionRevision || 0;
+      const conflict = baseRevision !== currentRevision;
+      // Host wins conflicts; otherwise the current authoritative server state
+      // wins and the stale sender is corrected.
+      if (conflict && !member?.isHost) {
+        send(ws, { t: 'section', s: session.section, revision: currentRevision });
+      } else {
+        session.section = {
+          enabled: !!msg.s.enabled,
+          axis: ['x', 'y', 'z'].includes(msg.s.axis) ? msg.s.axis : 'x',
+          offset: Number.isFinite(Number(msg.s.offset)) ? Number(msg.s.offset) : 0,
+          reversed: !!msg.s.reversed,
+        };
+        session.sectionRevision = currentRevision + 1;
+        session.sectionWriter = id;
+        broadcast(session, { t: 'section', s: session.section, revision: session.sectionRevision });
+      }
     } else if (msg.t === 'section-preset' && Array.isArray(msg.presets)) {
       // Named section cuts: store the full list for late joiners + relay.
       session.sectionPresets = msg.presets.map((p) => ({
@@ -630,7 +643,7 @@ wss.on('connection', (ws, req, url) => {
       if (session.anim) send(ws, { t: 'anim', s: session.anim });
       if (session.measures?.length) send(ws, { t: 'measure-sync', measures: session.measures });
       if (session.explode) send(ws, { t: 'explode', ...session.explode });
-      if (session.section) send(ws, { t: 'section', s: session.section });
+      if (session.section) send(ws, { t: 'section', s: session.section, revision: session.sectionRevision || 0 });
       if (Array.isArray(session.sectionPresets)) send(ws, { t: 'section-preset', presets: session.sectionPresets });
       if (session.corr) send(ws, { t: 'corr', s: session.corr });
       if (Object.keys(session.trans || {}).length) send(ws, { t: 'trans-sync', keys: Object.keys(session.trans).filter((k) => session.trans[k]) });

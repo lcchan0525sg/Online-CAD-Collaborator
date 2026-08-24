@@ -17,6 +17,7 @@ let reconnectCreate = false;
 let reconnectAttempts = 0;
 let reconnectTimer = null;
 let backendDetails = null;
+let sectionRevision = 0;
 
 export function requestSessionResync() {
   if (!ctx.session?.connected) { xferToast(translate('ui.join.a.session.to.resync')); return false; }
@@ -25,7 +26,7 @@ export function requestSessionResync() {
 
 export function broadcastSection(s = sectionState()) {
   if (!ctx.session?.connected) return;
-  try { ctx.session.ws.send(JSON.stringify({ t: 'section', s })); } catch {}
+  try { ctx.session.ws.send(JSON.stringify({ t: 'section', s, baseRevision: sectionRevision })); } catch {}
 }
 
 export function broadcastSectionPresets(presets = sectionPresetsState()) {
@@ -396,6 +397,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
 export async function onSessionMsg(msg) {
   switch (msg.t) {
     case 'joined':
+      sectionRevision = Number.isInteger(msg.sectionRevision) ? msg.sectionRevision : 0;
       ctx.session.id = msg.id;
       ctx.session.isHost = msg.isHost;
       ctx.session.connected = true;
@@ -532,6 +534,8 @@ export async function onSessionMsg(msg) {
       clearTransformHistory();
       break;
     case 'section':
+      if (Number.isInteger(msg.revision) && msg.revision <= sectionRevision) break;
+      if (Number.isInteger(msg.revision)) sectionRevision = msg.revision;
       ctx.applyingRemoteSection = true;
       try { applySectionState(msg.s || msg, false); } finally { ctx.applyingRemoteSection = false; }
       break;

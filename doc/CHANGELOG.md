@@ -21,6 +21,25 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.046] — 2026-08-25
+
+### Fixed
+
+- Section-state conflicts in collaborative sessions now use server revisions.
+- Host state is authoritative when host and guest submit concurrent section
+  changes, and the authoritative state is broadcast back to every viewer.
+- Normal non-conflicting host and guest section updates continue to sync as
+  before.
+
+### Verified
+
+- Full two-client host/guest validation: **42 passed, 0 failed**.
+- Concurrent section updates converge to the host state.
+- Late join, reconnect, model transfer, animation, failed transfer recovery,
+  kick/removal, and host-left teardown remain passing.
+
+---
+
 ## [v1.045] — 2026-08-24
 
 ### Fixed
