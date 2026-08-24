@@ -63,6 +63,23 @@ export function sendModelAck(note) {
   if (ctx.session?.ws?.readyState === 1) { try { ctx.session.ws.send(JSON.stringify({ t: 'model-ack', note })); } catch {} }
 }
 
+function invalidateRemoteModelState() {
+  // A load/fetch from the previous session may still resolve after a leave,
+  // kick, reconnect, or model switch. Invalidate it before clearing the view.
+  ctx.shareSeq++;
+  nextLoadGen();
+  ctx.pendingRemoteParts = [];
+  ctx.pendingRemoteTransKeys = [];
+  ctx.pendingRemoteTransforms = [];
+  ctx.pendingRemoteMeasures = [];
+  ctx.pendingRemoteSection = null;
+  ctx.pendingRemoteSectionPresets = null;
+  ctx.pendingRemoteAnim = null;
+  ctx.remoteCamValid = false;
+  ctx.ackedSend = new Set();
+  ctx.pendingSend = new Set();
+}
+
 export function setReconnectVisible(show) {
   const button = document.getElementById('btn-reconnect-session');
   if (button) button.hidden = !show;
@@ -312,8 +329,7 @@ export function endSessionForGuest({ status = translate('ui.not.in.a.session'), 
   ctx.currentModel = null;
   if (ctx.sendGuard) clearTimeout(ctx.sendGuard);
   xferAbort();
-  nextLoadGen();
-  ctx.pendingRemoteSectionPresets = null;
+  invalidateRemoteModelState();
   clearModel();
   if (typeof resetChat === 'function') { resetChat(); if (ctx.chatWindowEl) ctx.chatWindowEl.hidden = true; }
   if (info) { const infoEl = document.getElementById('info'); if (infoEl) infoEl.textContent = info; }
@@ -342,7 +358,12 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
   const ws = new WebSocket(`${proto}://${location.host}/ws?${q}`);
   ctx.session = { code, ws, id: null, isHost: false, connected: false, name: ctx.userName, reconnect };
   setSessionStatus(translate('ui.connecting.ellipsis'));
-  ws.onmessage = (ev) => { let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m); };
+  ws.onmessage = (ev) => {
+    // A replaced connection can still have queued messages. Never let an old
+    // session's model/state message run against the new ctx.session.
+    if (!ctx.session || ctx.session.ws !== ws) return;
+    let m; try { m = JSON.parse(ev.data); } catch { return; } onSessionMsg(m);
+  };
   ws.onclose = (ev) => {
     // A later connectTo() may have replaced this connection — if so, this
     // stale close handler must not clobber the new session's state.
@@ -352,15 +373,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
     ctx.session = null;
     if (ev.code === 4001) {
       setSessionStatus(translate('ui.removed.by.host'));
-      showSessionUI(false);
-      ctx.roster = []; renderRoster();
-      // The viewer was removed — clear the model from their screen.
-      clearModel();
-      clearPartsTree();
-      clearPartSelection();
-      const infoEl = document.getElementById('info');
-      if (infoEl) infoEl.textContent = translate('ui.you.were.removed.from.the.session.by.the.host');
-      xferToast(translate('ui.you.were.removed.from.the.session.by.the.host'));
+      endSessionForGuest({ status: translate('ui.removed.by.host'), info: translate('ui.you.were.removed.from.the.session.by.the.host'), toast: translate('ui.you.were.removed.from.the.session.by.the.host') });
     } else if (ev.code === 4002) {
       // Fallback: the server told us the host left, but the 'host-left' message
       // was never delivered before the socket closed. End the session the same way.
@@ -377,6 +390,7 @@ export function connectTo(code, { create = false, reconnect = false } = {}) {
     } else if (ctx.sessionStatusEl && ctx.sessionStatusEl.textContent === translate('ui.connecting.ellipsis')) {
       setSessionStatus(translate('ui.could.not.connect'));
     }
+    invalidateRemoteModelState();
     // A transfer can't finish without a session — clear it and restore control.
     ctx.pendingSend.clear();
     ctx.currentModel = null;
@@ -404,10 +418,18 @@ export async function onSessionMsg(msg) {
       // Host opened a model BEFORE the session existed (or while connecting):
       // upload + offer it now so guests get it, without re-opening the file.
       if (msg.isHost && ctx.lastLocalModel) {
+        const hostSession = ctx.session;
+        const localModel = ctx.lastLocalModel;
+        const localModelGen = ctx.modelGen;
+        const uploadSeq = ctx.shareSeq + 1;
         // The upload resets model-specific server state when it completes. Wait
         // for that reset before publishing transforms/visibility/transparency,
         // otherwise those messages can arrive first and be erased by the upload.
-        await shareBuffer(ctx.lastLocalModel.buf, ctx.lastLocalModel.filename, ctx.lastLocalModel.kind);
+        const uploaded = await shareBuffer(localModel.buf, localModel.filename, localModel.kind);
+        // Never publish state after a failed/stale upload. The user may have
+        // left/rejoined or opened another model while the POST was pending.
+        if (!uploaded || ctx.session !== hostSession || ctx.modelGen !== localModelGen
+          || ctx.lastLocalModel !== localModel || ctx.shareSeq !== uploadSeq) return;
         const sent = new Set();
         for (const entry of ctx.transformHistory) {
           const key = entry.path.join('.');
@@ -667,12 +689,14 @@ export function xferToast(msg) {
 
 export async function loadSharedModel(m) {
   if (!ctx.session) return;
+  const loadSession = ctx.session;
   const gen = nextLoadGen();   // shared model supersedes any in-flight local load
+  const isCurrentLoad = () => isCurrentGen(gen) && ctx.session === loadSession && loadSession.connected;
   const infoEl = document.getElementById('info');
   const label = m.note || m.filename || 'model';
   xferBegin(translate('ui.receiving.model.ellipsis'), label);
   try {
-    const res = await fetch(`/sessions/${ctx.session.code}/model?ts=${Date.now()}`);
+    const res = await fetch(`/sessions/${loadSession.code}/model?ts=${Date.now()}`);
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const total = parseInt(res.headers.get('content-length') || '0', 10) || 0;
     xferProgress(0, total);
@@ -682,26 +706,27 @@ export async function loadSharedModel(m) {
     // load continues independently. Sending the ACK here removes the timing
     // dependency on model size / client speed, so a large model can't make the
     // host's 30s sendGuard fire early.
+    if (!isCurrentLoad()) return;
     sendModelAck(label);
 
     ctx.loader.parse(buf.buffer, '', (gltf) => {
-      if (!isCurrentGen(gen)) return;   // superseded — the newer load owns the UI
+      if (!isCurrentLoad()) return;   // superseded — the newer load owns the UI
       try {
         loadFromGltf(gltf);
         infoEl.textContent = `shared: ${label}\n` + infoEl.textContent;
         xferDone(translate('ui.model.received'), translate('ui.you.can.now.rotate.zoom.and.pan'));
       } catch (err) {
-        if (!isCurrentGen(gen)) return;
+        if (!isCurrentLoad()) return;
         infoEl.textContent = translate('ui.shared.model.load.error') + ' ' + (err?.message ?? err);
         xferError(translate('ui.shared.model.load.error') + ' ' + (err?.message ?? err));
       }
     }, (e) => {
-      if (!isCurrentGen(gen)) return;
+      if (!isCurrentLoad()) return;
       infoEl.textContent = translate('ui.shared.model.load.failed') + ' ' + e.message;
       xferError(e.message);
     });
   } catch (e) {
-    if (!isCurrentGen(gen)) return;
+    if (!isCurrentLoad()) return;
     infoEl.textContent = translate('ui.failed.to.load.shared.model') + ' ' + e.message;
     xferError(e.message);
     // No ACK here: if the fetch/stream failed the model never arrived, so the
@@ -740,6 +765,15 @@ export function sendModelToPeers(m, ids) {
 
 export async function shareBuffer(buf, filename, kind) {
   if (!ctx.session || !ctx.session.connected) return;
+  const uploadSession = ctx.session;
+  const uploadModel = ctx.lastLocalModel;
+  const uploadModelGen = ctx.modelGen;
+  const uploadSeq = ++ctx.shareSeq;
+  const isCurrentUpload = () => ctx.session === uploadSession
+    && uploadSession.connected
+    && ctx.modelGen === uploadModelGen
+    && ctx.shareSeq === uploadSeq
+    && (!uploadModel || ctx.lastLocalModel === uploadModel);
   // New model share: reset the ACK tracking. ACKs that arrive during the upload
   // POST below (a fast guest can ACK before the host's POST returns) are
   // captured in ackedSend and honored by sendModelToPeers.
@@ -749,22 +783,24 @@ export async function shareBuffer(buf, filename, kind) {
   const verb = kind === 'glb' ? 'sharing' : 'converting + sharing';
   infoEl.textContent = `${verb} ${filename} to the session…`;
   try {
-    const res = await fetch(`/sessions/${ctx.session.code}/model`, {
+    const res = await fetch(`/sessions/${uploadSession.code}/model`, {
       method: 'POST',
       body: buf,
-      headers: { 'x-filename': filename, 'x-kind': kind, 'x-uploader-id': ctx.session.id || '' },
+      headers: { 'x-filename': filename, 'x-kind': kind, 'x-uploader-id': uploadSession.id || '' },
     });
     if (!res.ok) {
       const errText = await res.text();
       throw new Error(`HTTP ${res.status}\n${errText.slice(-400)}`);
     }
     const j = await res.json().catch(() => ({}));
+    if (!isCurrentUpload()) return null;
     const note = j.note || filename;
     infoEl.textContent = `shared ${note} · ${ctx.roster.length} viewer(s)\n` + infoEl.textContent;
     sendModelToPeers({ buf, filename, kind, note });
     return j;
   } catch (e) {
     console.error(e);
+    if (!isCurrentUpload()) return null;
     infoEl.textContent = translate('ui.share.failed') + '\n' + (e.message ?? e);
     xferError(e.message);
     return null;

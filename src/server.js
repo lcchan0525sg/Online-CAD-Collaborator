@@ -525,7 +525,10 @@ wss.on('connection', (ws, req, url) => {
   if (session.corr) send(ws, { t: 'corr', s: session.corr });
   // Late joiner: replay part transparency state (key -> transparent).
   const transKeys = Object.keys(session.trans || {}).filter((k) => session.trans[k]);
-  if (session.trans) send(ws, { t: 'trans-sync', keys: transKeys });
+  // Do not emit an empty snapshot for a brand-new session. During a host's
+  // pre-session upload that empty replay can arrive before the host publishes
+  // its local transparency and clear the host's state before it is stored.
+  if (Object.keys(session.trans || {}).length) send(ws, { t: 'trans-sync', keys: transKeys });
   // Late joiner: replay the current part transforms, including custom pivots.
   for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
   // Late joiner: replay the chat history.
@@ -676,7 +679,7 @@ wss.on('connection', (ws, req, url) => {
       if (session.section) send(ws, { t: 'section', s: session.section });
       if (Array.isArray(session.sectionPresets)) send(ws, { t: 'section-preset', presets: session.sectionPresets });
       if (session.corr) send(ws, { t: 'corr', s: session.corr });
-      if (session.trans) send(ws, { t: 'trans-sync', keys: Object.keys(session.trans).filter((k) => session.trans[k]) });
+      if (Object.keys(session.trans || {}).length) send(ws, { t: 'trans-sync', keys: Object.keys(session.trans).filter((k) => session.trans[k]) });
       for (const transform of Object.values(session.transforms || {})) send(ws, { t: 'transform', ...transform });
       if (session.chat?.length) send(ws, { t: 'chat-sync', history: session.chat });
       send(ws, { t: 'resync-done' });
@@ -783,6 +786,7 @@ async function handleSessionModelUpload(req, res, session) {
     const note = kind === 'glb' ? filename : `${filename} (${labelFromKind(kind)})`;
     session.model = { buf: glb, filename, kind, note, ts: Date.now() };
     session.partsState = {};   // part paths are model-specific — reset on new model
+    session.trans = {};        // transparency paths are model-specific too
     console.log(`[session ${session.code}] model set: ${note} (${glb.length} B GLB), members=${session.members.size}`);
     // Tell every OTHER member to load the shared model. The uploader already has
     // it (they just uploaded it / loaded it locally), so skip them — that keeps

@@ -450,7 +450,7 @@ export function loadFile(file, afterLoad) {
 export async function importStep(file) {
   const infoEl = document.getElementById('info');
   const gen = nextLoadGen();
-  const inSession = !!(ctx.session && ctx.session.connected);
+  const uploadSession = ctx.session;
   const isStl = /\.stl$/i.test(file.name);
   const backendLabel = ctx.backendStatusEl?.dataset.backendLabel || 'OpenCascade kernel · server backend';
   const backendTitle = isStl
@@ -506,7 +506,7 @@ export async function importStep(file) {
       // In a session the model is also pushed to the guests once the local
       // parse has landed — share the converted GLB and hold the overlay until
       // every guest ACKs it. (buf is already GLB here, so kind is 'glb'.)
-      if (inSession && ctx.session) {
+      if (uploadSession && ctx.session === uploadSession && ctx.session.connected && isCurrentGen(gen)) {
         shareBuffer(buf, file.name, 'glb');
       } else {
         xferDone();

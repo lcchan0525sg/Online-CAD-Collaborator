@@ -128,6 +128,8 @@ let lastLocalModel = null;   // { buf, filename, kind }
 
 let ackedSend = new Set();   // guest ids that ACKed the current shared model
 
+let shareSeq = 0;            // invalidates stale upload continuations
+
 const sessionStatusEl = document.getElementById('session-status');
 
 const sessionCodeEl = document.getElementById('session-code');
@@ -466,6 +468,7 @@ export const ctx = {
   currentModel,
   lastLocalModel,
   ackedSend,
+  shareSeq,
   sessionStatusEl,
   sessionCodeEl,
   rosterEl,
