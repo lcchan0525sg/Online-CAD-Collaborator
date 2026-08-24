@@ -19,7 +19,9 @@ const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, 'dist');
 const APP = join(DIST, 'cad-viewer-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
-const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON || '';
+const DEFAULT_NATIVE_PYTHON = 'C:\\Users\\chan_\\venvs\\cad-native\\Scripts\\python.exe';
+const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON
+  || (existsSync(DEFAULT_NATIVE_PYTHON) ? DEFAULT_NATIVE_PYTHON : '');
 const LANGUAGE_SOURCE = process.env.CAD_LANGUAGE_SOURCE || '';
 const LANGUAGE_LOCALES = ['zh-Hant', 'zh-Hans'];
 const ALLOW_UNREVIEWED_LANGUAGES = process.env.CAD_ALLOW_UNREVIEWED_LANGUAGES === '1';
@@ -192,7 +194,7 @@ function buildFrom(src, version, zipName) {
     'set "PORT=8088"',
     'if not "%~1"=="" set "PORT=%~1"',
     'if exist "port.txt" set /p PORT=<port.txt',
-    'if not defined CAD_PYTHON if exist "python\\python.exe" set "CAD_PYTHON=%~dp0python\\python.exe"',
+    'if exist "python\\python.exe" set "CAD_PYTHON=%~dp0python\\python.exe"',
     '',
     'echo Starting CAD Viewer on port %PORT% ...',
     'if defined CAD_PYTHON echo CAD backend: native OpenCascade ^(%CAD_PYTHON%^)',
@@ -209,7 +211,7 @@ function buildFrom(src, version, zipName) {
     'cd "$(dirname "$0")"',
     'PORT="${1:-8088}"',
     '[ -f port.txt ] && PORT=$(head -1 port.txt)',
-    '[ -z "${CAD_PYTHON:-}" ] && [ -f python/python.exe ] && CAD_PYTHON="$PWD/python/python.exe"',
+    '[ -f python/python.exe ] && CAD_PYTHON="$PWD/python/python.exe"',
     'export CAD_PYTHON',
     'echo "Starting CAD Viewer on port $PORT ..."',
     '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',

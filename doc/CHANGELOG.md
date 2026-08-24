@@ -21,6 +21,24 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.044] — 2026-08-24
+
+### Fixed
+
+- Portable builds now automatically bundle the verified native Python/OCP
+  runtime when available.
+- Portable Windows and Unix launchers always prefer the bundled `CAD_PYTHON`
+  instead of an incompatible machine-level override.
+- Rebuilt the portable archive with the native runtime included.
+
+### Verified
+
+- Portable server starts from the assembled folder using the bundled native
+  OpenCascade runtime.
+- Native health check reports `backend=native`.
+
+---
+
 ## [v1.043] — 2026-08-24
 
 ### Added
