@@ -264,7 +264,6 @@ document.getElementById('part-comment-cancel')?.addEventListener('click', () => 
   const box = partCommentBox();
   if (box) box.hidden = true;
 });
-partCommentInput()?.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitPartComment(); } });
 
 export function captureMeshBases(root) {
   ctx.meshBase.clear();

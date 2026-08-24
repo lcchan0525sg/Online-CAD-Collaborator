@@ -52,8 +52,10 @@
             <a id="session-link" class="session-link" href="#" target="_blank" rel="noopener"></a>
           </div>
           <div id="roster" class="mats" style="margin-top:8px"></div>
-          <button class="btn" id="btn-chat" style="margin-top:10px; width:100%">Chat</button>
-          <button class="btn" id="btn-record" style="margin-top:10px; width:100%">Session record</button>
+          <div class="session-action-row">
+            <button class="btn session-action" id="btn-chat">💬 Open chat</button>
+            <button class="btn" id="btn-record">Session record</button>
+          </div>
           <button class="btn" id="btn-resync-session" style="margin-top:10px">Resync session</button>
           <button class="btn" id="btn-reconnect-session" style="margin-top:10px" hidden>Reconnect</button>
           <button class="btn" id="btn-leave-session" style="margin-top:10px">Leave session</button>
@@ -195,7 +197,7 @@
           <button type="button" id="part-menu-only">Show me only</button>
           <button type="button" id="part-menu-comment">Comment…</button>
           <div id="part-comment-box" class="part-comment-box" hidden>
-            <input type="text" id="part-comment-input" placeholder="Comment on this part…" maxlength="300" autocomplete="off" spellcheck="false">
+            <textarea id="part-comment-input" placeholder="Comment on this part…" maxlength="300" autocomplete="off" spellcheck="false" rows="3"></textarea>
             <div class="pc-actions">
               <button type="button" id="part-comment-send">Send</button>
               <button type="button" id="part-comment-cancel" class="pc-cancel">Cancel</button>
@@ -212,7 +214,7 @@
       <section class="section">
         <h2>About</h2>
         <div class="about">
-          <p><strong>CAD Viewer</strong> v1.042 — real-time collaborative viewing of CAD geometry.</p>
+          <p><strong>CAD Viewer</strong> v1.043 — real-time collaborative viewing of CAD geometry.</p>
           <p>Developer: <strong>Chan Lap Chi</strong></p>
           <p>Email: <a href="mailto:lcchan@r2innov.com">lcchan@r2innov.com</a></p>
           <p><a href="/doc/USER-MANUAL.html" target="_blank" rel="noopener">User Manual (opens in a new window)</a></p>
@@ -278,7 +280,7 @@
         <button type="button" class="vp-btn" data-view="right" title="Right">Right</button>
         <button type="button" class="vp-btn" data-view="top" title="Top">Top</button>
         <button type="button" class="vp-btn" data-view="bottom" title="Bottom">Bottom</button>
-        <button type="button" class="vp-btn" id="vp-snapshot" title="Download the current view as a PNG">📷</button>
+        <button type="button" class="vp-btn vp-snapshot" id="vp-snapshot" title="Capture the current view as a PNG" aria-label="Capture the current view as a PNG">📷 Capture</button>
       </div>
 
       <!-- Floating Model-corrections panel: Units / Scale / Flip / Rotate.
@@ -379,7 +381,8 @@
           </span>
         </div>
         <div class="record-toolbar">
-          <button class="btn" id="btn-capture">📷 Capture</button>
+          <button class="btn primary" id="btn-capture">📷 Capture screenshot</button>
+          <button class="btn record-report-btn" id="btn-report-toolbar">⇩ Download report</button>
         </div>
         <div id="record-list" class="record-list"></div>
         <div class="record-foot">

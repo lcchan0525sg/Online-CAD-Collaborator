@@ -21,6 +21,30 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.043] — 2026-08-24
+
+### Added
+
+- Added clearer, uniform floating View controls with a prominent Capture button.
+- Added clearer Open chat and Session Record actions in a shared sidebar row.
+- Added multi-line part comments; Enter inserts a newline and Send submits.
+
+### Fixed
+
+- Save cut now preserves both the viewport capture and the section profile image,
+  including in the HTML report.
+- Compressed section-profile images and protected the newest viewport image from
+  localStorage quota cleanup.
+- Session Record position now follows the actual floating View panel height.
+- Capture and report actions are more visible and clearly labeled.
+
+### Verified
+
+- Save cut stores both images and embeds both in the report.
+- Screenshot deletion, layout, and locale checks remain green.
+
+---
+
 ## [v1.042] — 2026-08-24
 
 ### Changed

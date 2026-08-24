@@ -55,12 +55,18 @@ function save() {
   try {
     localStorage.setItem(key, JSON.stringify(record));
   } catch {
-    // Quota exceeded: drop the oldest screenshot image and retry once.
-    const entry = record.screenshots.find((s) => s.image);
-    if (entry) {
-      entry.image = null;
-      try { localStorage.setItem(key, JSON.stringify(record)); } catch {}
-    }
+    // Quota exceeded: first discard the oldest profile drawing, then retry.
+    const profileEntry = record.screenshots.find((s) => s.profileImage);
+    if (profileEntry) profileEntry.profileImage = null;
+    try {
+      localStorage.setItem(key, JSON.stringify(record));
+      return;
+    } catch {}
+    // Last resort: discard an older viewport image, preserving the newest
+    // capture so Save cut still retains the screen view whenever possible.
+    const imageEntry = record.screenshots.find((s, i) => s.image && i < record.screenshots.length - 1);
+    if (imageEntry) imageEntry.image = null;
+    try { localStorage.setItem(key, JSON.stringify(record)); } catch {}
   }
 }
 
@@ -117,6 +123,7 @@ async function captureImage({ waitFrame = false } = {}) {
   // tick as a section change, so it must wait for the next rendered frame or
   // it grabs the stale pre-section view. Manual captures read immediately.
   if (waitFrame) await nextFrame();
+  ctx.renderer.render(ctx.scene, ctx.camera);
   const png = ctx.renderer.domElement.toDataURL('image/png');
   const jpeg = await downscale(png, 1280, 0.85);
   return jpeg.length <= MAX_IMAGE_CHARS ? jpeg : await downscale(jpeg, 900, 0.75);
@@ -127,6 +134,9 @@ export async function captureScreenshot({ auto = false, cutName = null, cutProfi
   if (!ctx.renderer || !ctx.model) { xferToast(t('ui.load.a.model.first')); return null; }
   refreshMeta();
   const image = await captureImage({ waitFrame });
+  const storedProfileImage = profileImage
+    ? await downscale(profileImage, 1200, 0.82)
+    : null;
   const entry = {
     id: nextId('shot'), ts: Date.now(), image, auto: !!auto,
     cutName: cutName || null,
@@ -136,7 +146,7 @@ export async function captureScreenshot({ auto = false, cutName = null, cutProfi
       offset: Number(cutProfile.offset) || 0,
       reversed: !!cutProfile.reversed,
     } : null,
-    profileImage: profileImage || null,
+    profileImage: storedProfileImage,
   };
   record.screenshots.push(entry);
   while (record.screenshots.length > MAX_SCREENSHOTS) record.screenshots.shift();
@@ -270,8 +280,8 @@ function renderRecordPanel() {
   if (record.screenshots.length) {
     const shots = [...record.screenshots].reverse().map((s) => `
       <div class="rec-shot" data-shot-id="${esc(s.id)}">
-        ${s.image ? `<img src="${s.image}" alt="capture">` : '<div class="rec-shot-missing"></div>'}
-        ${s.profileImage ? `<img class="rec-profile" src="${s.profileImage}" alt="section cut profile">` : ''}
+        ${s.image ? `<span class="rec-image-label">Viewport capture</span><img src="${s.image}" alt="capture">` : '<div class="rec-shot-missing"></div>'}
+        ${s.profileImage ? `<span class="rec-image-label">Section profile</span><img class="rec-profile" src="${s.profileImage}" alt="section cut profile">` : ''}
         <button type="button" class="rec-shot-delete" data-shot-id="${esc(s.id)}" title="Delete captured picture" aria-label="Delete captured picture">×</button>
         <span class="cm-time">${fmtClock(s.ts)}${s.auto ? ' · A' : ''}${s.cutName ? ` · ✂ ${esc(s.cutName)}` : ''}</span>
       </div>`).join('');
@@ -296,7 +306,10 @@ export function toggleRecordPanel(show) {
   if (!win) return;
   const target = typeof show === 'boolean' ? show : win.hidden;
   win.hidden = !target;
-  if (target) renderRecordPanel();
+  if (target) {
+    renderRecordPanel();
+    requestAnimationFrame(updateRecordPosition);
+  }
 }
 
 export function toggleRecordCollapsed() {
@@ -317,12 +330,22 @@ export function toggleRecordCollapsed() {
 function updateRecordPosition() {
   const win = document.getElementById('record-window');
   if (!win) return;
+  const view = document.getElementById('view-presets');
+  if (view && !view.hidden && !win.hidden) {
+    const bottom = Math.ceil(view.getBoundingClientRect().bottom);
+    win.style.top = `${bottom + 12}px`;
+    win.style.bottom = 'auto';
+  }
   const chatOpen = ctx.chatWindowEl && !ctx.chatWindowEl.hidden;
   win.classList.toggle('above-chat', chatOpen);
 }
 
 if (typeof MutationObserver !== 'undefined' && ctx.chatWindowEl) {
   new MutationObserver(updateRecordPosition).observe(ctx.chatWindowEl, { attributes: true, attributeFilter: ['hidden'] });
+}
+const viewPresetsEl = document.getElementById('view-presets');
+if (typeof ResizeObserver !== 'undefined' && viewPresetsEl) {
+  new ResizeObserver(updateRecordPosition).observe(viewPresetsEl);
 }
 window.addEventListener('resize', updateRecordPosition);
 
@@ -347,8 +370,8 @@ export function buildReportHtml() {
   const shotIndex = new Map(record.screenshots.map((s, i) => [s.id, i + 1]));
   const shots = record.screenshots.map((s, i) => `
     <figure id="shot-${esc(s.id)}">
-      ${s.image ? `<img src="${s.image}" alt="capture ${i + 1}">` : '<div class="missing">image not retained</div>'}
-      ${s.profileImage ? `<img class="profile-image" src="${s.profileImage}" alt="section cut profile ${i + 1}">` : ''}
+      ${s.image ? `<div class="report-image-label">Viewport capture</div><img src="${s.image}" alt="capture ${i + 1}">` : '<div class="missing">image not retained</div>'}
+      ${s.profileImage ? `<div class="report-image-label">Section profile</div><img class="profile-image" src="${s.profileImage}" alt="section cut profile ${i + 1}">` : ''}
       <figcaption>#${i + 1} · ${new Date(s.ts).toLocaleString()}${s.auto ? ' · auto' : ''}${s.cutName ? ` · ✂ ${esc(s.cutName)}` : ''}${s.cutProfile ? ` · ${esc(s.cutProfile.axis.toUpperCase())} plane · ${s.cutProfile.offset} mm${s.cutProfile.reversed ? ' · reversed' : ''}` : ''}</figcaption>
     </figure>`).join('');
   const secRows = record.sections.map((s) => {
@@ -382,6 +405,7 @@ export function buildReportHtml() {
   th { background: #eef2f8; }
   tr.sys td { color: #7a8494; font-style: italic; }
   figure { display: inline-block; margin: 8px; text-align: center; }
+  .report-image-label { font-size: 10px; font-weight: 600; color: #5a6472; text-transform: uppercase; letter-spacing: .35px; text-align: left; margin: 3px 0; }
   figure img { max-width: 380px; border: 1px solid #ccd4e0; border-radius: 4px; display: block; margin-bottom: 5px; }
   figure img.profile-image { background: #fff; }
   figcaption { font-size: 11px; color: #5a6472; margin-top: 3px; }
@@ -443,6 +467,7 @@ document.getElementById('btn-record-collapse')?.addEventListener('click', () => 
 document.getElementById('btn-record-close')?.addEventListener('click', () => toggleRecordPanel(false));
 document.getElementById('btn-capture')?.addEventListener('click', () => { captureScreenshot(); });
 document.getElementById('btn-report')?.addEventListener('click', () => { downloadReport(); });
+document.getElementById('btn-report-toolbar')?.addEventListener('click', () => { downloadReport(); });
 document.getElementById('btn-record-clear')?.addEventListener('click', () => { clearRecord(); });
 document.getElementById('record-list')?.addEventListener('click', (event) => {
   const button = event.target.closest('.rec-shot-delete');
