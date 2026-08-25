@@ -613,7 +613,13 @@ wss.on('connection', (ws, req, url) => {
         };
         session.sectionRevision = currentRevision + 1;
         session.sectionWriter = id;
-        broadcast(session, { t: 'section', s: session.section, revision: session.sectionRevision });
+        // Echo the authoritative revision to the writer as well as the other
+        // members. The client uses this revision for its next baseRevision;
+        // excluding the writer leaves it on the old revision, so a guest that
+        // turns section view off immediately after enabling it is treated as
+        // stale and receives the enabled state back.
+        broadcast(session, { t: 'section', s: session.section, revision: session.sectionRevision }, id);
+        send(ws, { t: 'section', s: session.section, revision: session.sectionRevision });
       }
     } else if (msg.t === 'section-preset' && Array.isArray(msg.presets)) {
       // Named section cuts: store the full list for late joiners + relay.

@@ -21,6 +21,23 @@ versioning follows `v0.x`.
 
 ---
 
+## [v1.047] — 2026-08-25
+
+### Fixed
+
+- Section View now stays off after a guest turns it off and then uses the
+  Move tool. The server echoes the authoritative section revision back to the
+  viewer that made the change, preventing its next update from being rejected
+  as stale and restoring the previous enabled state.
+
+### Verified
+
+- Two-client WebSocket regression: Section View enabled and disabled in
+  sequence with revisions `1` and `2`, with no duplicate update messages.
+- JavaScript syntax checks and `git diff --check` pass.
+
+---
+
 ## [v1.046] — 2026-08-25
 
 ### Fixed
