@@ -17,6 +17,8 @@ A browser-based, real-time collaborative viewer for CAD geometry. Load GLB/GLTF 
 
 ## Quick start: portable Windows ZIP
 
+User manuals: [English](doc/USER-MANUAL.md) · [简体中文](doc/USER-MANUAL.zh-CN.md).
+
 1. [Download the portable ZIP (v1.047)](https://github.com/lcchan0525sg/Online-CAD-Collaborator/releases/download/v1.047/cad-viewer-portable-v1.047.zip), or visit [Releases](https://github.com/lcchan0525sg/Online-CAD-Collaborator/releases) for available versions.
 2. Extract the ZIP to a folder on your computer.
 3. Open the extracted folder and double-click `start.bat` to start the application.

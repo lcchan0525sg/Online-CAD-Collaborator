@@ -1,5 +1,7 @@
 # Online CAD Collaborator — User Manual
 
+[简体中文用户手册](USER-MANUAL.zh-CN.md)
+
 **Version:** v1.03 · **URL:** http://localhost:8088/
 
 ## Table of Contents
