@@ -1,5 +1,7 @@
 # Online CAD Collaborator — 简体中文用户手册
 
+[下载中文 PDF 用户手册](USER-MANUAL.zh-CN.pdf)
+
 **文档来源：** [英文用户手册](USER-MANUAL.md)（标注版本 v1.03）。本中文版补充了 v1.047 便携版下载入口，并按当前启动脚本说明端口设置。截图沿用英文版，界面位置可能随版本变化。
 
 **访问地址：** <http://localhost:8088/> · **便携版：** [下载 v1.047 ZIP](https://github.com/lcchan0525sg/Online-CAD-Collaborator/releases/download/v1.047/cad-viewer-portable-v1.047.zip)
