@@ -4,6 +4,7 @@ A browser-based, real-time collaborative viewer for CAD geometry. Load GLB/GLTF 
 
 ## Features
 
+- Portable Windows ZIP: download, extract, and run `start.bat` to start the application.
 - Load GLB and GLTF models with assembly hierarchy, part names, materials, and colours.
 - Convert STEP (`.step`, `.stp`), IGES (`.igs`, `.iges`), and STL (`.stl`) to GLB.
 - Inspect assemblies: select, hide, isolate, make transparent, move, rotate, and explode parts.
@@ -14,7 +15,16 @@ A browser-based, real-time collaborative viewer for CAD geometry. Load GLB/GLTF 
 
 ![Online CAD Collaborator assembly view](doc/manual-shots/17-hero.png)
 
-## Requirements
+## Quick start: portable Windows ZIP
+
+1. [Download the portable ZIP (v1.047)](https://github.com/lcchan0525sg/Online-CAD-Collaborator/releases/download/v1.047/cad-viewer-portable-v1.047.zip), or visit [Releases](https://github.com/lcchan0525sg/Online-CAD-Collaborator/releases) for available versions.
+2. Extract the ZIP to a folder on your computer.
+3. Open the extracted folder and double-click `start.bat` to start the application.
+4. Open [http://localhost:8088/](http://localhost:8088/) in your browser if it does not open automatically.
+
+The portable ZIP includes the runtime and dependencies, so you do not need to install Node.js or npm separately. Keep the application running while using it in your browser.
+
+## Requirements for running from source
 
 - Node.js 20 or newer
 - npm
