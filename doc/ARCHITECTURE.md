@@ -1,4 +1,4 @@
-# CAD Viewer — Module Architecture
+# Online CAD Collaborator — Module Architecture
 
 This document records how the viewer's client code is organised after the v0.81
 modularization. Previously all of it lived in a single `src/main.js`

@@ -1,10 +1,10 @@
-# CAD Viewer — User Manual
+# Online CAD Collaborator — User Manual
 
 **Version:** v1.03 · **URL:** http://localhost:8088/
 
 ## Table of Contents
 
-1. [Welcome — why CAD Viewer?](#1-welcome--why-cad-viewer)
+1. [Welcome — why Online CAD Collaborator?](#1-welcome--why-online-cad-collaborator)
 2. [Starting the app](#2-starting-the-app)
 3. [Opening a model](#3-opening-a-model)
 4. [The Assembly panel — parts and visibility](#4-the-assembly-panel--parts-and-visibility)
@@ -27,14 +27,14 @@
 
 ---
 
-## 1. Welcome — why CAD Viewer?
+## 1. Welcome — why Online CAD Collaborator?
 
 ::: hero
-![GearBox CAD assembly — an exploded view rendered in CAD Viewer](manual-shots/17-hero.png)
+![GearBox CAD assembly — an exploded view rendered in Online CAD Collaborator](manual-shots/17-hero.png)
 :::
 
 ::: callout
-**Turn a CAD file into a live, shared 3D scene.** CAD Viewer is a real-time
+**Turn a CAD file into a live, shared 3D scene.** Online CAD Collaborator is a real-time
 collaborative browser app for viewing CAD geometry. Anyone on your network can
 open the model with nothing more than a web browser — no CAD software, no
 licences, no installs. Everyone shares the same view, and everyone can interact
@@ -45,7 +45,7 @@ with it.
 
 Instead of emailing files back and forth, share a live model:
 
-| Instead of… | CAD Viewer lets you… |
+| Instead of… | Online CAD Collaborator lets you… |
 |---|---|
 | Export → email → wait → open → repeat | Share one **join link**; the model appears instantly |
 | Sending multi-MB CAD bundles | Convert to lightweight **GLB/GLTF** once and share a small file |
@@ -122,7 +122,7 @@ from a different location.
 
 **Portable zip (Windows, no installs):**
 
-1. Unzip `cad-viewer-portable.zip` anywhere.
+1. Unzip `online-cad-collaborator-portable.zip` anywhere.
 2. Double-click **`start.bat`**. It automatically selects bundled/local native
    OpenCascade/OCP 7.9.3 when available, then opens the browser.
 3. The app is served at **http://localhost:8088/**
@@ -744,7 +744,7 @@ Viewer**, there are two CAD Converter editions:
 | **CAD Converter2** | Desktop tool | Offline conversion and optimization from a native desktop application |
 
 Use either edition to prepare a lightweight GLB/GLTF first. The converted file
-can then be opened in CAD Viewer without running a CAD conversion during the
+can then be opened in Online CAD Collaborator without running a CAD conversion during the
 viewing session. For large models, the web-enabled CAD Converter offers a
 **Draco** option; compare the resulting file size because Draco is most helpful
 for dense geometry and is not smaller for every multi-part CAD assembly.
@@ -853,4 +853,4 @@ router or a machine that must stay on.
 
 ---
 
-*CAD Viewer v1.03 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*
+*Online CAD Collaborator v1.03 — collaborative CAD viewing for the LAN. · [Changelog](CHANGELOG.md)*

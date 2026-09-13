@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Build a self-contained HTML version of the CAD Viewer user manual.
+"""Build a self-contained HTML version of the Online CAD Collaborator user manual.
 
 Reads doc/USER-MANUAL.md, converts it to a styled HTML page, and embeds every
 referenced screenshot as a base64 data URI so the result opens standalone
@@ -259,7 +259,7 @@ def convert():
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CAD Viewer — User Manual</title>
+<title>Online CAD Collaborator — User Manual</title>
 <style>{STYLE}</style>
 </head>
 <body>

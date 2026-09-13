@@ -339,7 +339,7 @@ export function loadFromGltf(gltf) {
   } else if (typeof renderExplodeScope === 'function') {
     renderExplodeScope();
   }
-  document.getElementById('hud').querySelector('h1').textContent = 'CAD Viewer';
+  document.getElementById('hud').querySelector('h1').textContent = 'Online CAD Collaborator';
   window.dispatchEvent(new Event('viewer-model-loaded'));
 }
 

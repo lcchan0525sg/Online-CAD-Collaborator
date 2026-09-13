@@ -1,7 +1,30 @@
+# Dependencies and build outputs
 node_modules/
+dist/
+
+# Local development and generated files
+.hermes/
+*.log
+port.txt
+src/converters/__pycache__/
+__pycache__/
+*.py[cod]
+
+# Local CAD fixtures and temporary conversion output (never publish)
+cad-samples/*
+!cad-samples/abc-00000050.step
+!cad-samples/Asm1.igs
+!cad-samples/asm1.mtl
+!cad-samples/Asm1.obj
+!cad-samples/Asm1.stp
+!cad-samples/cube.obj
+!cad-samples/NestedAssembly.glb
+src/*.glb
+
+# External reviewed language packs are distributed separately
+languages/
+
+# One-off local test helpers and captures
 _*.png
 _*.js
 _*.cjs
-*.log
-dist/
-languages/

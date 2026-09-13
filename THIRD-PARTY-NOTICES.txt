@@ -1,6 +1,6 @@
 THIRD-PARTY NOTICES
 ===================
-CAD Viewer uses the following third-party components. All are free for
+Online CAD Collaborator uses the following third-party components. All are free for
 commercial use; the notes below explain the terms that apply.
 
 ---------------------------------------------------------------------------
@@ -77,7 +77,7 @@ installed via install-docker-opencascade.bat.
 ---------------------------------------------------------------------------
 Summary for end users
 ---------------------------------------------------------------------------
-- The CAD Viewer application itself is provided as-is.
+- The Online CAD Collaborator application itself is provided as-is.
 - No component in this distribution imposes source-code disclosure or a
   license fee on the user or on software built with it.
 - Full source of the LGPL components (OCCT, OCP bindings, the CAD converters

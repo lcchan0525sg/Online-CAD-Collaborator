@@ -10,7 +10,7 @@ if not defined CAD_PYTHON if exist "%~dp0python\python.exe" set "CAD_PYTHON=%~dp
 if not defined CAD_PYTHON if exist "%USERPROFILE%\venvs\cad-native\Scripts\python.exe" set "CAD_PYTHON=%USERPROFILE%\venvs\cad-native\Scripts\python.exe"
 if not defined CAD_BACKEND set "CAD_BACKEND=auto"
 
-echo Starting CAD Viewer on port %PORT% ...
+echo Starting Online CAD Collaborator on port %PORT% ...
 if defined CAD_PYTHON echo CAD backend: native-first (%CAD_PYTHON%)
 if not defined CAD_PYTHON echo CAD backend: auto (native if available, Docker fallback)
 start "" http://localhost:%PORT%/

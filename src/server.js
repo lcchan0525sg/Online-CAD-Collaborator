@@ -350,7 +350,7 @@ process.on('uncaughtException', (err) => {
 });
 
 httpServer.listen(PORT, () => {
-  console.log(`cad-viewer on http://localhost:${PORT}`);
+  console.log(`online-cad-collaborator on http://localhost:${PORT}`);
   console.log(`[cad] conversion backend: ${ACTIVE_BACKEND}`);
   console.log(`[cad] native Python: ${EFFECTIVE_NATIVE_PYTHON}`);
   if (!NATIVE_AVAILABLE && NATIVE_PROBE_ERROR) console.log(`[cad] native probe: ${NATIVE_PROBE_ERROR}`);

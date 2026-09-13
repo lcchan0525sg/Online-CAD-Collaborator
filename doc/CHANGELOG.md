@@ -1,4 +1,4 @@
-# CAD Viewer — Changelog & Technical Reference
+# Online CAD Collaborator — Changelog & Technical Reference
 
 This document serves two purposes:
 

@@ -1,4 +1,4 @@
-// Build a portable zip of the CAD viewer: bundled node.exe + slimmed node_modules
+// Build a portable zip of Online CAD Collaborator: bundled node.exe + slimmed node_modules
 // (only the three.js files the app imports) + server + client + STEP converter +
 // start.bat / start.sh + README + manual + licenses.
 //
@@ -7,7 +7,7 @@
 //   node build-portable.mjs v0.21           build that tag/commit via git worktree
 //   node build-portable.mjs v0.21 v0.2      ...and keep older zips (no dist wipe)
 //
-// Output: dist/cad-viewer-portable.zip, or dist/cad-viewer-portable-<version>.zip
+// Output: dist/online-cad-collaborator-portable.zip, or dist/online-cad-collaborator-portable-<version>.zip
 // when a version is given. A versioned build NEVER touches the working tree.
 import { mkdirSync, copyFileSync, writeFileSync, cpSync, rmSync, existsSync, readFileSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
@@ -17,7 +17,7 @@ import os from 'node:os';
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const DIST = join(ROOT, 'dist');
-const APP = join(DIST, 'cad-viewer-portable');
+const APP = join(DIST, 'online-cad-collaborator-portable');
 const NODE_EXE = process.env.NODE_EXE || 'C:\\Users\\chan_\\AppData\\Local\\hermes\\node\\node.exe';
 const DEFAULT_NATIVE_PYTHON = 'C:\\Users\\chan_\\venvs\\cad-native\\Scripts\\python.exe';
 const NATIVE_PYTHON = process.env.CAD_NATIVE_PYTHON
@@ -51,7 +51,7 @@ function resolveVersion() {
   if (versionArg) return versionArg.replace(/^v/i, '');   // normalize "V0.2" -> "0.2"
   try {
     const html = readFileSync(join(ROOT, 'src', 'index.html'), 'utf8');
-    const match = html.match(/<strong>CAD Viewer<\/strong>\s*v([0-9][^<\s-]*)/);
+    const match = html.match(/<strong>Online CAD Collaborator<\/strong>\s*v([0-9][^<\s-]*)/);
     if (match) return match[1];
   } catch {}
   try {
@@ -86,7 +86,7 @@ function buildFrom(src, version, zipName) {
   // Stamp the version into the About section of the copied index.html
   if (existsSync(join(APP, 'index.html'))) {
     const html = readFileSync(join(APP, 'index.html'), 'utf8')
-      .replace(/<strong>CAD Viewer<\/strong>\s*v[0-9][^<\s-]*/, `<strong>CAD Viewer</strong> v${version}`);
+      .replace(/<strong>Online CAD Collaborator<\/strong>\s*v[0-9][^<\s-]*/, `<strong>Online CAD Collaborator</strong> v${version}`);
     writeFileSync(join(APP, 'index.html'), html);
   }
   // CAD converter: native OpenCascade/OCP only.
@@ -196,7 +196,7 @@ function buildFrom(src, version, zipName) {
     'if exist "port.txt" set /p PORT=<port.txt',
     'if exist "python\\python.exe" set "CAD_PYTHON=%~dp0python\\python.exe"',
     '',
-    'echo Starting CAD Viewer on port %PORT% ...',
+    'echo Starting Online CAD Collaborator on port %PORT% ...',
     'if defined CAD_PYTHON echo CAD backend: native OpenCascade ^(%CAD_PYTHON%^)',
     'if not defined CAD_PYTHON echo ERROR: set CAD_PYTHON to a cadquery-ocp Python environment',
     'start "" http://localhost:%PORT%/',
@@ -213,7 +213,7 @@ function buildFrom(src, version, zipName) {
     '[ -f port.txt ] && PORT=$(head -1 port.txt)',
     '[ -f python/python.exe ] && CAD_PYTHON="$PWD/python/python.exe"',
     'export CAD_PYTHON',
-    'echo "Starting CAD Viewer on port $PORT ..."',
+    'echo "Starting Online CAD Collaborator on port $PORT ..."',
     '(xdg-open "http://localhost:$PORT/" >/dev/null 2>&1 || open "http://localhost:$PORT/" >/dev/null 2>&1) &',
     'exec env PORT="$PORT" node server.js',
     '',
@@ -221,7 +221,7 @@ function buildFrom(src, version, zipName) {
 
   // ---- README ----
   writeFileSync(join(APP, 'README.txt'), [
-    'CAD Viewer — portable edition',
+    'Online CAD Collaborator — portable edition',
     '==============================',
     `Version: v${version}`,
     '',
@@ -277,8 +277,8 @@ function buildFrom(src, version, zipName) {
 // ---- main ----
 const version = resolveVersion();
 const zipName = versionArg
-  ? `cad-viewer-portable-v${version}.zip`
-  : 'cad-viewer-portable.zip';
+  ? `online-cad-collaborator-portable-v${version}.zip`
+  : 'online-cad-collaborator-portable.zip';
 
 if (versionArg) {
   // ---- versioned build: hermetic git worktree, working tree untouched ----

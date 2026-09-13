@@ -1,12 +1,16 @@
 {
-  "name": "cad-viewer-web",
+  "name": "online-cad-collaborator",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Web viewer that loads real CAD geometry (GLB/GLTF from OpenCascade) with per-part materials",
+  "description": "Browser-based, real-time collaborative CAD viewer with OpenCascade conversion",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node src/server.js",
+    "check:syntax": "node tools/check-syntax.mjs",
     "validate-language": "node tools/validate-language.mjs",
     "check-layout": "node tools/check-layout.mjs"
   },

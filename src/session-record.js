@@ -395,7 +395,7 @@ export function buildReportHtml() {
 
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
-<title>CAD Viewer — Session report ${esc(code)}</title>
+<title>Online CAD Collaborator — Session report ${esc(code)}</title>
 <style>
   body { font-family: "Segoe UI", system-ui, sans-serif; margin: 32px auto; max-width: 900px; color: #1d2430; line-height: 1.5; }
   h1 { font-size: 22px; border-bottom: 2px solid #2f7dff; padding-bottom: 8px; }
@@ -413,7 +413,7 @@ export function buildReportHtml() {
   .meta td:first-child { font-weight: 600; width: 130px; background: #eef2f8; }
   @media print { body { margin: 10mm; } h2 { page-break-after: avoid; } figure { page-break-inside: avoid; } }
 </style></head><body>
-<h1>CAD Viewer — Session report</h1>
+<h1>Online CAD Collaborator — Session report</h1>
 <table class="meta">
   <tr><td>Session code</td><td>${esc(code)}</td></tr>
   <tr><td>Generated</td><td>${now.toLocaleString()}</td></tr>

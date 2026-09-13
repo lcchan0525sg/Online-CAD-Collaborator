@@ -222,7 +222,7 @@ ctx.chatFormEl?.addEventListener('submit', (e) => { e.preventDefault(); sendChat
 
 export function downloadChat() {
   if (!ctx.chatHistory.length) { xferToast(translate('ui.no.chat.messages.to.download')); return; }
-  const head = `CAD Viewer session chat transcript\nGenerated ${new Date().toLocaleString()}\n${'='.repeat(48)}\n\n`;
+  const head = `Online CAD Collaborator session chat transcript\nGenerated ${new Date().toLocaleString()}\n${'='.repeat(48)}\n\n`;
   const body = ctx.chatHistory
     .map((m) => (m.system ? `[system] ${m.text}` : `${fmtTime(m.ts)}  ${m.name}: ${m.text}`))
     .join('\n');
