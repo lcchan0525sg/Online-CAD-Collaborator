@@ -1,0 +1,2 @@
+# Preserve PDF bytes and display documents as binary files in Git diffs.
+*.pdf binary
